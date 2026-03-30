@@ -429,7 +429,7 @@
       return e("div",{style:{position:"relative",userSelect:"none"},
           onMouseMove:ev=>{const r=ev.currentTarget.getBoundingClientRect();const svgX=(ev.clientX-r.left)/r.width*W-PL;setHover(Math.max(0,Math.min(cw,svgX)));},
           onMouseLeave:()=>setHover(null)},
-        e("svg",{viewBox:`0 0 ${W} ${H}`,width:"100%",height:H,preserveAspectRatio:"xMidYMid meet",style:{display:"block"}},
+        e("svg",{viewBox:`0 0 ${W} ${H}`,style:{width:"100%",height:"auto",display:"block"}},
           e("defs",null,e("linearGradient",{id:"lcg",x1:"0",y1:"0",x2:"0",y2:"1"},
             e("stop",{offset:"0%",stopColor:color,stopOpacity:"0.18"}),e("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
           ...grids.map((g,i)=>e("line",{key:"g"+i,x1:PL,y1:g.y,x2:PL+cw,y2:g.y,stroke:gridColor,strokeWidth:"0.75",strokeDasharray:"4,4"})),
@@ -499,7 +499,7 @@
       return e("div",{style:{position:"relative",userSelect:"none"},
           onMouseMove:ev=>{const r=ev.currentTarget.getBoundingClientRect();const svgX=(ev.clientX-r.left)/r.width*W-PL;setHover(Math.max(0,Math.min(cw,svgX)));},
           onMouseLeave:()=>setHover(null)},
-        e("svg",{viewBox:`0 0 ${W} ${H}`,width:"100%",height:H,preserveAspectRatio:"xMidYMid meet",style:{display:"block"}},
+        e("svg",{viewBox:`0 0 ${W} ${H}`,style:{width:"100%",height:"auto",display:"block"}},
           ...grids.map((g,i)=>e("line",{key:"g"+i,x1:PL,y1:g.y,x2:PL+cw,y2:g.y,stroke:gridColor,strokeWidth:"0.75",strokeDasharray:"4,4"})),
           ...candles.map((cd,i)=>{
             const x=PL+(i/(candles.length-1||1))*cw;
@@ -537,7 +537,7 @@
       );
     }
 
-    function PortfolioChart({pts,timestamps,period,change,totalVal,hidden,spTickers,chartPeriod,setChartPeriod}){
+    function PortfolioChart({pts,timestamps,period,change,totalVal,hidden,loading,chartPeriod,setChartPeriod}){
       const [hoverIdx,setHoverIdx]=useState(null);
       const color=change>=0?C.up:C.dn;
       const PERIODS_PC=["1W","1M","YTD","1Y","ALL"];
@@ -588,7 +588,7 @@
               setHoverIdx(idx);
             },
             onMouseLeave:()=>setHoverIdx(null)},
-          e("svg",{viewBox:`0 0 ${W} ${H}`,width:"100%",height:H,preserveAspectRatio:"none",style:{display:"block"}},
+          e("svg",{viewBox:`0 0 ${W} ${H}`,style:{width:"100%",height:"auto",display:"block"}},
             e("defs",null,e("linearGradient",{id:"pcg",x1:"0",y1:"0",x2:"0",y2:"1"},
               e("stop",{offset:"0%",stopColor:color,stopOpacity:"0.12"}),
               e("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
@@ -634,10 +634,10 @@
         // Chart
         pts&&pts.length>=2
           ?chartContent
-          :e("div",{style:{height:320,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}},
-              spTickers.length>0
-                ?e(F,null,e("div",{style:{width:"13px",height:"13px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),e("span",{style:{fontSize:"11px",color:C.muted}},"Building chart…"))
-                :e("span",{style:{fontSize:"11px",color:C.muted}},"Refresh Prices to load chart")),
+          :e("div",{style:{height:260,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}},
+              loading
+                ?e(F,null,e("div",{style:{width:"13px",height:"13px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),e("span",{style:{fontSize:"11px",color:C.muted}},"Loading portfolio chart…"))
+                :e("span",{style:{fontSize:"11px",color:C.muted}},"No chart data — check your Finnhub key")),
         // Period pills at bottom
         e("div",{style:{display:"flex",justifyContent:"center",gap:"4px",padding:"0.75rem 1rem"}},
           PERIODS_PC.map(p=>e("button",{key:p,onClick:()=>setChartPeriod(p),
@@ -830,6 +830,8 @@
       const [portfolioModal,setPortfolioModal]=useState(null);
       const [holdingSparklines,setHoldingSparklines]=useState({});
       const [portfolioChartPeriod,setPortfolioChartPeriod]=useState("1M");
+      const [portfolioChartData,setPortfolioChartData]=useState(null); // {pts,ts}
+      const [portfolioChartLoading,setPortfolioChartLoading]=useState(false);
       const [strategyNotes,setStrategyNotes]=useState("");
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
@@ -841,10 +843,16 @@
       useEffect(()=>{
         (async()=>{
           try {
-            const s=await storage.get("ft-v3"); setHoldings((s?JSON.parse(s.value):INITIAL_HOLDINGS).map(migrateLegacyHolding));
-            const k=await storage.get("ft-apikey"); if(k?.value)setApiKey(k.value);
-            const fk=await storage.get("ft-finnhub"); if(fk?.value)setFinnhubKey(fk.value);
-            const n=await storage.get("ft-notes"); if(n?.value)setStrategyNotes(n.value);
+            const [s,k,fk,n]=await Promise.all([
+              storage.get("ft-v3"),
+              storage.get("ft-apikey"),
+              storage.get("ft-finnhub"),
+              storage.get("ft-notes"),
+            ]);
+            setHoldings((s?JSON.parse(s.value):INITIAL_HOLDINGS).map(migrateLegacyHolding));
+            if(k?.value)setApiKey(k.value);
+            if(fk?.value)setFinnhubKey(fk.value);
+            if(n?.value)setStrategyNotes(n.value);
           } catch { setHoldings(INITIAL_HOLDINGS); }
         })();
       },[]);
@@ -854,9 +862,10 @@
         storage.set("ft-v3",JSON.stringify(holdings)).catch(()=>{});
       },[holdings]);
 
-      // When finnhubKey arrives (loaded from storage), retry market data if we had a nokey error
+      // When finnhubKey arrives (loaded from storage), retry market data if it failed without a key
       useEffect(()=>{
-        if(finnhubKey&&marketData?.error==="nokey") fetchMarketData();
+        if(!finnhubKey)return;
+        if(marketData?.error==="nokey") fetchMarketData();
       },[finnhubKey]);
 
       useEffect(()=>{
@@ -880,12 +889,17 @@
       },[priceFetchTrigger]);
 
       useEffect(()=>{
-        if(tab==="portfolio"&&holdings&&!holdingSparklinesRef.current){
+        if(tab==="portfolio"&&holdings){
           fetchHoldingSparklines();
+          fetchPortfolioSeries(portfolioChartPeriod);
         }
         if(tab==="news"){fetchMarketData();if(holdings)fetchNews();}
         if(tab==="prediction"){fetchKalshi();}
-      },[tab,holdings]);
+      },[tab,holdings,finnhubKey]);
+
+      useEffect(()=>{
+        if(tab==="portfolio"&&holdings) fetchPortfolioSeries(portfolioChartPeriod);
+      },[portfolioChartPeriod]);
 
 
 
@@ -917,9 +931,29 @@
       const totalCost =resolvedHoldings.reduce((s,h)=>s+h.qty*h.avgCost,0);
       const totalGL   =totalVal-totalCost;
       const totalGLPct=totalCost?totalGL/totalCost*100:0;
-      const ytdGL     =resolvedHoldings.reduce((s,h)=>s+h.qty*(h.currentPrice-(h.ytdStartPrice??h.currentPrice)),0);
-      const ytdBase   =resolvedHoldings.reduce((s,h)=>s+h.qty*(h.ytdStartPrice??h.currentPrice),0);
-      const ytdPct    =ytdBase?ytdGL/ytdBase*100:0;
+      // YTD: for lot-tracked holdings, use lot purchase date to decide the YTD baseline.
+      // Lots bought before Jan 1 → use ytdStartPrice. Lots bought during the year → use lot price.
+      const jan1Ms=new Date(new Date().getFullYear(),0,1).getTime();
+      const {ytdGL,ytdBase}=(holdings||[]).reduce((acc,rawH)=>{
+        if(rawH.ticker==="Cash")return acc;
+        const h=resolvedHoldings.find(x=>x.id===rawH.id);
+        if(!h)return acc;
+        const price=h.currentPrice;
+        if(!rawH.lots?.length){
+          const sp=rawH.ytdStartPrice??price;
+          return {ytdGL:acc.ytdGL+h.qty*(price-sp), ytdBase:acc.ytdBase+h.qty*sp};
+        }
+        // FIFO remaining lots
+        const {active}=computeFromLots(rawH.lots,price);
+        let gl=0,base=0;
+        for(const lot of active){
+          const sp=new Date(lot.date).getTime()<jan1Ms?(rawH.ytdStartPrice??lot.price):lot.price;
+          gl+=lot.rem*(price-sp);
+          base+=lot.rem*sp;
+        }
+        return {ytdGL:acc.ytdGL+gl, ytdBase:acc.ytdBase+base};
+      },{ytdGL:0,ytdBase:0});
+      const ytdPct=ytdBase?ytdGL/ytdBase*100:0;
       const breaches  =resolvedHoldings.filter(h=>h.ticker!=="Cash"&&h.currentPrice<=(h.customExit??h.avgCost*DEFAULT_EXIT_PCT)).length;
 
       const addRow=()=>{
@@ -1065,12 +1099,14 @@
         setKalshiLoading(false);
       };
 
-      // ── HOLDING SPARKLINES: Finnhub first, Stooq fallback ──
+      // ── HOLDING SPARKLINES: only fetch tickers not yet loaded, so new additions auto-load ──
       const fetchHoldingSparklines=async()=>{
         if(holdingSparklinesRef.current||!holdings)return;
+        const allTickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
+        const missing=allTickers.filter(t=>!holdingSparklines[t]);
+        if(!missing.length)return;
         holdingSparklinesRef.current=true;
-        const tickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
-        await Promise.allSettled(tickers.map(async t=>{
+        await Promise.allSettled(missing.map(async t=>{
           try {
             let candles=null;
             if(finnhubKey) try{candles=await fhCandles(t,"1M",finnhubKey);}catch{}
@@ -1086,6 +1122,33 @@
             setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct}}));
           } catch {}
         }));
+        holdingSparklinesRef.current=false; // reset so next addition triggers fetch
+      };
+
+      // ── PORTFOLIO VALUE CHART: fetch historical prices for all holdings, sum qty×price ──
+      const fetchPortfolioSeries=async(period)=>{
+        const nonCash=resolvedHoldings.filter(h=>h.ticker!=="Cash");
+        if(!nonCash.length)return;
+        setPortfolioChartLoading(true);
+        const results=await Promise.allSettled(nonCash.map(async h=>{
+          let candles=null;
+          if(finnhubKey) try{candles=await fhCandles(h.ticker,period,finnhubKey);}catch{}
+          if(!candles?.length) try{candles=await yfCandles(h.ticker,period);}catch{}
+          if(!candles?.length) try{candles=await stooqCandles(h.ticker.toLowerCase()+".us",period);}catch{}
+          return {h,candles:candles||[]};
+        }));
+        const valid=results.filter(r=>r.status==="fulfilled"&&r.value.candles.length>=2).map(r=>r.value);
+        if(!valid.length){setPortfolioChartLoading(false);return;}
+        const minLen=Math.min(...valid.map(v=>v.candles.length));
+        const cash=resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0;
+        const pts=Array.from({length:minLen},(_,i)=>{
+          let val=cash;
+          for(const {h,candles} of valid) val+=h.qty*candles[candles.length-minLen+i].c;
+          return val;
+        });
+        const ts=valid[0].candles.slice(-minLen).map(c=>c.ts);
+        setPortfolioChartData({pts,ts});
+        setPortfolioChartLoading(false);
       };
 
       // ── AI ANALYSIS: Anthropic API (API key required) ──
@@ -1124,67 +1187,12 @@
       });
       const sectorList=Object.entries(sectorAlloc).sort((a,b)=>b[1]-a[1]).map(([s,v])=>({s,v,pct:totalVal?v/totalVal*100:0}));
 
-      // ── Portfolio value series from sparklines ──
-      const spTickers=Object.keys(holdingSparklines);
-      const portfolioSeries=(()=>{
-        if(spTickers.length===0)return null;
-        const len=Math.min(...spTickers.map(t=>holdingSparklines[t].pts.length));
-        if(len<2)return null;
-        const series=[];
-        for(let i=0;i<len;i++){
-          let val=(holdings.find(h=>h.ticker==="Cash")?.qty||0); // cash stays flat
-          for(const t of spTickers){
-            const h=resolvedHoldings.find(x=>x.ticker===t);
-            if(h) val+=h.qty*holdingSparklines[t].pts[i];
-          }
-          series.push(val);
-        }
-        return series;
-      })();
-      // Base timestamps from the first available sparkline (all tickers share the same trading days)
-      const baseTs=(()=>{
-        const t=spTickers[0]; if(!t)return null;
-        return holdingSparklines[t]?.timestamps||null;
-      })();
-      // Portfolio data is daily closes — "1D" would give 2 points (straight line), not useful
-      // Periods: 1W=last 5 days, 1M=all ~22 days, YTD=ytd anchor+series, ALL=cost anchor+series
-      const portfolioDisplaySeries=(()=>{
-        if(!portfolioSeries)return null;
-        if(portfolioChartPeriod==="1W")return portfolioSeries.slice(-5);
-        if(portfolioChartPeriod==="YTD"){
-          const ytdStart=(holdings||[]).reduce((s,h)=>s+h.qty*(h.ytdStartPrice||h.currentPrice),0);
-          return [ytdStart,...portfolioSeries];
-        }
-        if(portfolioChartPeriod==="ALL"){
-          const costStart=(holdings||[]).reduce((s,h)=>s+h.qty*h.avgCost,0);
-          return [costStart,...portfolioSeries];
-        }
-        return portfolioSeries; // 1M default
-      })();
-      const portfolioDisplayTs=(()=>{
-        const synth=(startMs,n)=>Array.from({length:n},(_,i)=>startMs+(Date.now()-startMs)*i/(n-1));
-        if(portfolioChartPeriod==="1W")return baseTs?baseTs.slice(-5):null;
-        if(portfolioChartPeriod==="YTD"){
-          const jan1=new Date(new Date().getFullYear(),0,2).getTime();
-          const n=(portfolioDisplaySeries||[]).length;
-          return synth(jan1,n);
-        }
-        if(portfolioChartPeriod==="1Y"){
-          const start=new Date(); start.setFullYear(start.getFullYear()-1);
-          const n=(portfolioDisplaySeries||[]).length;
-          return synth(start.getTime(),n);
-        }
-        if(portfolioChartPeriod==="ALL"){
-          const start=new Date(); start.setFullYear(start.getFullYear()-3);
-          const n=(portfolioDisplaySeries||[]).length;
-          return synth(start.getTime(),n);
-        }
-        return baseTs; // 1M
-      })();
-      // Portfolio chart always uses daily data — always format as dates, never times
-      const portfolioChartDatePeriod=portfolioChartPeriod==="1W"||portfolioChartPeriod==="1M"?"1M":"6M";
-      const portfolioStartVal=portfolioDisplaySeries?.[0]||0;
-      const portfolioEndVal=portfolioDisplaySeries?.[portfolioDisplaySeries.length-1]||totalVal;
+      // ── Portfolio chart: from fetched historical prices ──
+      const spTickers=Object.keys(holdingSparklines); // used for sparkline strip only
+      const portfolioPts=portfolioChartData?.pts||null;
+      const portfolioTs=portfolioChartData?.ts||null;
+      const portfolioStartVal=portfolioPts?.[0]||0;
+      const portfolioEndVal=portfolioPts?.[portfolioPts.length-1]||totalVal;
       const portfolioChange=portfolioStartVal?((portfolioEndVal-portfolioStartVal)/portfolioStartVal*100):0;
 
       const tableRows=resolvedHoldings.map(h=>{
@@ -1205,14 +1213,9 @@
             nearExit&&e("span",{style:{background:C.warn,color:"#fff",padding:"2px 6px",borderRadius:"4px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0}},"⚠ NEAR EXIT"),
             e("span",{
               onClick:()=>{ if(h.ticker!=="Cash") setLotsModal({holding:rawH}); },
-              title:h.ticker!=="Cash"?"Click to manage lots":undefined,
+              title:h.ticker!=="Cash"?"Manage lots":undefined,
               style:{background:breach?C.dnBg:C.accentBg,color:breach?C.dn:C.accent,padding:"2px 8px",borderRadius:"5px",fontWeight:"600",fontSize:"11.5px",letterSpacing:"0.03em",border:`1px solid ${breach?C.dnBorder:C.accentMuted}`,cursor:h.ticker!=="Cash"?"pointer":"default"}
-            },h.ticker),
-            h.ticker!=="Cash"&&rawH.lots?.length>0&&e("span",{
-              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1M",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1M");},
-              title:"View chart",
-              style:{fontSize:"10px",color:C.muted,cursor:"pointer",padding:"1px 5px",borderRadius:"4px",border:`1px solid ${C.border}`,background:C.surface}
-            },"📈")
+            },h.ticker)
           )),
           e(TD,{right:true},hasMultiLots
             ?e("div",{style:{fontSize:"12px",color:C.text,fontVariantNumeric:"tabular-nums",cursor:"default",borderBottom:`1px dashed ${C.faint}`},title:"Computed from lots"},"$"+$n(h.avgCost))
@@ -1221,8 +1224,14 @@
             ?e("div",{style:{fontSize:"12px",color:C.text,fontVariantNumeric:"tabular-nums"}},$n(h.qty,4))
             :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
           e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
-            h.ticker!=="Cash"&&holdingSparklines[h.ticker]?.pts?.length>=2&&
-              e(MiniSpark,{pts:holdingSparklines[h.ticker].pts,color:holdingSparklines[h.ticker].dailyPct>=0?C.up:C.dn,gid:"ps"+h.ticker}),
+            h.ticker!=="Cash"&&e("div",{
+              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1M",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1M");},
+              title:"View chart",style:{cursor:"pointer"}
+            },
+              holdingSparklines[h.ticker]?.pts?.length>=2
+                ?e(MiniSpark,{pts:holdingSparklines[h.ticker].pts,color:holdingSparklines[h.ticker].dailyPct>=0?C.up:C.dn,gid:"ps"+h.ticker})
+                :e("div",{style:{width:"50px",height:"24px",display:"flex",alignItems:"center",justifyContent:"center",color:C.faint,fontSize:"9px",border:`1px dashed ${C.faint}`,borderRadius:"3px",letterSpacing:"0.03em"}},"chart")
+            ),
             e("div",{style:{textAlign:"right"}},
               e(EditCell,{value:h.currentPrice,onSave:v=>upd(h.id,"currentPrice",v),hidden}),
               h.ticker!=="Cash"&&holdingSparklines[h.ticker]?.dailyPct!=null&&!hidden&&e("div",{style:{fontSize:"10px",color:holdingSparklines[h.ticker].dailyPct>=0?C.up:C.dn,fontWeight:"500",marginTop:"1px"}},
@@ -1460,10 +1469,11 @@
 
           // ── Portfolio Performance Chart ──
           tab==="portfolio"&&e(PortfolioChart,{
-            pts:portfolioDisplaySeries,timestamps:portfolioDisplayTs,
-            period:portfolioChartDatePeriod,change:portfolioChange,
-            totalVal,hidden,spTickers,
-            chartPeriod:portfolioChartPeriod,setChartPeriod:setPortfolioChartPeriod
+            pts:portfolioPts,timestamps:portfolioTs,
+            period:portfolioChartPeriod,change:portfolioChange,
+            totalVal,hidden,loading:portfolioChartLoading,
+            chartPeriod:portfolioChartPeriod,
+            setChartPeriod:(p)=>{setPortfolioChartPeriod(p);}
           }),
 
 
