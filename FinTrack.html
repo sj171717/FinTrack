@@ -27,7 +27,6 @@
     const F = React.Fragment;
 
     // ── Network helpers ──
-    const FH_BASE = "https://finnhub.io/api/v1";
     const GN_MKT_URL = "https://news.google.com/rss/search?q=stock+market+wall+street+S%26P500&hl=en-US&gl=US&ceid=US:en";
     const CORS_PROXIES = [
       u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
@@ -44,24 +43,21 @@
       });
       return Promise.any(CORS_PROXIES.map(mk => attempt(mk)));
     }
-    // Finnhub direct — used for live quotes (free plan works with ETF/stock symbols)
-    async function fhGet(path, params, token) {
-      const q = new URLSearchParams({...params, token});
-      const r = await fetch(`${FH_BASE}${path}?${q}`, {headers:{accept:"application/json"}});
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
-    }
-    // ── Finnhub candles — daily/weekly OHLCV for US stocks/ETFs ──
-    async function fhCandles(sym, period, token) {
-      const resMap={"1D":"5","5D":"15","1M":"D","6M":"D","YTD":"D","1Y":"D","2Y":"W","5Y":"W","MAX":"M"};
-      const daysMap={"1D":3,"5D":8,"1M":35,"6M":185,"YTD":370,"1Y":370,"2Y":750,"5Y":1850,"MAX":3650};
-      const res=resMap[period]||"D";
-      const days=daysMap[period]||35;
-      const to=Math.floor(Date.now()/1000);
-      const from=to-days*86400;
-      const d=await fhGet("/stock/candle",{symbol:sym,resolution:res,from,to},token);
-      if(d.s!=="ok"||!d.c?.length) throw new Error("no data");
-      return d.t.map((ts,i)=>({o:d.o[i],h:d.h[i],l:d.l[i],c:d.c[i],v:d.v?.[i]||0,ts:ts*1000}));
+    // ── Yahoo Finance live quotes — no API key needed ──
+    async function yfQuote(symbols) {
+      const url=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
+      let txt;
+      try {
+        const r=await fetch(url,{headers:{accept:"application/json"}});
+        if(!r.ok) throw new Error(r.status);
+        txt=await r.text();
+      } catch { txt=await fetchViaProxy(url,12000); }
+      const data=JSON.parse(txt);
+      const out={};
+      for(const r of data?.quoteResponse?.result||[]){
+        out[r.symbol]={price:r.regularMarketPrice||0,change:r.regularMarketChange||0,changePct:r.regularMarketChangePercent||0};
+      }
+      return out;
     }
     // ── Stooq CSV — free historical OHLCV, no API key, fetched via proxy ──
     async function stooqCandles(stooqSym, period) {
@@ -152,25 +148,23 @@
       return [];
     }
 
-    // ── Market symbols ──
-    // fh  = Finnhub ETF proxy symbol (works on free plan for /quote)
-    // stooq = Stooq symbol for historical chart data (fetched via proxy, no key)
+    // ── Market symbols — Yahoo Finance symbols, no API key needed ──
     const INDICES = [
-      { name:"S&P 500",    symbol:"SPX", fh:"SPY",  stooq:"spy.us"  },
-      { name:"NASDAQ 100", symbol:"NDX", fh:"QQQ",  stooq:"qqq.us"  },
-      { name:"Dow Jones",  symbol:"DJI", fh:"DIA",  stooq:"dia.us"  },
-      { name:"FTSE 100",   symbol:"UKX", fh:"EWU",  stooq:"ewu.us"  },
-      { name:"Nikkei 225", symbol:"NKY", fh:"EWJ",  stooq:"ewj.us"  },
-      { name:"Hang Seng",  symbol:"HSI", fh:"EWH",  stooq:"ewh.us"  },
+      { name:"S&P 500",    symbol:"SPX", yf:"^GSPC", stooq:"^spx" },
+      { name:"NASDAQ 100", symbol:"NDX", yf:"^NDX",  stooq:"^ndx" },
+      { name:"Dow Jones",  symbol:"DJI", yf:"^DJI",  stooq:"^dji" },
+      { name:"FTSE 100",   symbol:"UKX", yf:"^FTSE", stooq:"^ftx" },
+      { name:"Nikkei 225", symbol:"NKY", yf:"^N225", stooq:"^nkx" },
+      { name:"Hang Seng",  symbol:"HSI", yf:"^HSI",  stooq:"^hsi" },
     ];
     const CURRENCIES = [
-      { name:"EUR/USD", fh:"FXE",  stooq:"fxe.us" },
-      { name:"GBP/USD", fh:"FXB",  stooq:"fxb.us" },
-      { name:"USD/JPY", fh:"FXY",  stooq:"fxy.us" },
+      { name:"EUR/USD", yf:"EURUSD=X", stooq:"eurusd" },
+      { name:"GBP/USD", yf:"GBPUSD=X", stooq:"gbpusd" },
+      { name:"USD/JPY", yf:"USDJPY=X", stooq:"usdjpy" },
     ];
     const MACRO_DEF = [
-      { name:"Gold (XAU/USD)",  symbol:"XAU", fh:"GLD", stooq:"gld.us", unit:"USD/oz"     },
-      { name:"Crude Oil (WTI)", symbol:"WTI", fh:"USO", stooq:"uso.us", unit:"USD/barrel" },
+      { name:"Gold (XAU/USD)",  symbol:"XAU", yf:"GC=F",  stooq:"xauusd", unit:"USD/oz"     },
+      { name:"Crude Oil (WTI)", symbol:"WTI", yf:"CL=F",  stooq:"clusd",  unit:"USD/barrel" },
     ];
 
     const DEFAULT_EXIT_PCT = 0.85;
@@ -595,14 +589,14 @@
             e("path",{d:areaPath,fill:"url(#pcg)"}),
             e("path",{d:linePath,fill:"none",stroke:color,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"}),
             // Y axis labels (3: min, mid, max)
-            ...yLbls.map((l,i)=>e("text",{key:"y"+i,x:W-PR+6,y:Math.max(PT+8,Math.min(PT+ch-2,l.y+4)),fontSize:"10",fill:axisColor,fontFamily:"monospace"},
+            ...yLbls.map((l,i)=>e("text",{key:"y"+i,x:W-PR+6,y:Math.max(PT+8,Math.min(PT+ch-2,l.y+4)),fontSize:"9",fill:axisColor,fontFamily:"inherit"},
               "$"+l.v.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0}))),
             // Subtle horizontal grid lines
             ...yLbls.map((l,i)=>e("line",{key:"g"+i,x1:PL,y1:l.y,x2:W-PR,y2:l.y,stroke:axisColor,strokeOpacity:"0.15",strokeWidth:"1",strokeDasharray:"3 3"})),
             // X axis baseline
             e("line",{x1:PL,y1:PT+ch,x2:W-PR,y2:PT+ch,stroke:axisColor,strokeOpacity:"0.25",strokeWidth:"1"}),
             // X axis labels
-            ...xLbls.map((l,i)=>e("text",{key:"x"+i,x:l.x,y:H-6,fontSize:"10",fill:axisColor,fontFamily:"monospace",textAnchor:i===0?"start":i===xLblCount-1?"end":"middle"},l.label)),
+            ...xLbls.map((l,i)=>e("text",{key:"x"+i,x:l.x,y:H-6,fontSize:"9",fill:axisColor,fontFamily:"inherit",textAnchor:i===0?"start":i===xLblCount-1?"end":"middle"},l.label)),
             // Endpoint dot when not hovering
             hoverIdx==null&&e(F,null,
               e("circle",{cx:coords[coords.length-1].x,cy:coords[coords.length-1].y,r:"5",fill:C.surface,stroke:color,strokeWidth:"2"}),
@@ -637,7 +631,7 @@
           :e("div",{style:{height:260,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}},
               loading
                 ?e(F,null,e("div",{style:{width:"13px",height:"13px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),e("span",{style:{fontSize:"11px",color:C.muted}},"Loading portfolio chart…"))
-                :e("span",{style:{fontSize:"11px",color:C.muted}},"No chart data — check your Finnhub key")),
+                :e("span",{style:{fontSize:"11px",color:C.muted}},"No chart data — check your internet connection")),
         // Period pills at bottom
         e("div",{style:{display:"flex",justifyContent:"center",gap:"4px",padding:"0.75rem 1rem"}},
           PERIODS_PC.map(p=>e("button",{key:p,onClick:()=>setChartPeriod(p),
@@ -814,18 +808,10 @@
       const [priceUpdatedAt,setPriceUpdatedAt]=useState(null);
       const [marketData,setMarketData]=useState(null);
       const [marketLoading,setMarketLoading]=useState(false);
-      const [selectedChart,setSelectedChart]=useState({name:"S&P 500",stooq:"spy.us",isCommodity:false});
       const [apiKey,setApiKey]=useState("");
       const [showKeyModal,setShowKeyModal]=useState(false);
       const [keyInput,setKeyInput]=useState("");
-      const [finnhubKey,setFinnhubKey]=useState("");
-      const [showFhModal,setShowFhModal]=useState(false);
-      const [fhKeyInput,setFhKeyInput]=useState("");
-      const [selectedPeriod,setSelectedPeriod]=useState("1M");
-      const [chartSeries,setChartSeries]=useState(null);
-      const [chartTimestamps,setChartTimestamps]=useState(null);
-      const [chartOHLC,setChartOHLC]=useState(null);
-      const [chartLoading,setChartLoading]=useState(false);
+
       const [chartType,setChartType]=useState("line");
       const [portfolioModal,setPortfolioModal]=useState(null);
       const [holdingSparklines,setHoldingSparklines]=useState({});
@@ -843,15 +829,13 @@
       useEffect(()=>{
         (async()=>{
           try {
-            const [s,k,fk,n]=await Promise.all([
+            const [s,k,n]=await Promise.all([
               storage.get("ft-v3"),
               storage.get("ft-apikey"),
-              storage.get("ft-finnhub"),
               storage.get("ft-notes"),
             ]);
             setHoldings((s?JSON.parse(s.value):INITIAL_HOLDINGS).map(migrateLegacyHolding));
             if(k?.value)setApiKey(k.value);
-            if(fk?.value)setFinnhubKey(fk.value);
             if(n?.value)setStrategyNotes(n.value);
           } catch { setHoldings(INITIAL_HOLDINGS); }
         })();
@@ -862,16 +846,7 @@
         storage.set("ft-v3",JSON.stringify(holdings)).catch(()=>{});
       },[holdings]);
 
-      // When finnhubKey arrives (loaded from storage), retry market data if it failed without a key
-      useEffect(()=>{
-        if(!finnhubKey)return;
-        if(marketData?.error==="nokey") fetchMarketData();
-      },[finnhubKey]);
 
-      useEffect(()=>{
-        if(tab!=="news"||!marketData||marketData.error)return;
-        fetchChartData(selectedChart.stooq,selectedPeriod);
-      },[selectedChart.stooq,selectedPeriod,marketData?.error,!!marketData,tab]);
 
       useEffect(()=>{
         if(!priceFetchTrigger)return;
@@ -880,9 +855,7 @@
         setAddPriceLoading(true);
         (async()=>{
           let price=null;
-          try{
-            if(finnhubKey){const d=await fhGet("/quote",{symbol:ticker},finnhubKey);price=d.c||null;}
-          }catch{}
+          try{const q=await yfQuote([ticker]);price=q[ticker]?.price||null;}catch{}
           if(price!=null) setHoldings(p=>p.map(h=>h.id===id?{...h,currentPrice:price,ytdStartPrice:h.ytdStartPrice||price}:h));
           setAddPriceLoading(false);
         })();
@@ -895,7 +868,7 @@
         }
         if(tab==="news"){fetchMarketData();if(holdings)fetchNews();}
         if(tab==="prediction"){fetchKalshi();}
-      },[tab,holdings,finnhubKey]);
+      },[tab,holdings]);
 
       useEffect(()=>{
         if(tab==="portfolio"&&holdings) fetchPortfolioSeries(portfolioChartPeriod);
@@ -971,66 +944,42 @@
         setShowAdd(false);
       };
 
-      // ── PRICES: Finnhub (API key required) ──
+      // ── PRICES: Yahoo Finance (no API key needed) ──
       const fetchPrices=async()=>{
-        if(priceLoading||!holdings||!finnhubKey)return;
+        if(priceLoading||!holdings)return;
         setPriceLoading(true);
         const tickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
-        const prices={};
-        const results=await Promise.allSettled(tickers.map(t=>fhGet("/quote",{symbol:t},finnhubKey).then(d=>({ticker:t,price:d.c||0}))));
-        results.forEach(r=>{ if(r.status==="fulfilled"&&r.value.price) prices[r.value.ticker]=r.value.price; });
-        if(Object.keys(prices).length>0){
-          setHoldings(prev=>prev.map(h=>{ const u=prices[h.ticker]; return u!=null?{...h,currentPrice:u}:h; }));
+        try{
+          const quotes=await yfQuote(tickers);
+          setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price?{...h,currentPrice:q.price}:h; }));
           setPriceUpdatedAt(new Date());
-        }
+        }catch{}
         setPriceLoading(false);
       };
 
-      // ── MARKET DATA via Finnhub (ETF proxies for indices, no index/forex restrictions) ──
+      // ── MARKET DATA via Yahoo Finance (no API key needed) ──
       const fetchMarketData=async(force=false)=>{
         if(marketLoading)return;
         if(marketData&&!marketData.error&&!force)return;
-        if(!finnhubKey){setMarketData({error:"nokey"});return;}
         setMarketLoading(true);
-        const allSymbols=[
-          ...INDICES.map(i=>({fh:i.fh,stooq:i.stooq,type:"index",meta:i})),
-          ...CURRENCIES.map(c=>({fh:c.fh,stooq:c.stooq,type:"currency",meta:c})),
-          ...MACRO_DEF.map(m=>({fh:m.fh,stooq:m.stooq,type:"macro",meta:m})),
-        ];
-        const results=await Promise.allSettled(allSymbols.map(s=>fhGet("/quote",{symbol:s.fh},finnhubKey).then(d=>({...s,d}))));
-        const byFh={};
-        results.forEach(r=>{ if(r.status==="fulfilled"&&r.value.d?.c) byFh[r.value.fh]={value:r.value.d.c,change:r.value.d.d||0,changePct:r.value.d.dp||0}; });
-        const indices=INDICES.map(i=>{const d=byFh[i.fh]||{};return{name:i.name,symbol:i.symbol,fh:i.fh,stooq:i.stooq,value:d.value||0,change:d.change||0,changePct:d.changePct||0};});
-        const currencies=CURRENCIES.map(c=>{const d=byFh[c.fh]||{};return{name:c.name,fh:c.fh,stooq:c.stooq,value:d.value||0,changePct:d.changePct||0};});
-        const macro=MACRO_DEF.map(m=>{const d=byFh[m.fh]||{};return{name:m.name,symbol:m.symbol,fh:m.fh,stooq:m.stooq,unit:m.unit,value:d.value||0,changePct:d.changePct||0};});
-        const got=Object.keys(byFh).length>0;
-        setMarketData(got?{indices,currencies,macro}:{error:true});
+        try{
+          const syms=[...INDICES.map(i=>i.yf),...CURRENCIES.map(c=>c.yf),...MACRO_DEF.map(m=>m.yf)];
+          const q=await yfQuote(syms);
+          const indices=INDICES.map(i=>{const d=q[i.yf]||{};return{...i,value:d.price||0,change:d.change||0,changePct:d.changePct||0};});
+          const currencies=CURRENCIES.map(c=>{const d=q[c.yf]||{};return{...c,value:d.price||0,changePct:d.changePct||0};});
+          const macro=MACRO_DEF.map(m=>{const d=q[m.yf]||{};return{...m,value:d.price||0,changePct:d.changePct||0};});
+          setMarketData(Object.keys(q).length>0?{indices,currencies,macro}:{error:true});
+        }catch{setMarketData({error:true});}
         setMarketLoading(false);
       };
 
-      // ── CHART DATA: Finnhub → Yahoo Finance → Stooq ──
-      const fetchChartData=async(stooqSym,period)=>{
-        setChartLoading(true); setChartSeries(null); setChartTimestamps(null); setChartOHLC(null);
-        try {
-          let candles=null;
-          const fhSym=INDICES.find(i=>i.stooq===stooqSym)?.fh||CURRENCIES.find(c=>c.stooq===stooqSym)?.fh||MACRO_DEF.find(m=>m.stooq===stooqSym)?.fh;
-          if(finnhubKey&&fhSym) try{candles=await fhCandles(fhSym,period,finnhubKey);}catch{}
-          if(!candles?.length&&fhSym) try{candles=await yfCandles(fhSym,period);}catch{}
-          if(!candles?.length) try{candles=await stooqCandles(stooqSym,period);}catch{}
-          if(!candles?.length)throw new Error("no data");
-          setChartSeries(candles.map(x=>x.c));
-          setChartTimestamps(candles.map(x=>x.ts));
-          setChartOHLC(candles);
-        } catch { setChartSeries([]); setChartTimestamps([]); setChartOHLC([]); }
-        setChartLoading(false);
-      };
 
-      // ── PORTFOLIO CHART: Finnhub → Yahoo Finance → Stooq ──
+
+      // ── PORTFOLIO CHART: Yahoo Finance → Stooq ──
       const fetchPortfolioChart=async(ticker,period)=>{
         try {
           let candles=null;
-          if(finnhubKey) try{candles=await fhCandles(ticker,period,finnhubKey);}catch{}
-          if(!candles?.length) try{candles=await yfCandles(ticker,period);}catch{}
+          try{candles=await yfCandles(ticker,period);}catch{}
           if(!candles?.length) candles=await stooqCandles(ticker.toLowerCase()+".us",period);
           setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:candles.map(x=>x.c),timestamps:candles.map(x=>x.ts),ohlc:candles,loading:false}:prev);
         } catch {
@@ -1109,8 +1058,7 @@
         await Promise.allSettled(missing.map(async t=>{
           try {
             let candles=null;
-            if(finnhubKey) try{candles=await fhCandles(t,"1M",finnhubKey);}catch{}
-            if(!candles?.length) try{candles=await yfCandles(t,"1M");}catch{}
+            try{candles=await yfCandles(t,"1M");}catch{}
             if(!candles?.length) try{candles=await stooqCandles(t.toLowerCase()+".us","1M");}catch{}
             if(!candles?.length)return;
             if(candles.length<2)return;
@@ -1132,8 +1080,7 @@
         setPortfolioChartLoading(true);
         const results=await Promise.allSettled(nonCash.map(async h=>{
           let candles=null;
-          if(finnhubKey) try{candles=await fhCandles(h.ticker,period,finnhubKey);}catch{}
-          if(!candles?.length) try{candles=await yfCandles(h.ticker,period);}catch{}
+          try{candles=await yfCandles(h.ticker,period);}catch{}
           if(!candles?.length) try{candles=await stooqCandles(h.ticker.toLowerCase()+".us",period);}catch{}
           return {h,candles:candles||[]};
         }));
@@ -1256,128 +1203,33 @@
         );
       });
 
-      // ── Determine active chart data ──
-      const activeChartName=selectedChart.name;
-      const activeChartSymbol=selectedChart.isCommodity
-        ? (MACRO_DEF.find(m=>m.stooq===selectedChart.stooq)?.symbol||"")
-        : (INDICES.find(i=>i.stooq===selectedChart.stooq)?.symbol||"");
-      const activeChartValue=(()=>{
-        if(!selectedChart.isCommodity) return marketData?.indices?.find(i=>i.name===selectedChart.name)?.value||0;
-        const m=marketData?.macro?.find(m=>m.stooq===selectedChart.stooq);
-        if(m) return m.value||0;
-        const c=marketData?.currencies?.find(c=>c.stooq===selectedChart.stooq);
-        return c?.value||0;
-      })();
-      const activeChartChangePct=(()=>{
-        if(!selectedChart.isCommodity) return marketData?.indices?.find(i=>i.name===selectedChart.name)?.changePct||0;
-        const m=marketData?.macro?.find(m=>m.stooq===selectedChart.stooq);
-        if(m) return m.changePct||0;
-        return marketData?.currencies?.find(c=>c.stooq===selectedChart.stooq)?.changePct||0;
-      })();
-      const activeChartChange=selectedChart.isCommodity
-        ? null
-        : (marketData?.indices?.find(i=>i.name===selectedChart.name)?.change||0);
-      const isChartUp=activeChartChangePct>=0;
-      const chartLineColor=isChartUp?C.up:C.dn;
-      const rawPts=chartSeries&&chartSeries.length>=2?chartSeries:[];
-      const rawTs=chartTimestamps&&chartTimestamps.length>=2?chartTimestamps:null;
-
-      const marketChartSection=(!marketLoading&&marketData&&!marketData.error)?( ()=>{
-        return e(F,null,
-          // ── Top strip: horizontal mini sparkline cards (indices) ──
-          e("div",{style:{display:"flex",borderBottom:`1px solid ${C.border}`,overflowX:"auto"}},
-            ...(marketData.indices||[]).map((idx,i)=>{
-              const up=idx.changePct>=0,act=selectedChart.name===idx.name&&!selectedChart.isCommodity,c2=up?C.up:C.dn;
-              const pts=(idx.points||[]).filter(p=>typeof p==="number"&&!isNaN(p));
-              return e("div",{key:i,onClick:()=>{setSelectedChart({name:idx.name,stooq:idx.stooq,isCommodity:false});setChartSeries(null);setChartOHLC(null);},
-                style:{flex:"1 0 140px",padding:"10px 12px 8px",cursor:"pointer",transition:"background 0.12s",
-                  borderBottom:`2.5px solid ${act?c2:"transparent"}`,background:act?"rgba(37,99,235,0.03)":"transparent"}},
-                e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"6px"}},
-                  e("div",{style:{minWidth:0}},
-                    e("div",{style:{fontSize:"11px",fontWeight:"600",color:act?C.accent:C.text,marginBottom:"1px",whiteSpace:"nowrap"}},idx.name),
-                    e("div",{style:{fontSize:"16px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1.1",letterSpacing:"-0.01em"}},
-                      idx.value?(idx.value).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"—"),
-                    e("div",{style:{fontSize:"11px",color:c2,fontWeight:"500",marginTop:"1px",whiteSpace:"nowrap"}},
-                      (up?"+":"")+$n(idx.change,2)+" ("+(up?"+":"")+(idx.changePct||0).toFixed(2)+"%)")
-                  ),
-                  pts.length>=2&&e(MiniSpark,{pts,color:c2,gid:"ms"+i}),
-                  pts.length<2&&e("div",{style:{width:80,height:36}})
-                )
-              );
-            })
+      // ── Market list row helper ──
+      const MktRow=(name,value,changePct,change,unit,decimals=2)=>{
+        const up=changePct>=0, col=up?C.up:C.dn;
+        const fmtVal=value?value.toLocaleString("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):"—";
+        return e("div",{style:{display:"flex",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}},
+          e("span",{style:{flex:1,fontSize:"12px",color:C.text,fontWeight:"500"}},name),
+          e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:C.text,fontWeight:"600",marginRight:"16px"}},
+            fmtVal,unit?e("span",{style:{fontSize:"9px",color:C.muted,marginLeft:"4px",fontWeight:"400"}},unit):null
           ),
-          // ── Large chart + commodities sidebar ──
-          e("div",{style:{display:"flex",alignItems:"stretch"}},
-            e("div",{style:{flex:"1 1 0",minWidth:0,padding:"0.875rem 1rem 0.75rem",borderRight:`1px solid ${C.border}`}},
-              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"8px"}},
-                e("div",null,
-                  e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"2px",textTransform:"uppercase",letterSpacing:"0.06em"}},activeChartName+(activeChartSymbol?" · "+activeChartSymbol:"")),
-                  e("div",{style:{display:"flex",alignItems:"baseline",gap:"8px"}},
-                    e("span",{style:{fontSize:"26px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.02em"}},
-                      typeof activeChartValue==="number"
-                        ?(activeChartValue||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})
-                        :activeChartValue),
-                    e("span",{style:{fontSize:"12px",fontWeight:"500",color:chartLineColor}},
-                      (isChartUp?"▲":"▼")+" "+(activeChartChange!=null?Math.abs(activeChartChange||0).toFixed(2)+" ":"")+"("+(isChartUp?"+":"")+(activeChartChangePct||0).toFixed(2)+"%)")
-                  )
-                ),
-                e("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center"}},
-                  e("div",{style:{display:"flex",gap:"2px",marginRight:"6px",borderRight:`1px solid ${C.border}`,paddingRight:"6px"}},
-                    ["line","candle"].map(ct=>e("button",{key:ct,onClick:()=>setChartType(ct),
-                      style:{padding:"3px 9px",border:`1px solid ${chartType===ct?C.accent:C.border}`,borderRadius:"5px",cursor:"pointer",
-                        background:chartType===ct?C.accentBg:"transparent",color:chartType===ct?C.accent:C.muted,
-                        fontSize:"11px",fontFamily:"inherit",fontWeight:chartType===ct?"600":"400",textTransform:"capitalize"}},ct))
-                  ),
-                  ...PERIODS.map(p=>e("button",{key:p,onClick:()=>setSelectedPeriod(p),
-                    style:{padding:"3px 9px",border:`1px solid ${selectedPeriod===p?C.accent:C.border}`,borderRadius:"5px",cursor:"pointer",
-                      background:selectedPeriod===p?C.accentBg:"transparent",color:selectedPeriod===p?C.accent:C.muted,
-                      fontSize:"11px",fontFamily:"inherit",fontWeight:selectedPeriod===p?"600":"400"}},p))
-                )
-              ),
-              chartLoading
-                ?e("div",{style:{height:340,display:"flex",alignItems:"center",justifyContent:"center"}},
-                   e("div",{style:{width:"14px",height:"14px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}))
-                :(chartType==="candle"&&chartOHLC&&chartOHLC.length>=2
-                  ?e(CandlestickChart,{candles:chartOHLC,timestamps:rawTs,period:selectedPeriod,chartH:340})
-                  :e(LargeChart,{pts:rawPts,color:chartLineColor,timestamps:rawTs,period:selectedPeriod,ohlc:chartOHLC,chartH:340}))
-            ),
-            e("div",{style:{width:"200px",flexShrink:0,display:"flex",flexDirection:"column",overflowY:"auto"}},
-              e("div",{style:{padding:"0.4rem 0.75rem",borderBottom:`1px solid ${C.border}`,fontSize:"9px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",background:C.surfaceAlt}},"Currencies (vs USD)"),
-              ...(marketData.currencies||[]).map((c,i)=>{
-                const up=c.changePct>=0;
-                const isActive=selectedChart.isCommodity&&selectedChart.stooq===c.stooq;
-                return e("div",{key:i,onClick:()=>{setSelectedChart({name:c.name,stooq:c.stooq,isCommodity:true});setChartSeries(null);setChartOHLC(null);},
-                  style:{padding:"0.55rem 0.75rem",borderBottom:`1px solid ${C.border}`,cursor:"pointer",
-                    background:isActive?C.accentBg:"transparent",
-                    borderLeft:`2.5px solid ${isActive?C.accent:"transparent"}`,transition:"background 0.12s"}},
-                  e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-                    e("div",{style:{fontSize:"11px",fontWeight:"600",color:isActive?C.accent:C.text}},c.name),
-                    e("div",{style:{fontSize:"11px",color:up?C.up:C.dn,fontWeight:"500"}},(up?"+":"")+(c.changePct||0).toFixed(2)+"%")
-                  ),
-                  e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,fontVariantNumeric:"tabular-nums",marginTop:"1px"}},
-                    c.value>0?c.value.toFixed(4):"—")
-                );
-              }),
-              e("div",{style:{padding:"0.4rem 0.75rem",borderBottom:`1px solid ${C.border}`,fontSize:"9px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",background:C.surfaceAlt}},"Commodities"),
-              ...(marketData.macro||[]).map((m,i)=>{
-                const up=m.changePct>=0;
-                const isActive=selectedChart.isCommodity&&selectedChart.stooq===m.stooq;
-                return e("div",{key:i,onClick:()=>{setSelectedChart({name:m.name,stooq:m.stooq,isCommodity:true});setChartSeries(null);setChartOHLC(null);},
-                  style:{padding:"0.55rem 0.75rem",borderBottom:`1px solid ${C.border}`,cursor:"pointer",
-                    background:isActive?C.accentBg:"transparent",
-                    borderLeft:`2.5px solid ${isActive?C.accent:"transparent"}`,transition:"background 0.12s"}},
-                  e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-                    e("div",{style:{fontSize:"11px",fontWeight:"600",color:isActive?C.accent:C.text}},m.name),
-                    e("div",{style:{fontSize:"11px",color:up?C.up:C.dn,fontWeight:"500"}},(up?"+":"")+(m.changePct||0).toFixed(2)+"%")
-                  ),
-                  e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,fontVariantNumeric:"tabular-nums",marginTop:"1px"}},
-                    m.value>0?$n(m.value):"—",m.unit&&e("span",{style:{fontSize:"9px",color:C.muted,fontWeight:"400",marginLeft:"3px"}},m.unit))
-                );
-              })
-            )
+          e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:col,fontWeight:"600",minWidth:"52px",textAlign:"right"}},
+            (up?"+":"")+$n(changePct,2)+"%"
+          ),
+          e("span",{style:{fontSize:"11px",fontVariantNumeric:"tabular-nums",color:col,minWidth:"80px",textAlign:"right"}},
+            change!=null?"("+sign(change)+"$"+$n(Math.abs(change),2)+")":""
           )
         );
-      })():null;
+      };
+      const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",padding:"10px 0 4px",borderBottom:`1px solid ${C.border}`}},label);
+
+      const marketListSection=(!marketLoading&&marketData&&!marketData.error)?e("div",{style:{padding:"0 1rem 0.75rem"}},
+        MktSectionHead("Global Indices"),
+        ...(marketData.indices||[]).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2)),
+        MktSectionHead("Currencies (vs USD)"),
+        ...(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4)),
+        MktSectionHead("Commodities"),
+        ...(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2))
+      ):null;
 
       // ── Holdings sparkline strip for news tab ──
       const nonCashHoldings=resolvedHoldings.filter(h=>h.ticker!=="Cash");
@@ -1432,11 +1284,6 @@
           ),
           e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
             e("div",{style:{fontSize:"12px",color:C.muted}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})),
-            e("button",{onClick:()=>{setFhKeyInput(finnhubKey);setShowFhModal(true);},title:"Finnhub API key — required for all price data",
-              style:{display:"flex",alignItems:"center",gap:"6px",background:finnhubKey?C.upBg:"#fef3c7",border:`1px solid ${finnhubKey?C.upBorder:"#fcd34d"}`,color:finnhubKey?C.up:"#92600a",cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:finnhubKey?"400":"600"}},
-              e("svg",{width:"13",height:"13",viewBox:"0 0 13 13",fill:"none",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round",strokeLinejoin:"round"},e("circle",{cx:"5",cy:"5.5",r:"2.5"}),e("path",{d:"M7 7.5l4 4"}),e("path",{d:"M6.5 5.5h1.5v1.5"})),
-              finnhubKey?"Finnhub ✓":"⚠ Set Finnhub Key"
-            ),
             e("button",{onClick:()=>{setKeyInput(apiKey);setShowKeyModal(true);},title:"API key for AI Analysis",
               style:{display:"flex",alignItems:"center",gap:"6px",background:apiKey?C.upBg:C.surfaceAlt,border:`1px solid ${apiKey?C.upBorder:C.border}`,color:apiKey?C.up:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit"}},
               e("svg",{width:"13",height:"13",viewBox:"0 0 13 13",fill:"none",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round",strokeLinejoin:"round"},e("circle",{cx:"5",cy:"5.5",r:"2.5"}),e("path",{d:"M7 7.5l4 4"}),e("path",{d:"M6.5 5.5h1.5v1.5"})),
@@ -1484,7 +1331,7 @@
                 e("span",{style:{fontSize:"11px",color:C.muted}},"Click any value to edit · Force Exit default = avg cost × 85%"),
                 priceUpdatedAt&&e("span",{style:{fontSize:"10.5px",color:C.up,display:"flex",alignItems:"center",gap:"4px"}},
                   e("svg",{width:"10",height:"10",viewBox:"0 0 10 10",fill:"none"},e("circle",{cx:"5",cy:"5",r:"4",stroke:"currentColor",strokeWidth:"1.2"}),e("path",{d:"M5 3v2l1.2 1.2",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"})),
-                  "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})+" · Finnhub"
+                  "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})+" · Yahoo Finance"
                 )
               ),
               e("div",{style:{display:"flex",gap:"8px"}},
@@ -1592,21 +1439,18 @@
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`}},
                 e("div",null,
                   e("span",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Market Summary"),
-                  e("span",{style:{fontSize:"10.5px",color:C.muted,marginLeft:"8px"}},"prices via Finnhub · charts via Stooq · news via Google News")
+                  e("span",{style:{fontSize:"10.5px",color:C.muted,marginLeft:"8px"}},"prices & charts via Yahoo Finance · news via Google News")
                 ),
                 e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"5px",padding:"5px 12px",fontSize:"11px"},onClick:()=>{fetchMarketData(true);fetchNews(true);},disabled:marketLoading||newsLoading},
                   e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:(marketLoading||newsLoading)?"spin 1s linear infinite":"none"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
                   (marketLoading||newsLoading)?"Refreshing…":"Refresh All"
                 )
               ),
-              marketLoading&&e("div",{style:{padding:"1rem",animation:"pulse 1.2s ease-in-out infinite"}},
-                e("div",{style:{display:"flex",gap:"8px",marginBottom:"12px"}},
-                  ...[1,2,3,4,5].map(i=>e("div",{key:i,style:{flex:"1",height:"72px",background:C.border,borderRadius:"8px"}}))),
-                e("div",{style:{height:"220px",background:C.border,borderRadius:"8px"}})
+              marketLoading&&e("div",{style:{padding:"0.75rem 1rem 0.5rem",animation:"pulse 1.2s ease-in-out infinite"}},
+                ...[1,2,3,4,5,6,7,8,9,10,11].map(i=>e("div",{key:i,style:{height:"32px",background:C.border,borderRadius:"4px",marginBottom:"4px"}}))
               ),
-              marketChartSection,
-              !marketLoading&&marketData?.error==="nokey"&&e("div",{style:{padding:"1.5rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.warn,background:C.warnBg,border:`1px solid ${C.warnBorder}`,borderRadius:"6px",padding:"12px 16px"}},"⚠ A Finnhub API key is required for live market prices. Click ",e("strong",null,"⚠ Set Finnhub Key")," in the header.")),
-              !marketLoading&&marketData?.error&&marketData?.error!=="nokey"&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Could not load market data — check your Finnhub key or internet connection and try ",e("strong",null,"Refresh All"),".")),
+              marketListSection,
+              !marketLoading&&marketData?.error&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Could not load market data — check your internet connection and try ",e("strong",null,"Refresh All"),".")),
               !marketLoading&&!marketData&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Click ",e("strong",null,"Refresh All")," to load live market data"))
             ),
 
@@ -1755,21 +1599,6 @@
           )
         ),
 
-        // ── Finnhub Key Modal ──
-        showFhModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.45)"},onClick:()=>setShowFhModal(false)},
-          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.5rem",width:"460px",maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}},
-            e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,marginBottom:"4px"}},"Finnhub API Key"),
-            e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"14px",lineHeight:"1.6"}},"Required for all price data, charts and sparklines. Free at ",e("a",{href:"https://finnhub.io/register",target:"_blank",rel:"noopener noreferrer",style:{color:C.accent}},"finnhub.io/register"),". No credit card needed. Saved to localStorage."),
-            e("input",{type:"text",placeholder:"Paste your Finnhub API key…",value:fhKeyInput,onChange:ev=>setFhKeyInput(ev.target.value),
-              onKeyDown:ev=>{ if(ev.key==="Enter"){setFinnhubKey(fhKeyInput);storage.set("ft-finnhub",fhKeyInput);setShowFhModal(false);} },
-              style:{background:C.surfaceAlt,border:`1.5px solid ${C.accent}`,color:C.text,borderRadius:"8px",padding:"9px 12px",fontSize:"13px",width:"100%",outline:"none",fontFamily:"monospace",boxSizing:"border-box",boxShadow:`0 0 0 3px ${C.accentBg}`},autoFocus:true}),
-            e("div",{style:{display:"flex",gap:"8px",marginTop:"12px"}},
-              e("button",{onClick:()=>{setFinnhubKey(fhKeyInput);storage.set("ft-finnhub",fhKeyInput);setShowFhModal(false);},style:BS("p")},"Save & Reload"),
-              finnhubKey&&e("button",{onClick:()=>{setFinnhubKey("");setFhKeyInput("");storage.set("ft-finnhub","");setShowFhModal(false);},style:{...BS(),color:C.dn,borderColor:C.dnBorder}},"Remove"),
-              e("button",{onClick:()=>setShowFhModal(false),style:BS()},"Cancel")
-            )
-          )
-        ),
 
         // ── Lots Modal ──
         lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings}),
@@ -1832,5 +1661,8 @@
     ReactDOM.createRoot(document.getElementById("root")).render(e(FinTrack));
   })();
   </script>
+</body>
+</html>
+
 </body>
 </html>
