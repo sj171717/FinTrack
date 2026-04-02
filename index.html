@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinTrack</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #edf0f4; font-family: 'Inter','Helvetica Neue',sans-serif; }
+    #root { max-width: 1500px; margin: 0 auto; padding: 0.75rem; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+    @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    input::placeholder { color: #94a3b8; }
+    input:focus { border-color: #1d4ed8 !important; box-shadow: 0 0 0 2px rgba(29,78,216,0.15) !important; }
+    tr:hover td { background: rgba(29,78,216,0.025); }
+    .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing: -0.01em; }
+  </style>
+</head>
+<body>
+  <div id="root"><div style="padding:2rem;color:#64748b;font-family:sans-serif">Loading FinTrack…</div></div>
+  <script>
+  (function () {
+    const { useState, useEffect, useRef } = React;
+    const e = React.createElement;
+    const F = React.Fragment;
+
+    // ── Network helpers ──
+    const GN_MKT_URL = "https://news.google.com/rss/search?q=stock+market+wall+street+S%26P500&hl=en-US&gl=US&ceid=US:en";
+    const CORS_PROXIES = [
+      u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+      u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    ];
+    async function fetchViaProxy(url, timeoutMs=10000) {
+      const attempt = mk => new Promise((res,rej) => {
+        const t = setTimeout(() => rej(new Error("timeout")), timeoutMs);
+        fetch(mk(url))
+          .then(r => { clearTimeout(t); return r.ok ? r.text() : Promise.reject(); })
+          .then(txt => { if(txt && txt.length > 50) res(txt); else rej(); })
+          .catch(rej);
+      });
+      return Promise.any(CORS_PROXIES.map(mk => attempt(mk)));
+    }
+    // ── Yahoo Finance live quotes — no API key needed ──
+    async function yfQuote(symbols) {
+      const url=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
+      let txt;
+      try {
+        const r=await fetch(url,{headers:{accept:"application/json"}});
+        if(!r.ok) throw new Error(r.status);
+        txt=await r.text();
+      } catch { txt=await fetchViaProxy(url,12000); }
+      const data=JSON.parse(txt);
+      const out={};
+      for(const r of data?.quoteResponse?.result||[]){
+        out[r.symbol]={price:r.regularMarketPrice||0,change:r.regularMarketChange||0,changePct:r.regularMarketChangePercent||0};
+      }
+      return out;
+    }
+    // ── Stooq CSV — free historical OHLCV, no API key, fetched via proxy ──
+    async function stooqCandles(stooqSym, period) {
+      const daysMap = {"1D":3,"1W":10,"1M":35,"6M":185,"YTD":370,"1Y":370,"2Y":740,"5Y":1830,"MAX":3660};
+      const days = daysMap[period] || 35;
+      const end = new Date(), start = new Date(+end - days*86400000);
+      const fmt = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSym)}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
+      const csv = await fetchViaProxy(url, 12000);
+      const lines = csv.trim().split('\n');
+      if (lines.length < 2 || !lines[0].toLowerCase().includes('date')) throw new Error("bad data");
+      return lines.slice(1).map(line => {
+        const [date,o,h,l,c,v] = line.split(',');
+        const ts = new Date(date).getTime();
+        return {o:+o||null, h:+h||null, l:+l||null, c:+c||null, v:+(v||0), ts};
+      }).filter(x => x.c && !isNaN(x.c) && x.ts && !isNaN(x.ts));
+    }
+
+    // ── Yahoo Finance v8 chart — tries direct then CORS proxy ──
+    async function yfCandles(ticker, period) {
+      const rangeMap={"1D":"1d","5D":"5d","1M":"1mo","6M":"6mo","YTD":"ytd","1Y":"1y","2Y":"2y","5Y":"5y","MAX":"max"};
+      const intMap={"1D":"5m","5D":"15m","1M":"1d","6M":"1d","YTD":"1d","1Y":"1d","2Y":"1wk","5Y":"1wk","MAX":"1mo"};
+      const range=rangeMap[period]||"1mo";
+      const interval=intMap[period]||"1d";
+      const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
+      let txt;
+      try {
+        const r=await fetch(url,{headers:{accept:"application/json"}});
+        if(!r.ok)throw new Error(r.status);
+        txt=await r.text();
+      } catch { txt=await fetchViaProxy(url,10000); }
+      const data=JSON.parse(txt);
+      const result=data?.chart?.result?.[0];
+      if(!result?.timestamp)throw new Error("no data");
+      const ts=result.timestamp;
+      const q=result.indicators?.quote?.[0]||{};
+      return ts.map((t,i)=>({o:q.open?.[i]||null,h:q.high?.[i]||null,l:q.low?.[i]||null,c:q.close?.[i]||null,v:q.volume?.[i]||0,ts:t*1000})).filter(x=>x.c!=null&&!isNaN(x.c));
+    }
+
+    // ── Lot tracking helpers ──
+    function computeFromLots(lots, currentPrice) {
+      if(!lots||!lots.length) return {avgCost:0,qty:0,realizedGL:0,unrealizedGL:0,active:[]};
+      const buys=[...lots.filter(l=>l.type==="buy")].sort((a,b)=>new Date(a.date)-new Date(b.date));
+      const sells=[...lots.filter(l=>l.type==="sell")].sort((a,b)=>new Date(a.date)-new Date(b.date));
+      const rem=buys.map(b=>({...b,rem:b.qty}));
+      let realizedGL=0;
+      for(const sell of sells){
+        let sq=sell.qty;
+        for(const lot of rem){
+          if(sq<=0||lot.rem<=0)continue;
+          const used=Math.min(sq,lot.rem);
+          realizedGL+=(sell.price-lot.price)*used;
+          lot.rem-=used; sq-=used;
+        }
+      }
+      const active=rem.filter(l=>l.rem>0);
+      const qty=active.reduce((s,l)=>s+l.rem,0);
+      const cost=active.reduce((s,l)=>s+l.price*l.rem,0);
+      const avgCost=qty>0?cost/qty:0;
+      const unrealizedGL=qty*(currentPrice-avgCost);
+      return {avgCost,qty,realizedGL,unrealizedGL,active};
+    }
+    function migrateLegacyHolding(h) {
+      if(h.lots) return h;
+      const today=new Date().toISOString().split('T')[0];
+      return {...h, lots: h.qty>0?[{id:h.id+"_l0",type:"buy",date:today,price:h.avgCost||0,qty:h.qty||0}]:[]};
+    }
+
+    // ── News fetcher: rss2json.com (no CORS proxy) with proxy fallback ──
+    async function fetchNewsItems(rssUrl, max=3) {
+      try {
+        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
+        if(r.ok){
+          const data=await r.json();
+          if(data.status==="ok"&&data.items?.length>0){
+            return data.items.slice(0,max).map(item=>{
+              const headline=item.title||"";
+              const raw=item.description||"";
+              const summary=raw.replace(/<[^>]*>/g,"").replace(/&[a-z]+;/g," ").trim().slice(0,120);
+              const time=item.pubDate?new Date(item.pubDate).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+              return{headline,summary,source:"Google News",time,link:item.link||"",sentiment:sentimentOf(headline+" "+summary)};
+            });
+          }
+        }
+      } catch {}
+      // Fallback: CORS proxy + XML
+      try { return parseRSS(await fetchViaProxy(rssUrl,10000),max); } catch {}
+      return [];
+    }
+
+    // ── Market symbols — Yahoo Finance symbols, no API key needed ──
+    const INDICES = [
+      { name:"S&P 500",    symbol:"SPX", yf:"^GSPC", stooq:"^spx" },
+      { name:"NASDAQ 100", symbol:"NDX", yf:"^NDX",  stooq:"^ndx" },
+      { name:"Dow Jones",  symbol:"DJI", yf:"^DJI",  stooq:"^dji" },
+      { name:"FTSE 100",   symbol:"UKX", yf:"^FTSE", stooq:"^ftx" },
+      { name:"Nikkei 225", symbol:"NKY", yf:"^N225", stooq:"^nkx" },
+      { name:"Hang Seng",  symbol:"HSI", yf:"^HSI",  stooq:"^hsi" },
+    ];
+    const CURRENCIES = [
+      { name:"EUR/USD", yf:"EURUSD=X", stooq:"eurusd" },
+      { name:"GBP/USD", yf:"GBPUSD=X", stooq:"gbpusd" },
+      { name:"USD/JPY", yf:"USDJPY=X", stooq:"usdjpy" },
+    ];
+    const MACRO_DEF = [
+      { name:"Gold (XAU/USD)",  symbol:"XAU", yf:"GC=F",  stooq:"xauusd", unit:"USD/oz"     },
+      { name:"Crude Oil (WTI)", symbol:"WTI", yf:"CL=F",  stooq:"clusd",  unit:"USD/barrel" },
+    ];
+
+    const DEFAULT_EXIT_PCT = 0.85;
+
+    const INITIAL_HOLDINGS = [
+      { id:"GOOG",  ticker:"GOOG",  avgCost:169.18, qty:150.33, currentPrice:274.86, ytdStartPrice:315.21,  targetPrice:400.00,  customExit:143.80, notes:"Trimmed 13 shares to fund the GRAB purchase. It is not a massive gain this year, so holding requires patience to hit the $400+ target." },
+      { id:"LLY",   ticker:"LLY",   avgCost:763.87, qty:50.23,  currentPrice:883.79, ytdStartPrice:1079.94, targetPrice:1500.00, customExit:649.29, notes:"Solid gain with strong momentum. Holding as the portfolio's anchor. Recent 16-20% pullback driven by four factors: 1) FDA delayed oral weight-loss pill decision to April 10. 2) Rare analyst downgrade (HSBC). 3) Aggressive $449/mo pricing sparking margin concerns. 4) High valuation leaving no room for error." },
+      { id:"GLD",   ticker:"GLD",   avgCost:348.20, qty:80.00,  currentPrice:414.36, ytdStartPrice:398.42,  targetPrice:450.00,  customExit:295.97, notes:"Keeping the percentage stable for now to avoid the risk of the market crashing and war." },
+      { id:"MSFT",  ticker:"MSFT",  avgCost:407.99, qty:53.09,  currentPrice:357.19, ytdStartPrice:472.77,  targetPrice:550.00,  customExit:345.00, notes:"Bought near the top. Applying a more conservative approach by setting a hard stop-loss at $345." },
+      { id:"IONQ",  ticker:"IONQ",  avgCost:37.03,  qty:390.00, currentPrice:27.47,  ytdStartPrice:46.80,   targetPrice:70.00,   customExit:25.00,  notes:"There might be huge gain but high risk as well, therefore the position should not exceed 6% of the entire portfolio." },
+      { id:"GRAB",  ticker:"GRAB",  avgCost:4.80,   qty:5590.00,currentPrice:3.56,   ytdStartPrice:5.08,    targetPrice:5.50,    customExit:3.00,   notes:"Strong confidence this is the bottom, backed by JPM & Citi citing mobility cash flow and fintech breaking even. Need to push the holding % to over 15%." },
+      { id:"CASH",  ticker:"Cash",  avgCost:1.00,   qty:1409.88,currentPrice:1.00,   ytdStartPrice:1.00,    targetPrice:null,    customExit:null,   notes:"Available for deployment." },
+    ];
+
+    // C is module-level, mutated by Object.assign on each render for dark/light mode
+    const C = {
+      bg:"#edf0f4", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f4f6f9",
+      border:"#d0d5de", text:"#0d1117", muted:"#57606a", faint:"#c5ccd8",
+      accent:"#1d4ed8", accentBg:"#eff6ff", accentMuted:"#93c5fd",
+      up:"#0d6b3a", upBg:"#e6f6ec", upBorder:"#a8d5b8",
+      dn:"#b91c1c", dnBg:"#fef0f0", dnBorder:"#f5b8b8",
+      warn:"#92600a", warnBg:"#fdf6e3", warnBorder:"#e3c97a",
+      tag:"#edf0f4", tagText:"#57606a",
+    };
+
+    const C_LIGHT = {
+      bg:"#edf0f4", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f4f6f9",
+      border:"#d0d5de", text:"#0d1117", muted:"#57606a", faint:"#c5ccd8",
+      accent:"#1d4ed8", accentBg:"#eff6ff", accentMuted:"#93c5fd",
+      up:"#0d6b3a", upBg:"#e6f6ec", upBorder:"#a8d5b8",
+      dn:"#b91c1c", dnBg:"#fef0f0", dnBorder:"#f5b8b8",
+      warn:"#92600a", warnBg:"#fdf6e3", warnBorder:"#e3c97a",
+      tag:"#edf0f4", tagText:"#57606a",
+    };
+
+    const C_DARK = {
+      bg:"#0d1117", panel:"#161b22", surface:"#161b22", surfaceAlt:"#1c2330",
+      border:"#21262d", text:"#e6edf3", muted:"#7d8590", faint:"#21262d",
+      accent:"#f0883e", accentBg:"rgba(240,136,62,0.12)", accentMuted:"#d1815a",
+      up:"#3fb950", upBg:"rgba(63,185,80,0.1)", upBorder:"#238636",
+      dn:"#f85149", dnBg:"rgba(248,81,73,0.1)", dnBorder:"#da3633",
+      warn:"#d29922", warnBg:"rgba(210,153,34,0.1)", warnBorder:"#9e6a03",
+      tag:"#1c2330", tagText:"#7d8590",
+    };
+
+    const $n = (n,d=2) => n==null?"—":n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+    const sign = n => n>=0?"+":"−";
+    const pc   = n => n>=0?C.up:C.dn;
+    const pcBg = n => n>=0?C.upBg:C.dnBg;
+    const MASK = "••••••";
+
+    // ── Sentiment from headline text (no AI needed) ──
+    const sentimentOf = text => {
+      const t = text.toLowerCase();
+      const bull = ["rises","gains","surges","beats","upgrade","buy","growth","record","strong","rally","soars","jumps","profit","outperform","positive","boost","higher","climbs","expands","breakthrough"];
+      const bear = ["falls","drops","plunges","misses","downgrade","sell","decline","loss","weak","slumps","crashes","warn","concern","risk","cut","lower","shrinks","layoff","negative","trouble"];
+      const b = bull.filter(w=>t.includes(w)).length;
+      const d = bear.filter(w=>t.includes(w)).length;
+      return b>d?"bullish":d>b?"bearish":"neutral";
+    };
+
+    // ── Parse Yahoo Finance RSS XML ──
+    const parseRSS = (xml, max=3) => {
+      try {
+        const doc = new DOMParser().parseFromString(xml,"text/xml");
+        return [...doc.querySelectorAll("item")].slice(0,max).map(item=>{
+          const headline = item.querySelector("title")?.textContent||"";
+          const raw      = item.querySelector("description")?.textContent||"";
+          const summary  = raw.replace(/<[^>]*>/g,"").replace(/&[a-z]+;/g," ").trim().slice(0,120);
+          const pub      = item.querySelector("pubDate")?.textContent||"";
+          const time     = pub ? new Date(pub).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+          const link     = item.querySelector("link")?.textContent||"";
+          return { headline, summary, source:"Google News", time, link, sentiment:sentimentOf(headline+" "+summary) };
+        });
+      } catch { return []; }
+    };
+
+    // ── storage bridge (Claude artifact + browser localStorage) ──
+    const storage = {
+      get(key) {
+        if (window.storage && typeof window.storage.get==="function") return window.storage.get(key);
+        try { const v=localStorage.getItem(key); return Promise.resolve(v?{value:v}:null); } catch { return Promise.resolve(null); }
+      },
+      set(key,value) {
+        if (window.storage && typeof window.storage.set==="function") return window.storage.set(key,value);
+        try { localStorage.setItem(key,value); } catch {}
+        return Promise.resolve();
+      }
+    };
+
+    const BS = v => ({
+      padding:"7px 16px", border:`1.5px solid ${v==="p"?C.accent:C.border}`, cursor:"pointer", borderRadius:"7px",
+      background:v==="p"?C.accent:C.surface, color:v==="p"?"#fff":C.muted,
+      fontWeight:v==="p"?"600":"400", fontSize:"12px", fontFamily:"inherit",
+    });
+
+    function PnlCell({amount,pct,hidden}) {
+      const col=pc(amount);
+      if (hidden) return e("div",{style:{textAlign:"right"}},
+        e("div",{style:{color:C.faint,fontSize:"12px",letterSpacing:"0.1em"}},MASK),
+        e("div",{style:{color:C.faint,fontSize:"10.5px",letterSpacing:"0.1em"}},MASK)
+      );
+      return e("div",{style:{fontVariantNumeric:"tabular-nums",textAlign:"right"}},
+        e("div",{style:{color:col,fontSize:"12px",fontWeight:"500"}},sign(amount)+"$"+$n(Math.abs(amount),0)),
+        e("div",{style:{color:col,opacity:0.75,fontSize:"10.5px"}},"("+sign(pct)+$n(Math.abs(pct),1)+"%)")
+      );
+    }
+
+    function EditCell({value,onSave,prefix="$",align="right",hidden}) {
+      const [editing,setEditing]=useState(false);
+      const [v,setV]=useState(value);
+      const ref=useRef();
+      useEffect(()=>{ if(editing&&ref.current)ref.current.focus(); },[editing]);
+      const commit=()=>{ setEditing(false); const num=parseFloat(v); if(!isNaN(num))onSave(num); };
+      if (hidden) return e("span",{style:{color:C.faint,fontSize:"12px",letterSpacing:"0.1em"}},MASK);
+      if (editing) return e("input",{ref,value:v,onChange:ev=>setV(ev.target.value),onBlur:commit,
+        onKeyDown:ev=>{if(ev.key==="Enter")commit();if(ev.key==="Escape")setEditing(false);},
+        style:{background:C.surface,border:`1.5px solid ${C.accent}`,color:C.text,borderRadius:"5px",padding:"3px 6px",fontSize:"12px",width:"80px",outline:"none",fontFamily:"inherit",textAlign:align,boxShadow:`0 0 0 3px ${C.accentBg}`}
+      });
+      return e("div",{onClick:()=>{setEditing(true);setV(value);},title:"Click to edit",
+        style:{cursor:"text",borderBottom:`1px dashed ${C.faint}`,display:"inline-block",color:C.text,fontSize:"12px",fontVariantNumeric:"tabular-nums"}},
+        value!=null?prefix+$n(value):"—"
+      );
+    }
+
+    function ExitCell({value,current,onSave,hidden}) {
+      const breached=current!=null&&current>0&&value>0&&current<=value;
+      return e("div",{style:{textAlign:"right"}},
+        e(EditCell,{value,onSave,hidden}),
+        breached&&e("div",{style:{fontSize:"10px",marginTop:"2px",color:C.dn,fontWeight:"600"}},"⚠ BREACHED")
+      );
+    }
+
+    function NotesCell({text,onSave}) {
+      const [open,setOpen]=useState(false);
+      const [editing,setEditing]=useState(false);
+      const [v,setV]=useState(text);
+      const preview=text?.length>48?text.slice(0,48)+"…":text;
+      return e(F,null,
+        e("div",{onClick:()=>setOpen(true),style:{cursor:"pointer",color:C.muted,fontSize:"11px",lineHeight:"1.45",maxWidth:"200px",borderBottom:`1px dashed ${C.faint}`}},preview||"—"),
+        open&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.45)"},onClick:()=>{setOpen(false);setEditing(false);}},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.5rem",width:"520px",maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}},
+            e("div",{style:{fontSize:"10px",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"12px"}},"Notes"),
+            editing
+              ?e("textarea",{value:v,onChange:ev=>setV(ev.target.value),rows:7,style:{background:C.surfaceAlt,border:`1.5px solid ${C.accent}`,color:C.text,borderRadius:"8px",padding:"10px 12px",fontSize:"13px",width:"100%",outline:"none",resize:"vertical",fontFamily:"inherit",lineHeight:"1.7",boxSizing:"border-box",boxShadow:`0 0 0 3px ${C.accentBg}`}})
+              :e("div",{style:{fontSize:"13px",color:C.text,lineHeight:"1.75",whiteSpace:"pre-wrap"}},v||"—"),
+            e("div",{style:{display:"flex",gap:"8px",marginTop:"14px"}},
+              editing
+                ?e(F,null,e("button",{onClick:()=>{onSave(v);setEditing(false);setOpen(false);},style:BS("p")},"Save"),e("button",{onClick:()=>{setV(text);setEditing(false);},style:BS()},"Cancel"))
+                :e(F,null,e("button",{onClick:()=>setEditing(true),style:BS("p")},"Edit"),e("button",{onClick:()=>setOpen(false),style:BS()},"Close"))
+            )
+          )
+        )
+      );
+    }
+
+    const TH=({c,right})=>e("th",{style:{padding:"9px 12px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"500",fontSize:"10px",letterSpacing:"0.07em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
+    const TD=({children,right,style:s})=>e("td",{style:{padding:"10px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
+
+    function MetCard({label,value,color,sub}) {
+      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"10px 14px",flex:"1 1 120px",borderTop:`2px solid ${color||C.accent}`}},
+        e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},label),
+        e("div",{style:{fontSize:"19px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},value),
+        sub&&e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},sub)
+      );
+    }
+
+    function NewsRow({item}) {
+      const sentColor=item.sentiment==="bullish"?C.up:item.sentiment==="bearish"?C.dn:C.warn;
+      const sentBg   =item.sentiment==="bullish"?C.upBg:item.sentiment==="bearish"?C.dnBg:C.warnBg;
+      const sentBdr  =item.sentiment==="bullish"?C.upBorder:item.sentiment==="bearish"?C.dnBorder:C.warnBorder;
+      const sentLabel=item.sentiment==="bullish"?"▲":item.sentiment==="bearish"?"▼":"●";
+      const sentFull =item.sentiment==="bullish"?"Bullish":item.sentiment==="bearish"?"Bearish":"Neutral";
+      return e("div",{style:{display:"flex",alignItems:"flex-start",gap:"10px",padding:"10px 0",borderBottom:`1px solid ${C.border}`}},
+        e("span",{title:sentFull,style:{flexShrink:0,marginTop:"2px",fontSize:"10px",background:sentBg,color:sentColor,border:`1px solid ${sentBdr}`,padding:"2px 6px",borderRadius:"4px",fontWeight:"600",minWidth:"20px",textAlign:"center"}},sentLabel),
+        e("div",{style:{flex:1,minWidth:0}},
+          item.link
+            ?e("a",{href:item.link,target:"_blank",rel:"noopener noreferrer",style:{fontSize:"13px",fontWeight:"600",color:C.accent,lineHeight:"1.45",textDecoration:"none",display:"block"}},item.headline)
+            :e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,lineHeight:"1.45"}},item.headline)
+        ),
+        e("div",{style:{flexShrink:0,textAlign:"right",fontSize:"10.5px",color:C.muted,whiteSpace:"nowrap",marginTop:"2px"}},
+          item.time&&e("div",null,item.time),
+          item.source&&e("div",{style:{color:C.accent,fontWeight:"500"}},item.source)
+        )
+      );
+    }
+
+    function MiniSpark({pts,color,gid}){
+      if(!pts||pts.length<2)return e("div",{style:{width:80,height:36}});
+      const mn=Math.min(...pts),mx=Math.max(...pts),rng=mx-mn||1,w=80,h=36;
+      const cx=(v,i)=>(i/(pts.length-1))*w, cy=v=>h-4-((v-mn)/rng)*(h-8);
+      const coords=pts.map((v,i)=>cx(v,i)+","+cy(v));
+      const last=coords[coords.length-1].split(",");
+      const area="M"+coords[0]+" "+coords.slice(1).map(c=>"L"+c).join(" ")+" L"+w+","+h+" L0,"+h+" Z";
+      const line="M"+coords[0]+" "+coords.slice(1).map(c=>"L"+c).join(" ");
+      return e("svg",{viewBox:`0 0 ${w} ${h}`,width:w,height:h,style:{flexShrink:0},preserveAspectRatio:"none"},
+        e("defs",null,e("linearGradient",{id:gid,x1:"0",y1:"0",x2:"0",y2:"1"},
+          e("stop",{offset:"0%",stopColor:color,stopOpacity:"0.35"}),e("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
+        e("path",{d:area,fill:"url(#"+gid+")"}),
+        e("path",{d:line,fill:"none",stroke:color,strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round"}),
+        e("circle",{cx:last[0],cy:last[1],r:"2.5",fill:color}));
+    }
+
+    // Shared helpers
+    function fmtTsFor(ms,period){
+      const dt=new Date(ms);
+      if(period==="1D") return dt.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})+" "+dt.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true});
+      if(period==="5D"||period==="1M") return dt.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+      if(period==="MAX"||period==="5Y") return dt.toLocaleDateString("en-US",{year:"numeric"});
+      return dt.toLocaleDateString("en-US",{month:"short",year:"2-digit"});
+    }
+    function fmtVol(v){if(!v)return"—";if(v>=1e9)return(v/1e9).toFixed(2)+"B";if(v>=1e6)return(v/1e6).toFixed(2)+"M";if(v>=1e3)return(v/1e3).toFixed(0)+"K";return v.toLocaleString();}
+
+    function LargeChart({pts,color,timestamps,period,ohlc,chartH=280}){
+      const [hover,setHover]=useState(null);
+      if(!pts||pts.length<2)return e("div",{style:{height:chartH,display:"flex",alignItems:"center",justifyContent:"center"}},e("span",{style:{fontSize:"11px",color:C.muted}},"No chart data for this period"));
+      const hasVol=ohlc&&ohlc.some(x=>x.v>0);
+      const volH=hasVol?48:0, gap=hasVol?6:0;
+      const W=800, H=chartH, PL=4, PR=72, PT=12, PB=22+volH+gap;
+      const cw=W-PL-PR, ch=H-PT-PB;
+      const rawMn=Math.min(...pts),rawMx=Math.max(...pts);
+      const mid=(rawMn+rawMx)/2, minRng=mid*0.008;
+      const mn=Math.min(rawMn,mid-minRng/2), mx=Math.max(rawMx,mid+minRng/2);
+      const rng=mx-mn||1;
+      const cx=(v,i)=>PL+(i/(pts.length-1))*cw, cy=v=>PT+ch-((v-mn)/rng)*ch;
+      const coords=pts.map((v,i)=>cx(v,i)+","+cy(v));
+      const last=coords[coords.length-1].split(",");
+      const area="M"+coords[0]+" "+coords.slice(1).map(c=>"L"+c).join(" ")+" L"+(PL+cw)+","+(PT+ch)+" L"+PL+","+(PT+ch)+" Z";
+      const line="M"+coords[0]+" "+coords.slice(1).map(c=>"L"+c).join(" ");
+      const grids=[0.25,0.5,0.75].map(f=>({y:cy(mn+rng*f)}));
+      const yLbls=[mn,mn+rng*0.5,mx].map(v=>({v,y:cy(v)}));
+      const xLabels=[];
+      if(timestamps&&timestamps.length>=2){
+        for(let i=0;i<=5;i++){
+          const idx=Math.round((pts.length-1)*i/5);
+          const ts=timestamps[idx]; if(!ts) continue;
+          const x=PL+(idx/(pts.length-1))*cw;
+          xLabels.push({label:fmtTsFor(ts,period),x,anchor:i===0?"start":i===5?"end":"middle"});
+        }
+      }
+      // Volume bars
+      const vols=hasVol?ohlc.map(x=>x.v||0):[];
+      const maxVol=hasVol?Math.max(...vols,1):1;
+      const volTop=H-PB+gap, volBotY=H-22;
+      const barW=Math.max(1,(cw/pts.length)*0.8);
+      // Crosshair index
+      const hIdx=hover!=null?Math.round(hover*(pts.length-1)/cw):null;
+      const hx=hIdx!=null?PL+hIdx/(pts.length-1)*cw:null;
+      const hv=hIdx!=null?pts[hIdx]:null;
+      const hy=hv!=null?cy(hv):null;
+      const hd=hIdx!=null&&ohlc?ohlc[hIdx]:null;
+      const hts=hIdx!=null&&timestamps?timestamps[hIdx]:null;
+      const gridColor=C.border, axisColor="#94a3b8";
+      // Tooltip position
+      const tipX=hx!=null?(hx>W*0.6?hx-188:hx+10):null;
+      return e("div",{style:{position:"relative",userSelect:"none"},
+          onMouseMove:ev=>{const r=ev.currentTarget.getBoundingClientRect();const svgX=(ev.clientX-r.left)/r.width*W-PL;setHover(Math.max(0,Math.min(cw,svgX)));},
+          onMouseLeave:()=>setHover(null)},
+        e("svg",{viewBox:`0 0 ${W} ${H}`,style:{width:"100%",height:"auto",display:"block"}},
+          e("defs",null,e("linearGradient",{id:"lcg",x1:"0",y1:"0",x2:"0",y2:"1"},
+            e("stop",{offset:"0%",stopColor:color,stopOpacity:"0.18"}),e("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
+          ...grids.map((g,i)=>e("line",{key:"g"+i,x1:PL,y1:g.y,x2:PL+cw,y2:g.y,stroke:gridColor,strokeWidth:"0.75",strokeDasharray:"4,4"})),
+          e("path",{d:area,fill:"url(#lcg)"}),
+          e("path",{d:line,fill:"none",stroke:color,strokeWidth:"1.75",strokeLinecap:"round",strokeLinejoin:"round"}),
+          e("circle",{cx:last[0],cy:last[1],r:"4",fill:C.surface,stroke:color,strokeWidth:"2"}),
+          e("circle",{cx:last[0],cy:last[1],r:"2",fill:color}),
+          // Volume bars
+          hasVol&&vols.map((v,i)=>{ const bx=PL+(i/(pts.length-1))*cw; const bh=Math.max(1,(v/maxVol)*(volBotY-volTop)); const isUp=ohlc[i]&&ohlc[i].c>=(ohlc[i].o||ohlc[i].c); return e("rect",{key:"v"+i,x:bx-barW/2,y:volBotY-bh,width:barW,height:bh,fill:isUp?C.up:C.dn,opacity:"0.45"}); }),
+          hasVol&&e("line",{x1:PL,y1:volTop,x2:PL+cw,y2:volTop,stroke:gridColor,strokeWidth:"0.5",strokeDasharray:"3,3"}),
+          // Y labels
+          ...yLbls.map((l,i)=>e("text",{key:"yl"+i,x:PL+cw+6,y:Number(l.y)+3.5,fontSize:"9.5",fill:axisColor,fontFamily:"inherit"},l.v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          e("line",{x1:PL,y1:PT+ch,x2:PL+cw,y2:PT+ch,stroke:gridColor,strokeWidth:"0.75"}),
+          ...xLabels.map((l,i)=>e("text",{key:"xl"+i,x:l.x,y:H-5,fontSize:"9",fill:axisColor,fontFamily:"inherit",textAnchor:l.anchor},l.label)),
+          // Crosshair
+          hx!=null&&e(F,null,
+            e("line",{x1:hx,y1:PT,x2:hx,y2:PT+ch,stroke:C.muted,strokeWidth:"1",strokeDasharray:"3,3",opacity:"0.7"}),
+            hy!=null&&e("line",{x1:PL,y1:hy,x2:PL+cw,y2:hy,stroke:C.muted,strokeWidth:"1",strokeDasharray:"3,3",opacity:"0.5"}),
+            hy!=null&&e("circle",{cx:hx,cy:hy,r:"4",fill:color,stroke:C.surface,strokeWidth:"2"})
+          )
+        ),
+        // Tooltip
+        hx!=null&&hv!=null&&e("div",{style:{position:"absolute",top:"8px",left:tipX+"px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"5px",padding:"8px 12px",fontSize:"11.5px",pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:10,minWidth:"170px",lineHeight:"1.7"}},
+          e("div",{style:{color:C.muted,fontSize:"10px",marginBottom:"4px",fontWeight:"600"}},hts?fmtTsFor(hts,period):""),
+          e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},period==="1D"?"Price:":"Close:"),e("span",{style:{color:C.text,fontWeight:"600"}},hv.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hd?.o!=null&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"Open:"),e("span",{style:{color:C.text}},(hd.o||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hd?.h!=null&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"High:"),e("span",{style:{color:C.up,fontWeight:"500"}},(hd.h||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hd?.l!=null&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"Low:"),e("span",{style:{color:C.dn,fontWeight:"500"}},(hd.l||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hd?.v>0&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"Volume:"),e("span",{style:{color:C.text}},fmtVol(hd.v)))
+        )
+      );
+    }
+
+    function CandlestickChart({candles,timestamps,period,chartH=280}){
+      const [hover,setHover]=useState(null);
+      if(!candles||candles.length<2)return e("div",{style:{height:chartH,display:"flex",alignItems:"center",justifyContent:"center"}},e("span",{style:{fontSize:"11px",color:C.muted}},"No candle data for this period"));
+      const hasVol=candles.some(x=>x.v>0);
+      const volH=hasVol?48:0, gap=hasVol?6:0;
+      const W=800, H=chartH, PL=4, PR=72, PT=8, PB=22+volH+gap;
+      const cw=W-PL-PR, ch=H-PT-PB;
+      const allVals=candles.flatMap(x=>[x.h,x.l]).filter(v=>v!=null&&!isNaN(v));
+      const mn=Math.min(...allVals),mx=Math.max(...allVals),rng=mx-mn||1;
+      const cy=v=>PT+ch-((v-mn)/rng)*ch;
+      const bodyW=Math.max(2,(cw/candles.length)*0.7);
+      const grids=[0.25,0.5,0.75].map(f=>({y:cy(mn+rng*f)}));
+      const yLbls=[mn,mn+rng*0.5,mx].map(v=>({v,y:cy(v)}));
+      const xLabels=[];
+      if(timestamps&&timestamps.length>=2){
+        for(let i=0;i<=5;i++){
+          const idx=Math.round((candles.length-1)*i/5);
+          const ts=timestamps[idx]; if(!ts) continue;
+          const x=PL+(idx/(candles.length-1))*cw;
+          xLabels.push({label:fmtTsFor(ts,period),x,anchor:i===0?"start":i===5?"end":"middle"});
+        }
+      }
+      const vols=hasVol?candles.map(x=>x.v||0):[];
+      const maxVol=hasVol?Math.max(...vols,1):1;
+      const volTop=H-PB+gap, volBotY=H-22;
+      // Hover: find nearest candle by x position
+      const hIdx=hover!=null?Math.max(0,Math.min(candles.length-1,Math.round(hover/cw*(candles.length-1)))):null;
+      const hcd=hIdx!=null?candles[hIdx]:null;
+      const hx=hIdx!=null?PL+(hIdx/(candles.length-1||1))*cw:null;
+      const hts=hIdx!=null&&timestamps?timestamps[hIdx]:null;
+      const gridColor=C.border, axisColor="#94a3b8";
+      const tipX=hx!=null?(hx>W*0.6?hx-188:hx+10):null;
+      const barW=Math.max(1,(cw/candles.length)*0.8);
+      return e("div",{style:{position:"relative",userSelect:"none"},
+          onMouseMove:ev=>{const r=ev.currentTarget.getBoundingClientRect();const svgX=(ev.clientX-r.left)/r.width*W-PL;setHover(Math.max(0,Math.min(cw,svgX)));},
+          onMouseLeave:()=>setHover(null)},
+        e("svg",{viewBox:`0 0 ${W} ${H}`,style:{width:"100%",height:"auto",display:"block"}},
+          ...grids.map((g,i)=>e("line",{key:"g"+i,x1:PL,y1:g.y,x2:PL+cw,y2:g.y,stroke:gridColor,strokeWidth:"0.75",strokeDasharray:"4,4"})),
+          ...candles.map((cd,i)=>{
+            const x=PL+(i/(candles.length-1||1))*cw;
+            const isUp=cd.c>=(cd.o??cd.c);
+            const col=isUp?C.up:C.dn;
+            const openY=cy(cd.o!=null?cd.o:cd.c), closeY=cy(cd.c);
+            const highY=cy(cd.h!=null?cd.h:cd.c), lowY=cy(cd.l!=null?cd.l:cd.c);
+            const rectY=Math.min(openY,closeY), rectH=Math.max(1,Math.abs(openY-closeY));
+            return e(F,{key:i},
+              e("line",{x1:x,y1:highY,x2:x,y2:lowY,stroke:col,strokeWidth:"1"}),
+              e("rect",{x:x-bodyW/2,y:rectY,width:bodyW,height:rectH,fill:col,stroke:col,strokeWidth:"0.5"})
+            );
+          }),
+          // Volume bars
+          hasVol&&vols.map((v,i)=>{ const bx=PL+(i/(candles.length-1||1))*cw; const bh=Math.max(1,(v/maxVol)*(volBotY-volTop)); const isUp=candles[i]?.c>=(candles[i]?.o??candles[i]?.c); return e("rect",{key:"v"+i,x:bx-barW/2,y:volBotY-bh,width:barW,height:bh,fill:isUp?C.up:C.dn,opacity:"0.45"}); }),
+          hasVol&&e("line",{x1:PL,y1:volTop,x2:PL+cw,y2:volTop,stroke:gridColor,strokeWidth:"0.5",strokeDasharray:"3,3"}),
+          ...yLbls.map((l,i)=>e("text",{key:"yl"+i,x:PL+cw+6,y:Number(l.y)+3.5,fontSize:"9.5",fill:axisColor,fontFamily:"inherit"},l.v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          e("line",{x1:PL,y1:PT+ch,x2:PL+cw,y2:PT+ch,stroke:gridColor,strokeWidth:"0.75"}),
+          ...xLabels.map((l,i)=>e("text",{key:"xl"+i,x:l.x,y:H-5,fontSize:"9",fill:axisColor,fontFamily:"inherit",textAnchor:l.anchor},l.label)),
+          // Crosshair
+          hx!=null&&e(F,null,
+            e("line",{x1:hx,y1:PT,x2:hx,y2:PT+ch,stroke:C.muted,strokeWidth:"1",strokeDasharray:"3,3",opacity:"0.7"}),
+            hcd&&e("line",{x1:PL,y1:cy(hcd.c),x2:PL+cw,y2:cy(hcd.c),stroke:C.muted,strokeWidth:"1",strokeDasharray:"3,3",opacity:"0.5"})
+          )
+        ),
+        // Tooltip
+        hx!=null&&hcd&&e("div",{style:{position:"absolute",top:"8px",left:tipX+"px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"5px",padding:"8px 12px",fontSize:"11.5px",pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.12)",zIndex:10,minWidth:"170px",lineHeight:"1.7"}},
+          e("div",{style:{color:C.muted,fontSize:"10px",marginBottom:"4px",fontWeight:"600"}},hts?fmtTsFor(hts,period):""),
+          e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"Close:"),e("span",{style:{color:C.text,fontWeight:"600"}},(hcd.c||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hcd.o!=null&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"Open:"),e("span",{style:{color:C.text}},(hcd.o||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hcd.h!=null&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"High:"),e("span",{style:{color:C.up,fontWeight:"500"}},(hcd.h||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hcd.l!=null&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"Low:"),e("span",{style:{color:C.dn,fontWeight:"500"}},(hcd.l||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))),
+          hcd.v>0&&e("div",null,e("span",{style:{color:C.muted,display:"inline-block",width:"52px"}},"Volume:"),e("span",{style:{color:C.text}},fmtVol(hcd.v)))
+        )
+      );
+    }
+
+    function PortfolioChart({pts,timestamps,period,change,totalVal,hidden,loading,chartPeriod,setChartPeriod}){
+      const [hoverIdx,setHoverIdx]=useState(null);
+      const color=change>=0?C.up:C.dn;
+      const PERIODS_PC=["1W","1M","YTD","1Y","ALL"];
+      const W=800,H=320,PL=4,PR=60,PT=12,PB=24,cw=W-PL-PR,ch=H-PT-PB;
+
+      const hVal=hoverIdx!=null&&pts?pts[hoverIdx]:null;
+      const hTs=hoverIdx!=null&&timestamps?timestamps[hoverIdx]:null;
+      const displayVal=hVal!=null?hVal:totalVal;
+      const hDate=hTs?new Date(hTs).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}).toUpperCase():null;
+
+      // Chart path
+      const chartContent=(()=>{
+        if(!pts||pts.length<2)return null;
+        const mn=Math.min(...pts),mx=Math.max(...pts),rng=mx-mn||mn*0.01||1;
+        const cx=(v,i)=>PL+(i/(pts.length-1))*cw;
+        const cy=v=>PT+ch-((v-mn)/rng)*ch;
+        const coords=pts.map((v,i)=>({x:cx(v,i),y:cy(v)}));
+        const linePath="M"+coords.map(c=>c.x+","+c.y).join(" L");
+        const areaPath=linePath+" L"+coords[coords.length-1].x+","+(PT+ch)+" L"+coords[0].x+","+(PT+ch)+" Z";
+        const yLbls=[mn,(mn+mx)/2,mx].map(v=>({v,y:cy(v)}));
+        const axisColor="#94a3b8";
+
+        // X-axis labels: 5 evenly spaced
+        const xLblCount=5;
+        const xLbls=Array.from({length:xLblCount},(_,i)=>{
+          const idx=Math.round(i/(xLblCount-1)*(pts.length-1));
+          const ts=timestamps&&timestamps[idx];
+          let label="";
+          if(ts){
+            const d=new Date(ts);
+            if(chartPeriod==="1W"||chartPeriod==="1M")label=d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+            else if(chartPeriod==="YTD"||chartPeriod==="1Y")label=d.toLocaleDateString("en-US",{month:"short",year:"2-digit"});
+            else label=d.toLocaleDateString("en-US",{month:"short",year:"numeric"});
+          }
+          return {label,x:PL+(idx/(pts.length-1))*cw};
+        });
+
+        // Hover crosshair
+        const hx=hoverIdx!=null?coords[hoverIdx].x:null;
+        const hy=hoverIdx!=null?coords[hoverIdx].y:null;
+
+        return e("div",{style:{position:"relative",userSelect:"none"},
+            onMouseMove:ev=>{
+              if(!pts)return;
+              const r=ev.currentTarget.getBoundingClientRect();
+              const svgX=(ev.clientX-r.left)/r.width*W;
+              const idx=Math.max(0,Math.min(pts.length-1,Math.round((svgX-PL)/cw*(pts.length-1))));
+              setHoverIdx(idx);
+            },
+            onMouseLeave:()=>setHoverIdx(null)},
+          e("svg",{viewBox:`0 0 ${W} ${H}`,style:{width:"100%",height:"auto",display:"block"}},
+            e("defs",null,e("linearGradient",{id:"pcg",x1:"0",y1:"0",x2:"0",y2:"1"},
+              e("stop",{offset:"0%",stopColor:color,stopOpacity:"0.12"}),
+              e("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
+            e("path",{d:areaPath,fill:"url(#pcg)"}),
+            e("path",{d:linePath,fill:"none",stroke:color,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"}),
+            // Y axis labels (3: min, mid, max)
+            ...yLbls.map((l,i)=>e("text",{key:"y"+i,x:W-PR+6,y:Math.max(PT+8,Math.min(PT+ch-2,l.y+4)),fontSize:"9",fill:axisColor,fontFamily:"inherit"},
+              "$"+l.v.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0}))),
+            // Subtle horizontal grid lines
+            ...yLbls.map((l,i)=>e("line",{key:"g"+i,x1:PL,y1:l.y,x2:W-PR,y2:l.y,stroke:axisColor,strokeOpacity:"0.15",strokeWidth:"1",strokeDasharray:"3 3"})),
+            // X axis baseline
+            e("line",{x1:PL,y1:PT+ch,x2:W-PR,y2:PT+ch,stroke:axisColor,strokeOpacity:"0.25",strokeWidth:"1"}),
+            // X axis labels
+            ...xLbls.map((l,i)=>e("text",{key:"x"+i,x:l.x,y:H-6,fontSize:"9",fill:axisColor,fontFamily:"inherit",textAnchor:i===0?"start":i===xLblCount-1?"end":"middle"},l.label)),
+            // Endpoint dot when not hovering
+            hoverIdx==null&&e(F,null,
+              e("circle",{cx:coords[coords.length-1].x,cy:coords[coords.length-1].y,r:"5",fill:C.surface,stroke:color,strokeWidth:"2"}),
+              e("circle",{cx:coords[coords.length-1].x,cy:coords[coords.length-1].y,r:"2.5",fill:color})
+            ),
+            // Crosshair when hovering
+            hx!=null&&e(F,null,
+              e("line",{x1:hx,y1:PT,x2:hx,y2:PT+ch,stroke:axisColor,strokeOpacity:"0.5",strokeWidth:"1"}),
+              e("circle",{cx:hx,cy:hy,r:"5",fill:C.surface,stroke:color,strokeWidth:"2"}),
+              e("circle",{cx:hx,cy:hy,r:"2.5",fill:color})
+            )
+          )
+        );
+      })();
+
+      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",marginBottom:"1rem",overflow:"hidden"}},
+        // Value + badge centered
+        e("div",{style:{textAlign:"center",padding:"1.5rem 1rem 0.5rem"}},
+          e("div",{style:{fontSize:"10px",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"6px"}},"Portfolio Value"),
+          e("div",{style:{fontSize:"36px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.03em",lineHeight:1}},
+            hidden?MASK:"$"+$n(displayVal,0)),
+          pts&&e("div",{style:{marginTop:"8px"}},
+            e("span",{style:{display:"inline-flex",alignItems:"center",gap:"4px",background:pcBg(change),border:`1px solid ${change>=0?C.upBorder:C.dnBorder}`,borderRadius:"20px",padding:"3px 12px",fontSize:"12px",fontWeight:"600",color:pc(change)}},
+              change>=0?"↗":"↘"," "+Math.abs(change).toFixed(2)+"%"
+            )
+          ),
+          hDate&&e("div",{style:{fontSize:"11px",color:C.muted,marginTop:"8px",fontWeight:"500",letterSpacing:"0.04em"}},hDate)
+        ),
+        // Chart
+        pts&&pts.length>=2
+          ?chartContent
+          :e("div",{style:{height:260,display:"flex",alignItems:"center",justifyContent:"center",gap:"8px"}},
+              loading
+                ?e(F,null,e("div",{style:{width:"13px",height:"13px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),e("span",{style:{fontSize:"11px",color:C.muted}},"Loading portfolio chart…"))
+                :e("span",{style:{fontSize:"11px",color:C.muted}},"No chart data — check your internet connection")),
+        // Period pills at bottom
+        e("div",{style:{display:"flex",justifyContent:"center",gap:"4px",padding:"0.75rem 1rem"}},
+          PERIODS_PC.map(p=>e("button",{key:p,onClick:()=>setChartPeriod(p),
+            style:{padding:"4px 14px",border:"none",borderRadius:"20px",cursor:"pointer",fontFamily:"inherit",
+              fontSize:"11px",fontWeight:chartPeriod===p?"600":"400",
+              background:chartPeriod===p?C.text:"transparent",
+              color:chartPeriod===p?(C.bg||"#fff"):C.muted,
+              transition:"all 0.1s"}},p))
+        )
+      );
+    }
+
+    function LotsModal({lotsModal,setLotsModal,setHoldings}) {
+      const rawH=lotsModal.holding;
+      const {avgCost,qty,realizedGL,unrealizedGL}=computeFromLots(rawH.lots||[],rawH.currentPrice);
+      const totalReturn=unrealizedGL+realizedGL;
+      const buys=(rawH.lots||[]).filter(l=>l.type==="buy").sort((a,b)=>new Date(a.date)-new Date(b.date));
+      const sells=(rawH.lots||[]).filter(l=>l.type==="sell").sort((a,b)=>new Date(a.date)-new Date(b.date));
+      const remMap={};
+      const remLots=buys.map(b=>({...b,rem:b.qty}));
+      for(const sell of sells){let sq=sell.qty;for(const lot of remLots){if(sq<=0||lot.rem<=0)continue;const used=Math.min(sq,lot.rem);lot.rem-=used;sq-=used;}}
+      remLots.forEach(l=>remMap[l.id]=l.rem);
+      const nbf={date:new Date().toISOString().split('T')[0],price:"",qty:""};
+      const nsf={date:new Date().toISOString().split('T')[0],price:"",qty:""};
+      const [newBuy,setNewBuy]=useState(nbf);
+      const [newSell,setNewSell]=useState(nsf);
+      const [showAddBuy,setShowAddBuy]=useState(false);
+      const [showAddSell,setShowAddSell]=useState(false);
+      const addBuyLot=()=>{
+        const price=+newBuy.price,qty2=+newBuy.qty;
+        if(!price||!qty2)return;
+        const lot={id:rawH.id+"_l"+Date.now(),type:"buy",date:newBuy.date,price,qty:qty2};
+        setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h));
+        setLotsModal(prev=>({...prev,holding:{...rawH,lots:[...(rawH.lots||[]),lot]}}));
+        setNewBuy(nbf); setShowAddBuy(false);
+      };
+      const addSellLot=()=>{
+        const price=+newSell.price,qty2=+newSell.qty;
+        if(!price||!qty2)return;
+        const lot={id:rawH.id+"_s"+Date.now(),type:"sell",date:newSell.date,price,qty:qty2};
+        setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h));
+        setLotsModal(prev=>({...prev,holding:{...rawH,lots:[...(rawH.lots||[]),lot]}}));
+        setNewSell(nsf); setShowAddSell(false);
+      };
+      const deleteLot=(lotId)=>{
+        const newLots=(rawH.lots||[]).filter(l=>l.id!==lotId);
+        setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:newLots}:h));
+        setLotsModal(prev=>({...prev,holding:{...rawH,lots:newLots}}));
+      };
+      const inpS={background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,padding:"5px 8px",borderRadius:"5px",fontSize:"11px",fontFamily:"inherit",outline:"none"};
+      return e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setLotsModal(null)},
+        e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.5rem",width:"780px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}},
+          e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px"}},
+            e("div",null,
+              e("div",{style:{display:"flex",alignItems:"center",gap:"10px",marginBottom:"6px"}},
+                e("span",{style:{background:C.accentBg,color:C.accent,padding:"3px 12px",borderRadius:"6px",fontWeight:"700",fontSize:"15px",border:`1px solid ${C.accentMuted}`}},rawH.ticker),
+                e("span",{style:{fontSize:"20px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(rawH.currentPrice)),
+                e("span",{style:{fontSize:"12px",color:unrealizedGL>=0?C.up:C.dn,fontWeight:"600"}},(unrealizedGL>=0?"▲ +":"▼ ")+$n(unrealizedGL,0)+" unrealized")
+              ),
+              e("div",{style:{display:"flex",gap:"16px",fontSize:"11px"}},
+                e("span",null,e("span",{style:{color:C.muted}},"Avg Cost: "),e("span",{style:{color:C.text,fontWeight:"600"}},"$"+$n(avgCost))),
+                e("span",null,e("span",{style:{color:C.muted}},"Shares: "),e("span",{style:{color:C.text,fontWeight:"600"}},$n(qty,4))),
+                e("span",null,e("span",{style:{color:C.muted}},"Realized P&L: "),e("span",{style:{color:pc(realizedGL),fontWeight:"600"}},(realizedGL>=0?"+":"")+$n(realizedGL,0))),
+                e("span",null,e("span",{style:{color:C.muted}},"Total Return: "),e("span",{style:{color:pc(totalReturn),fontWeight:"600"}},(totalReturn>=0?"+":"")+$n(totalReturn,0)))
+              )
+            ),
+            e("button",{onClick:()=>setLotsModal(null),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"16px",padding:"2px 8px"}},"✕")
+          ),
+          e("div",{style:{marginBottom:"16px"}},
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}},
+              e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase"}},"Buy Lots"),
+              e("button",{onClick:()=>{setShowAddBuy(v=>!v);setShowAddSell(false);},style:{...BS("p"),padding:"4px 12px",fontSize:"11px"}},"+ Add Buy")
+            ),
+            showAddBuy&&e("div",{style:{display:"flex",gap:"8px",alignItems:"flex-end",padding:"10px",background:C.surfaceAlt,borderRadius:"6px",marginBottom:"8px",flexWrap:"wrap"}},
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Date"),e("input",{type:"date",value:newBuy.date,onChange:ev=>setNewBuy(p=>({...p,date:ev.target.value})),style:inpS})),
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Price ($)"),e("input",{type:"number",placeholder:"0.00",value:newBuy.price,onChange:ev=>setNewBuy(p=>({...p,price:ev.target.value})),style:{...inpS,width:"90px"}})),
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",placeholder:"0",value:newBuy.qty,onChange:ev=>setNewBuy(p=>({...p,qty:ev.target.value})),style:{...inpS,width:"90px"}})),
+              e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
+                e("button",{onClick:addBuyLot,style:BS("p")},"Add"),
+                e("button",{onClick:()=>setShowAddBuy(false),style:BS()},"Cancel")
+              )
+            ),
+            buys.length===0?e("div",{style:{fontSize:"12px",color:C.muted,padding:"8px 0"}},"No buy lots yet — add your first purchase above.")
+            :e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:"11.5px"}},
+              e("thead",null,e("tr",null,
+                ...(["Date","Buy Price","Shares","Rem. Shares","Mkt Value","Gain / Loss",""].map((c,i)=>e("th",{key:i,style:{padding:"6px 8px",textAlign:i>1?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"500",fontSize:"10px",letterSpacing:"0.06em",textTransform:"uppercase",background:C.surfaceAlt}},c)))
+              )),
+              e("tbody",null,...buys.map((lot)=>{
+                const rem=remMap[lot.id]??lot.qty;
+                const mktVal=rem*rawH.currentPrice;
+                const gl=(rawH.currentPrice-lot.price)*rem;
+                const glPct=lot.price?(rawH.currentPrice-lot.price)/lot.price*100:0;
+                return e("tr",{key:lot.id,style:{borderBottom:`1px solid ${C.border}`}},
+                  e("td",{style:{padding:"7px 8px",color:C.text}},lot.date),
+                  e("td",{style:{padding:"7px 8px",color:C.text}},"$"+$n(lot.price)),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right",color:C.muted}},$n(lot.qty,4)),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right",color:rem>0?C.text:C.faint}},$n(rem,4)+(rem===0?" (sold)":"")),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right",color:C.text}},"$"+$n(mktVal,0)),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right",color:pc(gl),fontWeight:"500"}},rem>0?((gl>=0?"+":"")+$n(gl,0)+" ("+$n(glPct,1)+"%)"):e("span",{style:{color:C.faint}},"—")),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right"}},e("button",{onClick:()=>deleteLot(lot.id),title:"Remove lot",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"4px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕"))
+                );
+              }))
+            )
+          ),
+          e("div",null,
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}},
+              e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase"}},"Sell History"),
+              e("button",{onClick:()=>{setShowAddSell(v=>!v);setShowAddBuy(false);},style:{...BS(),padding:"4px 12px",fontSize:"11px"}},"+ Log Sell")
+            ),
+            showAddSell&&e("div",{style:{display:"flex",gap:"8px",alignItems:"flex-end",padding:"10px",background:C.surfaceAlt,borderRadius:"6px",marginBottom:"8px",flexWrap:"wrap"}},
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Date"),e("input",{type:"date",value:newSell.date,onChange:ev=>setNewSell(p=>({...p,date:ev.target.value})),style:inpS})),
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Sell Price ($)"),e("input",{type:"number",placeholder:"0.00",value:newSell.price,onChange:ev=>setNewSell(p=>({...p,price:ev.target.value})),style:{...inpS,width:"90px"}})),
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",placeholder:"0",value:newSell.qty,onChange:ev=>setNewSell(p=>({...p,qty:ev.target.value})),style:{...inpS,width:"90px"}})),
+              e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
+                e("button",{onClick:addSellLot,style:BS("p")},"Add"),
+                e("button",{onClick:()=>setShowAddSell(false),style:BS()},"Cancel")
+              )
+            ),
+            sells.length===0?e("div",{style:{fontSize:"12px",color:C.muted,padding:"8px 0"}},"No sells recorded.")
+            :e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:"11.5px"}},
+              e("thead",null,e("tr",null,
+                ...(["Date","Sell Price","Shares Sold","Realized P&L",""].map((c,i)=>e("th",{key:i,style:{padding:"6px 8px",textAlign:i>1?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"500",fontSize:"10px",letterSpacing:"0.06em",textTransform:"uppercase",background:C.surfaceAlt}},c)))
+              )),
+              e("tbody",null,...sells.map((sell)=>{
+                let tempBuys=buys.map(b=>({...b,rem:b.qty}));
+                let sGl=0;
+                for(const s2 of sells){
+                  let sq=s2.qty;
+                  for(const lot of tempBuys){
+                    if(sq<=0||lot.rem<=0)continue;
+                    const used=Math.min(sq,lot.rem);
+                    if(s2.id===sell.id) sGl+=(s2.price-lot.price)*used;
+                    lot.rem-=used; sq-=used;
+                  }
+                  if(s2.id===sell.id)break;
+                }
+                return e("tr",{key:sell.id,style:{borderBottom:`1px solid ${C.border}`}},
+                  e("td",{style:{padding:"7px 8px",color:C.text}},sell.date),
+                  e("td",{style:{padding:"7px 8px",color:C.text}},"$"+$n(sell.price)),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right",color:C.muted}},$n(sell.qty,4)),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right",color:pc(sGl),fontWeight:"600"}},(sGl>=0?"+":"")+$n(sGl,0)),
+                  e("td",{style:{padding:"7px 8px",textAlign:"right"}},e("button",{onClick:()=>deleteLot(sell.id),title:"Remove sell",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"4px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕"))
+                );
+              }))
+            )
+          )
+        )
+      );
+    }
+
+    function FinTrack() {
+      // Apply dark/light mode to C on every render (option b)
+      const [darkMode,setDarkMode]=useState(false);
+      Object.assign(C, darkMode ? C_DARK : C_LIGHT);
+
+      const [holdings,setHoldings]=useState(null);
+      const [tab,setTab]=useState("news");
+      const [showAdd,setShowAdd]=useState(false);
+      const [newRow,setNewRow]=useState({ticker:"",avgCost:"",qty:"",currentPrice:"",ytdStartPrice:"",targetPrice:"",notes:""});
+      const [addPriceLoading,setAddPriceLoading]=useState(false);
+      const [priceFetchTrigger,setPriceFetchTrigger]=useState(null);
+      const dragIdx=useRef(null);
+      const [hidden,setHidden]=useState(false);
+      const [aiQ,setAiQ]=useState("");
+      const [aiResp,setAiResp]=useState(null);
+      const [aiLoading,setAiLoading]=useState(false);
+      const [news,setNews]=useState(null);
+      const [newsLoading,setNewsLoading]=useState(false);
+      const [newsFetched,setNewsFetched]=useState(false);
+      const [kalshiData,setKalshiData]=useState(null);
+      const [kalshiLoading,setKalshiLoading]=useState(false);
+      const [kalshiFetched,setKalshiFetched]=useState(false);
+      const [priceLoading,setPriceLoading]=useState(false);
+      const [priceUpdatedAt,setPriceUpdatedAt]=useState(null);
+      const [marketData,setMarketData]=useState(null);
+      const [marketLoading,setMarketLoading]=useState(false);
+      const [apiKey,setApiKey]=useState("");
+      const [showKeyModal,setShowKeyModal]=useState(false);
+      const [keyInput,setKeyInput]=useState("");
+
+      const [chartType,setChartType]=useState("line");
+      const [portfolioModal,setPortfolioModal]=useState(null);
+      const [holdingSparklines,setHoldingSparklines]=useState({});
+      const [portfolioChartPeriod,setPortfolioChartPeriod]=useState("1M");
+      const [portfolioChartData,setPortfolioChartData]=useState(null); // {pts,ts}
+      const [portfolioChartLoading,setPortfolioChartLoading]=useState(false);
+      const [strategyNotes,setStrategyNotes]=useState("");
+      const [hoveredSector,setHoveredSector]=useState(null);
+      const holdingSparklinesRef=useRef(false);
+      const [lotsModal,setLotsModal]=useState(null); // {holding, newBuy:{date,price,qty}, newSell:{date,price,qty}}
+
+      // Dark mode body background
+      useEffect(()=>{ document.body.style.background = darkMode ? "#0d1117" : "#edf0f4"; }, [darkMode]);
+
+      useEffect(()=>{
+        (async()=>{
+          try {
+            const [s,k,n]=await Promise.all([
+              storage.get("ft-v3"),
+              storage.get("ft-apikey"),
+              storage.get("ft-notes"),
+            ]);
+            setHoldings((s?JSON.parse(s.value):INITIAL_HOLDINGS).map(migrateLegacyHolding));
+            if(k?.value)setApiKey(k.value);
+            if(n?.value)setStrategyNotes(n.value);
+          } catch { setHoldings(INITIAL_HOLDINGS); }
+        })();
+      },[]);
+
+      useEffect(()=>{
+        if(!holdings)return;
+        storage.set("ft-v3",JSON.stringify(holdings)).catch(()=>{});
+      },[holdings]);
+
+
+
+      useEffect(()=>{
+        if(!priceFetchTrigger)return;
+        const {id,ticker}=priceFetchTrigger;
+        setPriceFetchTrigger(null);
+        setAddPriceLoading(true);
+        (async()=>{
+          let price=null;
+          try{const q=await yfQuote([ticker]);price=q[ticker]?.price||null;}catch{}
+          if(price!=null) setHoldings(p=>p.map(h=>h.id===id?{...h,currentPrice:price,ytdStartPrice:h.ytdStartPrice||price}:h));
+          setAddPriceLoading(false);
+        })();
+      },[priceFetchTrigger]);
+
+      useEffect(()=>{
+        if(tab==="portfolio"&&holdings){
+          fetchHoldingSparklines();
+          fetchPortfolioSeries(portfolioChartPeriod);
+        }
+        if(tab==="news"){fetchMarketData();if(holdings)fetchNews();}
+        if(tab==="prediction"){fetchKalshi();}
+      },[tab,holdings]);
+
+      useEffect(()=>{
+        if(tab==="portfolio"&&holdings) fetchPortfolioSeries(portfolioChartPeriod);
+      },[portfolioChartPeriod]);
+
+
+
+      const upd=(id,f,val)=>setHoldings(p=>p.map(h=>h.id===id?{...h,[f]:val}:h));
+      const updAvgCost=(id,val)=>setHoldings(p=>p.map(h=>{
+        if(h.id!==id)return h;
+        if(h.lots?.length===1){
+          const lots=[{...h.lots[0],price:val}];
+          const curAvg=h.lots[0].price||val;
+          const wasDefault=h.customExit==null||Math.abs(h.customExit-curAvg*DEFAULT_EXIT_PCT)<=0.01;
+          return{...h,lots,customExit:wasDefault?val*DEFAULT_EXIT_PCT:h.customExit};
+        }
+        const wasDefault=h.customExit==null||Math.abs(h.customExit-(h.avgCost||val)*DEFAULT_EXIT_PCT)<=0.01;
+        return {...h,avgCost:val,customExit:wasDefault?val*DEFAULT_EXIT_PCT:h.customExit};
+      }));
+      const del=(id)=>setHoldings(p=>p.filter(h=>h.id!==id));
+      const onDragStart=(i)=>{ dragIdx.current=i; };
+      const onDragOver=(ev,i)=>{ ev.preventDefault(); if(dragIdx.current===null||dragIdx.current===i)return; setHoldings(p=>{ const a=[...p]; const [mv]=a.splice(dragIdx.current,1); a.splice(i,0,mv); dragIdx.current=i; return a; }); };
+      const onDragEnd=()=>{ dragIdx.current=null; };
+
+      // Resolve avgCost/qty from lots for all holdings
+      const resolvedHoldings=(holdings||[]).map(h=>{
+        if(!h.lots||h.ticker==="Cash")return{...h,realizedGL:0,unrealizedGL:(h.currentPrice-(h.avgCost||0))*(h.qty||0)};
+        const c=computeFromLots(h.lots,h.currentPrice);
+        return{...h,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
+      });
+
+      const totalVal  =resolvedHoldings.reduce((s,h)=>s+h.qty*h.currentPrice,0);
+      const totalCost =resolvedHoldings.reduce((s,h)=>s+h.qty*h.avgCost,0);
+      const totalGL   =totalVal-totalCost;
+      const totalGLPct=totalCost?totalGL/totalCost*100:0;
+      // YTD: for lot-tracked holdings, use lot purchase date to decide the YTD baseline.
+      // Lots bought before Jan 1 → use ytdStartPrice. Lots bought during the year → use lot price.
+      const jan1Ms=new Date(new Date().getFullYear(),0,1).getTime();
+      const {ytdGL,ytdBase}=(holdings||[]).reduce((acc,rawH)=>{
+        if(rawH.ticker==="Cash")return acc;
+        const h=resolvedHoldings.find(x=>x.id===rawH.id);
+        if(!h)return acc;
+        const price=h.currentPrice;
+        if(!rawH.lots?.length){
+          const sp=rawH.ytdStartPrice??price;
+          return {ytdGL:acc.ytdGL+h.qty*(price-sp), ytdBase:acc.ytdBase+h.qty*sp};
+        }
+        // FIFO remaining lots
+        const {active}=computeFromLots(rawH.lots,price);
+        let gl=0,base=0;
+        for(const lot of active){
+          const sp=new Date(lot.date).getTime()<jan1Ms?(rawH.ytdStartPrice??lot.price):lot.price;
+          gl+=lot.rem*(price-sp);
+          base+=lot.rem*sp;
+        }
+        return {ytdGL:acc.ytdGL+gl, ytdBase:acc.ytdBase+base};
+      },{ytdGL:0,ytdBase:0});
+      const ytdPct=ytdBase?ytdGL/ytdBase*100:0;
+      const breaches  =resolvedHoldings.filter(h=>h.ticker!=="Cash"&&h.currentPrice<=(h.customExit??h.avgCost*DEFAULT_EXIT_PCT)).length;
+
+      const addRow=()=>{
+        const t=newRow.ticker.trim().toUpperCase();
+        if(!t)return;
+        const id=t+Date.now();
+        const avg=newRow.avgCost?+newRow.avgCost:0;
+        const qty=newRow.qty?+newRow.qty:0;
+        const cur=newRow.currentPrice?+newRow.currentPrice:0;
+        const today=new Date().toISOString().split('T')[0];
+        if(t!=="CASH"&&cur===0) setPriceFetchTrigger({id,ticker:t});
+        const lots=avg>0&&qty>0?[{id:id+"_l0",type:"buy",date:today,price:avg,qty}]:[];
+        setHoldings(p=>[...(p||[]),{id,ticker:t,currentPrice:cur,ytdStartPrice:newRow.ytdStartPrice?+newRow.ytdStartPrice:cur,targetPrice:newRow.targetPrice?+newRow.targetPrice:null,customExit:avg?avg*DEFAULT_EXIT_PCT:null,notes:newRow.notes,lots}]);
+        setNewRow({ticker:"",avgCost:"",qty:"",currentPrice:"",ytdStartPrice:"",targetPrice:"",notes:""});
+        setShowAdd(false);
+      };
+
+      // ── PRICES: Yahoo Finance (no API key needed) ──
+      const fetchPrices=async()=>{
+        if(priceLoading||!holdings)return;
+        setPriceLoading(true);
+        const tickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
+        try{
+          const quotes=await yfQuote(tickers);
+          setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price?{...h,currentPrice:q.price}:h; }));
+          setPriceUpdatedAt(new Date());
+        }catch{}
+        setPriceLoading(false);
+      };
+
+      // ── MARKET DATA via Yahoo Finance (no API key needed) ──
+      const fetchMarketData=async(force=false)=>{
+        if(marketLoading)return;
+        if(marketData&&!marketData.error&&!force)return;
+        setMarketLoading(true);
+        try{
+          const syms=[...INDICES.map(i=>i.yf),...CURRENCIES.map(c=>c.yf),...MACRO_DEF.map(m=>m.yf)];
+          const q=await yfQuote(syms);
+          const indices=INDICES.map(i=>{const d=q[i.yf]||{};return{...i,value:d.price||0,change:d.change||0,changePct:d.changePct||0};});
+          const currencies=CURRENCIES.map(c=>{const d=q[c.yf]||{};return{...c,value:d.price||0,changePct:d.changePct||0};});
+          const macro=MACRO_DEF.map(m=>{const d=q[m.yf]||{};return{...m,value:d.price||0,changePct:d.changePct||0};});
+          setMarketData(Object.keys(q).length>0?{indices,currencies,macro}:{error:true});
+        }catch{setMarketData({error:true});}
+        setMarketLoading(false);
+      };
+
+
+
+      // ── PORTFOLIO CHART: Yahoo Finance → Stooq ──
+      const fetchPortfolioChart=async(ticker,period)=>{
+        try {
+          let candles=null;
+          try{candles=await yfCandles(ticker,period);}catch{}
+          if(!candles?.length) candles=await stooqCandles(ticker.toLowerCase()+".us",period);
+          setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:candles.map(x=>x.c),timestamps:candles.map(x=>x.ts),ohlc:candles,loading:false}:prev);
+        } catch {
+          setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:[],timestamps:[],ohlc:[],loading:false}:prev);
+        }
+      };
+
+      // ── NEWS ──
+      const fetchNews=async(force=false)=>{
+        if(newsLoading||(newsFetched&&!force))return;
+        setNewsLoading(true);
+        setNews({market:[],watchlist:{}});
+        const tickers=holdings?holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker):[];
+        const urls=[GN_MKT_URL,...tickers.map(t=>`https://news.google.com/rss/search?q=${encodeURIComponent(t)}+stock&hl=en-US&gl=US&ceid=US:en`)];
+        const results=await Promise.all(urls.map((url,i)=>fetchNewsItems(url,i===0?6:3)));
+        const market=results[0]||[];
+        const watchlist={};
+        tickers.forEach((t,i)=>{ const items=results[i+1]; if(items?.length)watchlist[t]=items; });
+        setNews({market,watchlist});
+        setNewsLoading(false);
+        if(market.length>0||Object.keys(watchlist).length>0) setNewsFetched(true);
+      };
+
+      // ── KALSHI PREDICTION MARKETS ──
+      const fetchKalshi=async(force=false)=>{
+        if(kalshiLoading||(kalshiFetched&&!force))return;
+        setKalshiLoading(true);
+        // Two distinct keyword sets for client-side classification
+        const FIN_KW=["stock","s&p","nasdaq","dow","equity","share","ipo","etf","bitcoin","crypto","coin","treasury","bond","yield","fed fund","interest rate","prime rate","brokerage","market cap","index","indices"];
+        const ECON_KW=["federal reserve","fed rate","fed cut","fed hike","gdp","inflation","cpi","pce","unemployment","payroll","jobs","recession","tariff","trade deficit","trade war","fiscal","monetary policy","economic","economy","wage","consumer price","housing price"];
+        const classify=txt=>{
+          const t=txt.toLowerCase();
+          const fScore=FIN_KW.filter(k=>t.includes(k)).length;
+          const eScore=ECON_KW.filter(k=>t.includes(k)).length;
+          if(fScore===0&&eScore===0)return null; // unrelated
+          return fScore>=eScore?"finance":"economics";
+        };
+        let allMarkets=[];
+        // Single fetch — markets endpoint is public on Kalshi
+        const url="https://trading-api.kalshi.com/trade-api/v2/markets?status=open&limit=200";
+        try{
+          // Try direct fetch first
+          let data=null;
+          try{const r=await fetch(url,{headers:{accept:"application/json"}});if(r.ok)data=await r.json();}catch{}
+          // Proxy fallback
+          if(!data?.markets?.length){
+            try{data=JSON.parse(await fetchViaProxy(url));}catch{}
+          }
+          allMarkets=data?.markets||[];
+        }catch{}
+        // Classify and split
+        const finance=[],economics=[];
+        for(const m of allMarkets){
+          const text=`${m.title||""} ${m.subtitle||""}`;
+          const cat=classify(text);
+          if(cat==="finance") finance.push(m);
+          else if(cat==="economics") economics.push(m);
+        }
+        const byVol=(a,b)=>(b.volume||0)-(a.volume||0);
+        setKalshiData({
+          finance:finance.sort(byVol).slice(0,5),
+          economics:economics.sort(byVol).slice(0,5),
+          total:allMarkets.length,
+        });
+        setKalshiFetched(true);
+        setKalshiLoading(false);
+      };
+
+      // ── HOLDING SPARKLINES: only fetch tickers not yet loaded, so new additions auto-load ──
+      const fetchHoldingSparklines=async()=>{
+        if(holdingSparklinesRef.current||!holdings)return;
+        const allTickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
+        const missing=allTickers.filter(t=>!holdingSparklines[t]);
+        if(!missing.length)return;
+        holdingSparklinesRef.current=true;
+        await Promise.allSettled(missing.map(async t=>{
+          try {
+            let candles=null;
+            try{candles=await yfCandles(t,"1M");}catch{}
+            if(!candles?.length) try{candles=await stooqCandles(t.toLowerCase()+".us","1M");}catch{}
+            if(!candles?.length)return;
+            if(candles.length<2)return;
+            const pts=candles.map(x=>x.c);
+            const timestamps=candles.map(x=>x.ts);
+            const price=pts[pts.length-1];
+            const pct=pts[0]?((price-pts[0])/pts[0])*100:0;
+            const dailyPct=pts.length>=2?((pts[pts.length-1]-pts[pts.length-2])/pts[pts.length-2])*100:0;
+            setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct}}));
+          } catch {}
+        }));
+        holdingSparklinesRef.current=false; // reset so next addition triggers fetch
+      };
+
+      // ── PORTFOLIO VALUE CHART: fetch historical prices for all holdings, sum qty×price ──
+      const fetchPortfolioSeries=async(period)=>{
+        const nonCash=resolvedHoldings.filter(h=>h.ticker!=="Cash");
+        if(!nonCash.length)return;
+        setPortfolioChartLoading(true);
+        const results=await Promise.allSettled(nonCash.map(async h=>{
+          let candles=null;
+          try{candles=await yfCandles(h.ticker,period);}catch{}
+          if(!candles?.length) try{candles=await stooqCandles(h.ticker.toLowerCase()+".us",period);}catch{}
+          return {h,candles:candles||[]};
+        }));
+        const valid=results.filter(r=>r.status==="fulfilled"&&r.value.candles.length>=2).map(r=>r.value);
+        if(!valid.length){setPortfolioChartLoading(false);return;}
+        const minLen=Math.min(...valid.map(v=>v.candles.length));
+        const cash=resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0;
+        const pts=Array.from({length:minLen},(_,i)=>{
+          let val=cash;
+          for(const {h,candles} of valid) val+=h.qty*candles[candles.length-minLen+i].c;
+          return val;
+        });
+        const ts=valid[0].candles.slice(-minLen).map(c=>c.ts);
+        setPortfolioChartData({pts,ts});
+        setPortfolioChartLoading(false);
+      };
+
+      // ── AI ANALYSIS: Anthropic API (API key required) ──
+      const callAI=async(q)=>{
+        if(!q.trim()||!holdings)return;
+        if(!apiKey){setAiResp("⚠ Please set your Anthropic API key first (click the key icon in the header).");return;}
+        setAiLoading(true);setAiResp(null);
+        try {
+          const ctx=holdings.map(h=>`${h.ticker}: qty=${h.qty}, avg=$${h.avgCost}, current=$${h.currentPrice}, G/L=${((h.currentPrice-h.avgCost)/h.avgCost*100).toFixed(1)}%, YTD=${h.ytdStartPrice?((h.currentPrice-h.ytdStartPrice)/h.ytdStartPrice*100).toFixed(1):"n/a"}%, target=${h.targetPrice?"$"+h.targetPrice:"none"}, exit=$${h.customExit?.toFixed(2)||"n/a"}${h.customExit&&h.currentPrice<=h.customExit?" ⚠BREACHED":""}`).join("\n");
+          const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+            headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+            body:JSON.stringify({model:"claude-opus-4-6",max_tokens:1000,
+              system:`You are a sharp financial analyst assistant. Portfolio:\n\n${ctx}\n\nTotal value: $${$n(totalVal,0)}. Overall G/L: ${sign(totalGLPct)}${$n(Math.abs(totalGLPct),1)}%. YTD: ${sign(ytdPct)}${$n(Math.abs(ytdPct),1)}%.\n\nBe concise and analytical. Lead with the key insight.`,
+              messages:[{role:"user",content:q}],
+              tools:[{type:"web_search_20260209",name:"web_search"}]})});
+          const data=await res.json();
+          setAiResp((data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n")||"No response.");
+        } catch { setAiResp("⚠ Could not reach analysis service. Please try again."); }
+        setAiLoading(false);
+      };
+
+      const inp={background:C.surface,border:`1px solid ${C.border}`,color:C.text,padding:"7px 10px",borderRadius:"7px",fontSize:"12px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
+      const tabB=k=>({padding:"7px 16px",border:`1.5px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",borderRadius:"7px",fontSize:"12px",fontFamily:"inherit",background:tab===k?C.accentBg:"transparent",color:tab===k?C.accent:C.muted,fontWeight:tab===k?"600":"400"});
+
+      if(!holdings)return e("div",{style:{background:C.bg,color:C.muted,padding:"2rem",borderRadius:"6px",fontSize:"13px"}},"Loading…");
+
+      const QUICK=["Which holding has the most analyst upside?","Latest news on LLY ahead of April 10 FDA decision","Key risks in this portfolio right now?","GRAB bull vs bear case in 2025","Is IONQ worth holding at these levels?"];
+      const PERIODS=["1D","5D","1M","6M","YTD","1Y","2Y","5Y","MAX"];
+
+      // ── Sector map ──
+      const SECTOR_MAP={GOOG:"Technology",LLY:"Healthcare",GLD:"ETF / Commodities",MSFT:"Technology",IONQ:"Quantum Tech",GRAB:"Consumer Tech",Cash:"Cash"};
+      const sectorAlloc={};
+      resolvedHoldings.forEach(h=>{
+        const s=SECTOR_MAP[h.ticker]||"Other";
+        sectorAlloc[s]=(sectorAlloc[s]||0)+h.qty*h.currentPrice;
+      });
+      const sectorList=Object.entries(sectorAlloc).sort((a,b)=>b[1]-a[1]).map(([s,v])=>({s,v,pct:totalVal?v/totalVal*100:0}));
+
+      // ── Portfolio chart: from fetched historical prices ──
+      const spTickers=Object.keys(holdingSparklines); // used for sparkline strip only
+      const portfolioPts=portfolioChartData?.pts||null;
+      const portfolioTs=portfolioChartData?.ts||null;
+      const portfolioStartVal=portfolioPts?.[0]||0;
+      const portfolioEndVal=portfolioPts?.[portfolioPts.length-1]||totalVal;
+      const portfolioChange=portfolioStartVal?((portfolioEndVal-portfolioStartVal)/portfolioStartVal*100):0;
+
+      const tableRows=resolvedHoldings.map(h=>{
+        const exitP=h.customExit??h.avgCost*DEFAULT_EXIT_PCT;
+        const breach=h.ticker!=="Cash"&&h.currentPrice>0&&exitP>0&&h.currentPrice<=exitP;
+        const nearExit=!breach&&h.ticker!=="Cash"&&h.currentPrice>0&&exitP>0&&h.currentPrice/exitP<1.10;
+        const gl=(h.currentPrice-h.avgCost)*h.qty, glPct=h.avgCost?(h.currentPrice-h.avgCost)/h.avgCost*100:0;
+        const ytd=h.ytdStartPrice?(h.currentPrice-h.ytdStartPrice)*h.qty:0;
+        const ytdP=h.ytdStartPrice?(h.currentPrice-h.ytdStartPrice)/h.ytdStartPrice*100:0;
+        const holdPct=totalVal?h.qty*h.currentPrice/totalVal*100:0;
+        const upside=(h.targetPrice&&h.currentPrice>0)?(h.targetPrice-h.currentPrice)/h.currentPrice*100:null;
+        const rawH=holdings.find(x=>x.id===h.id)||h;
+        const hasMultiLots=(rawH.lots?.filter(l=>l.type==="buy").length||0)>1;
+        return e("tr",{key:h.id,draggable:true,onDragStart:()=>onDragStart(holdings.indexOf(rawH)),onDragOver:ev=>onDragOver(ev,holdings.indexOf(rawH)),onDragEnd:onDragEnd,style:{background:breach?C.dnBg:nearExit?C.warnBg:"transparent",cursor:"grab"}},
+          e(TD,null,e("span",{style:{color:C.faint,fontSize:"14px",cursor:"grab",userSelect:"none",display:"inline-block",lineHeight:1}},"⠿")),
+          e(TD,null,e("div",{style:{display:"flex",alignItems:"center",gap:"5px",flexWrap:"wrap"}},
+            breach&&e("span",{style:{background:C.dn,color:"#fff",padding:"2px 6px",borderRadius:"4px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0,boxShadow:`0 0 0 2px ${C.dnBorder}`}},"⚠ EXIT"),
+            nearExit&&e("span",{style:{background:C.warn,color:"#fff",padding:"2px 6px",borderRadius:"4px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0}},"⚠ NEAR EXIT"),
+            e("span",{
+              onClick:()=>{ if(h.ticker!=="Cash") setLotsModal({holding:rawH}); },
+              title:h.ticker!=="Cash"?"Manage lots":undefined,
+              style:{background:breach?C.dnBg:C.accentBg,color:breach?C.dn:C.accent,padding:"2px 8px",borderRadius:"5px",fontWeight:"600",fontSize:"11.5px",letterSpacing:"0.03em",border:`1px solid ${breach?C.dnBorder:C.accentMuted}`,cursor:h.ticker!=="Cash"?"pointer":"default"}
+            },h.ticker)
+          )),
+          e(TD,{right:true},hasMultiLots
+            ?e("div",{style:{fontSize:"12px",color:C.text,fontVariantNumeric:"tabular-nums",cursor:"default",borderBottom:`1px dashed ${C.faint}`},title:"Computed from lots"},"$"+$n(h.avgCost))
+            :e(EditCell,{value:h.avgCost,onSave:v=>updAvgCost(h.id,v),hidden})),
+          e(TD,{right:true},hasMultiLots
+            ?e("div",{style:{fontSize:"12px",color:C.text,fontVariantNumeric:"tabular-nums"}},$n(h.qty,4))
+            :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
+          e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
+            h.ticker!=="Cash"&&e("div",{
+              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1M",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1M");},
+              title:"View chart",style:{cursor:"pointer"}
+            },
+              holdingSparklines[h.ticker]?.pts?.length>=2
+                ?e(MiniSpark,{pts:holdingSparklines[h.ticker].pts,color:holdingSparklines[h.ticker].dailyPct>=0?C.up:C.dn,gid:"ps"+h.ticker})
+                :e("div",{style:{width:"50px",height:"24px",display:"flex",alignItems:"center",justifyContent:"center",color:C.faint,fontSize:"9px",border:`1px dashed ${C.faint}`,borderRadius:"3px",letterSpacing:"0.03em"}},"chart")
+            ),
+            e("div",{style:{textAlign:"right"}},
+              e(EditCell,{value:h.currentPrice,onSave:v=>upd(h.id,"currentPrice",v),hidden}),
+              h.ticker!=="Cash"&&holdingSparklines[h.ticker]?.dailyPct!=null&&!hidden&&e("div",{style:{fontSize:"10px",color:holdingSparklines[h.ticker].dailyPct>=0?C.up:C.dn,fontWeight:"500",marginTop:"1px"}},
+                (holdingSparklines[h.ticker].dailyPct>=0?"+":"")+holdingSparklines[h.ticker].dailyPct.toFixed(2)+"%  today")
+            )
+          )),
+          e(TD,{right:true},e("div",{style:{fontVariantNumeric:"tabular-nums"}},
+            e("div",{style:{color:C.text,fontWeight:"500"}},$n(holdPct,1)+"%"),
+            e("div",{style:{fontSize:"10.5px",color:C.muted}},hidden?MASK:"$"+$n(h.qty*h.currentPrice,0))
+          )),
+          e(TD,{right:true},e(PnlCell,{amount:gl,pct:glPct,hidden})),
+          e(TD,{right:true},e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
+            e(EditCell,{value:h.targetPrice,onSave:v=>upd(h.id,"targetPrice",v),hidden}),
+            upside!=null&&!hidden&&e("div",{style:{marginTop:"3px"}},
+              e("span",{style:{background:pcBg(upside),color:pc(upside),padding:"2px 7px",borderRadius:"5px",fontWeight:"600",fontSize:"11px",border:`1px solid ${upside>=0?C.upBorder:C.dnBorder}`,fontVariantNumeric:"tabular-nums"}},sign(upside)+$n(Math.abs(upside),1)+"%")
+            )
+          )),
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(ExitCell,{value:exitP,current:h.currentPrice,onSave:v=>upd(h.id,"customExit",v),hidden})),
+          e(TD,null,e(NotesCell,{text:h.notes,onSave:v=>upd(h.id,"notes",v)})),
+          e(TD,null,e("button",{onClick:()=>del(h.id),style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"5px",padding:"3px 8px",fontSize:"11px",fontFamily:"inherit"}},"✕"))
+        );
+      });
+
+      // ── Market list row helper ──
+      const MktRow=(name,value,changePct,change,unit,decimals=2)=>{
+        const up=changePct>=0, col=up?C.up:C.dn;
+        const fmtVal=value?value.toLocaleString("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):"—";
+        return e("div",{style:{display:"flex",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}},
+          e("span",{style:{flex:1,fontSize:"12px",color:C.text,fontWeight:"500"}},name),
+          e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:C.text,fontWeight:"600",marginRight:"16px"}},
+            fmtVal,unit?e("span",{style:{fontSize:"9px",color:C.muted,marginLeft:"4px",fontWeight:"400"}},unit):null
+          ),
+          e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:col,fontWeight:"600",minWidth:"52px",textAlign:"right"}},
+            (up?"+":"")+$n(changePct,2)+"%"
+          ),
+          e("span",{style:{fontSize:"11px",fontVariantNumeric:"tabular-nums",color:col,minWidth:"80px",textAlign:"right"}},
+            change!=null?"("+sign(change)+"$"+$n(Math.abs(change),2)+")":""
+          )
+        );
+      };
+      const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",padding:"10px 0 4px",borderBottom:`1px solid ${C.border}`}},label);
+
+      const marketListSection=(!marketLoading&&marketData&&!marketData.error)?e("div",{style:{padding:"0 1rem 0.75rem"}},
+        MktSectionHead("Global Indices"),
+        ...(marketData.indices||[]).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2)),
+        MktSectionHead("Currencies (vs USD)"),
+        ...(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4)),
+        MktSectionHead("Commodities"),
+        ...(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2))
+      ):null;
+
+      // ── Holdings sparkline strip for news tab ──
+      const nonCashHoldings=resolvedHoldings.filter(h=>h.ticker!=="Cash");
+      const holdingSparkStrip=e("div",{style:{marginBottom:"1rem"}},
+        e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px",display:"flex",alignItems:"center",gap:"8px"}},
+          e("span",null,"Your Holdings"),e("div",{style:{flex:1,height:"1px",background:C.border}})),
+        e("div",{style:{display:"flex",gap:"8px",overflowX:"auto",paddingBottom:"4px"}},
+          ...nonCashHoldings.map((h,i)=>{
+            const sp=holdingSparklines[h.ticker];
+            const isUp=sp?sp.pct>=0:((h.currentPrice-h.avgCost)>=0);
+            const col=isUp?C.up:C.dn;
+            const bg=isUp?C.upBg:C.dnBg;
+            const bdr=isUp?C.upBorder:C.dnBorder;
+            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1M",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1M");},
+              style:{flex:"0 0 130px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"8px 10px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"border-color 0.12s"}},
+              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
+                e("span",{style:{background:C.accentBg,color:C.accent,padding:"1px 6px",borderRadius:"4px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`}},h.ticker),
+                sp&&e("span",{style:{fontSize:"10px",color:col,fontWeight:"600",background:bg,border:`1px solid ${bdr}`,padding:"1px 5px",borderRadius:"4px"}},(isUp?"+":"")+sp.pct.toFixed(1)+"%")
+              ),
+              sp
+                ?e(F,null,
+                    e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,fontVariantNumeric:"tabular-nums",marginBottom:"2px"}},"$"+$n(sp.price)),
+                    e(MiniSpark,{pts:sp.pts,color:col,gid:"hsp"+i})
+                  )
+                :e("div",{style:{height:"50px",background:C.border,borderRadius:"5px",animation:"pulse 1.2s ease-in-out infinite"}})
+            );
+          })
+        )
+      );
+
+      return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'Inter','Helvetica Neue',sans-serif",borderRadius:"6px"}},
+
+        // ── Header ──
+        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 1rem",borderBottom:`1px solid ${C.border}`,background:C.panel,height:"44px"}},
+          e("div",{style:{display:"flex",alignItems:"center",gap:"16px"}},
+            e("div",{style:{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}},
+              e("div",{style:{width:"24px",height:"24px",borderRadius:"5px",background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}},
+                e("svg",{width:"12",height:"12",viewBox:"0 0 14 14",fill:"none"},e("polyline",{points:"1,10 4,6 7,8 10,3 13,5",stroke:"white",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round"}))
+              ),
+              e("span",{style:{fontSize:"13px",fontWeight:"700",color:C.text,letterSpacing:"-0.01em",whiteSpace:"nowrap"}},"FinTrack")
+            ),
+            // Tabs inline in header
+            e("div",{style:{display:"flex",alignItems:"stretch",height:"44px",gap:"2px"}},
+              [["news","Markets"],["prediction","Prediction"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
+                e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
+                  style:{padding:"0 16px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
+                    background:"transparent",color:tab===k?C.accent:C.muted,
+                    fontWeight:tab===k?"600":"400",fontSize:"12px",fontFamily:"inherit",transition:"color 0.1s"}},l)
+              )
+            ),
+            breaches>0&&e("span",{style:{fontSize:"10px",background:C.dnBg,border:`1px solid ${C.dnBorder}`,color:C.dn,padding:"2px 8px",borderRadius:"4px",fontWeight:"600",whiteSpace:"nowrap"}},"⚠ "+breaches+" EXIT BREACH"+(breaches>1?"ES":""))
+          ),
+          e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
+            e("div",{style:{fontSize:"12px",color:C.muted}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})),
+            e("button",{onClick:()=>{setKeyInput(apiKey);setShowKeyModal(true);},title:"API key for AI Analysis",
+              style:{display:"flex",alignItems:"center",gap:"6px",background:apiKey?C.upBg:C.surfaceAlt,border:`1px solid ${apiKey?C.upBorder:C.border}`,color:apiKey?C.up:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit"}},
+              e("svg",{width:"13",height:"13",viewBox:"0 0 13 13",fill:"none",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round",strokeLinejoin:"round"},e("circle",{cx:"5",cy:"5.5",r:"2.5"}),e("path",{d:"M7 7.5l4 4"}),e("path",{d:"M6.5 5.5h1.5v1.5"})),
+              apiKey?"AI Key Set":"AI Key"
+            ),
+            e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Switch to light mode":"Switch to dark mode",
+              style:{display:"flex",alignItems:"center",gap:"5px",background:darkMode?C.surfaceAlt:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit"}},
+              darkMode?"☀ Light":"☽ Dark"
+            ),
+            e("button",{onClick:()=>setHidden(v=>!v),title:hidden?"Show numbers":"Hide numbers",
+              style:{display:"flex",alignItems:"center",gap:"6px",background:hidden?C.accentBg:C.surfaceAlt,border:`1px solid ${hidden?C.accentMuted:C.border}`,color:hidden?C.accent:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:hidden?"600":"400"}},
+              e("svg",{width:"14",height:"14",viewBox:"0 0 14 14",fill:"none",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"},
+                hidden?e(F,null,e("path",{d:"M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"}),e("circle",{cx:"7",cy:"7",r:"1.5"}),e("line",{x1:"2",y1:"2",x2:"12",y2:"12"}))
+                      :e(F,null,e("path",{d:"M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"}),e("circle",{cx:"7",cy:"7",r:"1.5"}))
+              ),
+              hidden?"Show":"Hide"
+            )
+          )
+        ),
+
+        // ── Body ──
+        e("div",{style:{padding:"1rem 1rem"}},
+          tab==="portfolio"&&e("div",{style:{display:"flex",gap:"10px",marginBottom:"1.25rem",flexWrap:"wrap"}},
+            e(MetCard,{label:"Portfolio Value",value:hidden?MASK:"$"+$n(totalVal,0)}),
+            e(MetCard,{label:"Total Gain / Loss",value:hidden?MASK:sign(totalGL)+"$"+$n(Math.abs(totalGL),0),color:hidden?C.muted:pc(totalGL),sub:hidden?MASK:sign(totalGLPct)+$n(Math.abs(totalGLPct),1)+"% overall"}),
+            e(MetCard,{label:"YTD Gain / Loss",value:hidden?MASK:sign(ytdGL)+"$"+$n(Math.abs(ytdGL),0),color:hidden?C.muted:pc(ytdGL),sub:hidden?MASK:sign(ytdPct)+$n(Math.abs(ytdPct),1)+"% this year"}),
+            e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash"})
+          ),
+
+
+          // ── Portfolio Performance Chart ──
+          tab==="portfolio"&&e(PortfolioChart,{
+            pts:portfolioPts,timestamps:portfolioTs,
+            period:portfolioChartPeriod,change:portfolioChange,
+            totalVal,hidden,loading:portfolioChartLoading,
+            chartPeriod:portfolioChartPeriod,
+            setChartPeriod:(p)=>{setPortfolioChartPeriod(p);}
+          }),
+
+
+          // ── PORTFOLIO TAB ──
+          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.875rem 1rem",borderBottom:`1px solid ${C.border}`}},
+              e("div",{style:{display:"flex",alignItems:"center",gap:"12px"}},
+                e("span",{style:{fontSize:"11px",color:C.muted}},"Click any value to edit · Force Exit default = avg cost × 85%"),
+                priceUpdatedAt&&e("span",{style:{fontSize:"10.5px",color:C.up,display:"flex",alignItems:"center",gap:"4px"}},
+                  e("svg",{width:"10",height:"10",viewBox:"0 0 10 10",fill:"none"},e("circle",{cx:"5",cy:"5",r:"4",stroke:"currentColor",strokeWidth:"1.2"}),e("path",{d:"M5 3v2l1.2 1.2",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"})),
+                  "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})+" · Yahoo Finance"
+                )
+              ),
+              e("div",{style:{display:"flex",gap:"8px"}},
+                e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"6px",opacity:priceLoading?0.7:1},onClick:fetchPrices,disabled:priceLoading},
+                  e("svg",{width:"12",height:"12",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:priceLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"8,1 11,1 11,4"})),
+                  priceLoading?"Fetching…":"Refresh Prices"
+                ),
+                e("button",{style:BS("p"),onClick:()=>setShowAdd(v=>!v)},"+ Add Position")
+              )
+            ),
+
+            showAdd&&e("div",{style:{padding:"1rem",borderBottom:`1px solid ${C.border}`,background:C.surfaceAlt}},
+              e("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:"8px",marginBottom:"10px"}},
+                e("input",{style:inp,placeholder:"Ticker *",value:newRow.ticker,onChange:ev=>setNewRow(p=>({...p,ticker:ev.target.value}))}),
+                [["avgCost","Avg Cost ($)"],["qty","Quantity"],["currentPrice","Current ($)"],["ytdStartPrice","YTD Start ($)"],["targetPrice","Target ($)"]].map(([k,ph])=>
+                  e("input",{key:k,style:inp,placeholder:ph,value:newRow[k],onChange:ev=>setNewRow(p=>({...p,[k]:ev.target.value}))})
+                ),
+                e("input",{style:{...inp,gridColumn:"1 / -1"},placeholder:"Notes",value:newRow.notes,onChange:ev=>setNewRow(p=>({...p,notes:ev.target.value}))})
+              ),
+              e("div",{style:{display:"flex",gap:"8px",alignItems:"center"}},e("button",{style:BS("p"),onClick:addRow},"Add"),e("button",{style:BS(),onClick:()=>setShowAdd(false)},"Cancel"),addPriceLoading&&e("span",{style:{fontSize:"11px",color:C.muted}},"Fetching price…"))
+            ),
+
+            e("div",{style:{overflowX:"auto"}},
+              e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:"12px"}},
+                e("thead",null,e("tr",null,
+                  e(TH,{c:""}),e(TH,{c:"Ticker"}),e(TH,{c:"Avg Cost",right:true}),e(TH,{c:"Quantity",right:true}),
+                  e(TH,{c:"Current Price",right:true}),e(TH,{c:"Holding %",right:true}),
+                  e(TH,{c:"Gain / Loss",right:true}),e(TH,{c:"YTD Gain / Loss",right:true}),
+                  e(TH,{c:"Target / Upside",right:true}),
+                  e(TH,{c:"Force Exit",right:true}),e(TH,{c:"Notes"}),e(TH,{c:""})
+                )),
+                e("tbody",null,...tableRows)
+              )
+            )
+          ),
+
+          // ── Market Notes & Strategy ──
+          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",marginTop:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
+              e("div",null,
+                e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Market Notes & Strategy"),
+                e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"2px"}},"Personal notes, thesis, and investment strategy — auto-saved")
+              )
+            ),
+            e("textarea",{
+              value:strategyNotes,
+              onChange:ev=>{setStrategyNotes(ev.target.value);storage.set("ft-notes",ev.target.value).catch(()=>{});},
+              placeholder:"Write your market outlook, position thesis, risk notes, upcoming catalysts…\n\ne.g. LLY: Holding through FDA April 10 decision. Risk is delay past Q2.\nGOOG: Patient hold toward $400 target. Valuation still reasonable at 20x fwd.",
+              rows:8,
+              style:{width:"100%",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,borderRadius:"8px",padding:"12px 14px",fontSize:"12.5px",fontFamily:"'Inter','Helvetica Neue',sans-serif",lineHeight:"1.7",resize:"vertical",outline:"none",boxSizing:"border-box"}
+            })
+          ),
+
+          // ── Industry Allocation ──
+          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",marginTop:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}},
+              e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Industry Allocation"),
+              e("div",{style:{fontSize:"10px",color:C.muted,letterSpacing:"0.06em",textTransform:"uppercase"}},"Hover a row to see holdings · by portfolio value")
+            ),
+            e("div",{style:{display:"flex",flexDirection:"column",gap:"2px"}},
+              ...sectorList.map(({s,v,pct},i)=>{
+                const barColor=i===0?C.accent:i===1?"#6366f1":i===2?"#8b5cf6":i===3?"#10b981":i===4?"#f59e0b":"#94a3b8";
+                const isHovered=hoveredSector===s;
+                // constituents: holdings in this sector
+                const members=(holdings||[]).filter(h=>SECTOR_MAP[h.ticker]===s||(s==="Cash"&&h.ticker==="Cash"));
+                return e("div",{key:i,
+                  onMouseEnter:()=>setHoveredSector(s),
+                  onMouseLeave:()=>setHoveredSector(null),
+                  style:{borderRadius:"8px",padding:"8px 10px",background:isHovered?C.surfaceAlt:"transparent",transition:"background 0.12s",cursor:"default"}},
+                  e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"5px"}},
+                    e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
+                      e("div",{style:{width:"10px",height:"10px",borderRadius:"2px",background:barColor,flexShrink:0}}),
+                      e("span",{style:{fontSize:"12px",color:C.text,fontWeight:isHovered?"600":"500"}},s)
+                    ),
+                    e("div",{style:{display:"flex",gap:"12px",alignItems:"center"}},
+                      !hidden&&e("span",{style:{fontSize:"11px",color:C.muted}},"$"+$n(v,0)),
+                      e("span",{style:{fontSize:"12px",fontWeight:"700",color:isHovered?barColor:C.text,minWidth:"40px",textAlign:"right"}},pct.toFixed(1)+"%")
+                    )
+                  ),
+                  e("div",{style:{height:"6px",background:C.border,borderRadius:"3px",overflow:"hidden",marginBottom:isHovered&&members.length?"8px":"0"}},
+                    e("div",{style:{height:"100%",width:pct+"%",background:barColor,borderRadius:"3px",transition:"width 0.4s ease"}})
+                  ),
+                  // Constituent stocks — shown on hover
+                  isHovered&&members.length>0&&e("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginTop:"4px"}},
+                    ...members.map((h,j)=>{
+                      const hPct=totalVal?h.qty*h.currentPrice/totalVal*100:0;
+                      const gl=(h.currentPrice-h.avgCost)/h.avgCost*100;
+                      return e("div",{key:j,style:{display:"flex",alignItems:"center",gap:"6px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"4px 10px"}},
+                        e("span",{style:{fontWeight:"700",fontSize:"11px",color:barColor}},h.ticker),
+                        !hidden&&e("span",{style:{fontSize:"11px",color:C.muted}},"$"+$n(h.currentPrice)),
+                        e("span",{style:{fontSize:"11px",fontWeight:"600",color:pc(gl)}},(gl>=0?"+":"")+gl.toFixed(1)+"%"),
+                        e("span",{style:{fontSize:"10px",color:C.faint}},"·"),
+                        e("span",{style:{fontSize:"11px",color:C.text,fontWeight:"500"}},hPct.toFixed(1)+"% of portfolio")
+                      );
+                    })
+                  )
+                );
+              })
+            )
+          ),
+
+          // ── NEWS TAB ──
+          tab==="news"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.25rem"}},
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`}},
+                e("div",null,
+                  e("span",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Market Summary"),
+                  e("span",{style:{fontSize:"10.5px",color:C.muted,marginLeft:"8px"}},"prices & charts via Yahoo Finance · news via Google News")
+                ),
+                e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"5px",padding:"5px 12px",fontSize:"11px"},onClick:()=>{fetchMarketData(true);fetchNews(true);},disabled:marketLoading||newsLoading},
+                  e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:(marketLoading||newsLoading)?"spin 1s linear infinite":"none"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
+                  (marketLoading||newsLoading)?"Refreshing…":"Refresh All"
+                )
+              ),
+              marketLoading&&e("div",{style:{padding:"0.75rem 1rem 0.5rem",animation:"pulse 1.2s ease-in-out infinite"}},
+                ...[1,2,3,4,5,6,7,8,9,10,11].map(i=>e("div",{key:i,style:{height:"32px",background:C.border,borderRadius:"4px",marginBottom:"4px"}}))
+              ),
+              marketListSection,
+              !marketLoading&&marketData?.error&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Could not load market data — check your internet connection and try ",e("strong",null,"Refresh All"),".")),
+              !marketLoading&&!marketData&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Click ",e("strong",null,"Refresh All")," to load live market data"))
+            ),
+
+            // Holdings sparkline strip
+            nonCashHoldings.length>0&&holdingSparkStrip,
+
+            e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",display:"flex",alignItems:"center",gap:"8px"}},e("span",null,"Market & Watchlist Headlines"),e("div",{style:{flex:1,height:"1px",background:C.border}})),
+
+            newsLoading&&e("div",{style:{display:"flex",flexDirection:"column",gap:"8px"}},...[1,2,3,4,5].map(i=>e("div",{key:i,style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"1rem",animation:"pulse 1.2s ease-in-out infinite"}},e("div",{style:{height:"12px",background:C.border,borderRadius:"4px",width:(60+i*7)+"%",marginBottom:"8px"}}),e("div",{style:{height:"10px",background:C.border,borderRadius:"4px",width:"40%"}})))),
+
+            !newsLoading&&news?.error&&e("div",{style:{background:C.dnBg,border:`1px solid ${C.dnBorder}`,borderRadius:"4px",padding:"1rem",color:C.dn,fontSize:"13px"}},news.error),
+
+            !newsLoading&&(!news)&&e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"6px",padding:"3rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"2"}},"Press ",e("strong",null,"Refresh All")," to fetch live headlines from Google News")),
+            !newsLoading&&news&&!news.error&&!news.market?.length&&!Object.keys(news.watchlist||{}).length&&e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"6px",padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"2"}},"Could not fetch news — CORS proxy may be blocked for Google News. Try ",e("strong",null,"Refresh All")," or check your internet connection.")),
+
+            !newsLoading&&news&&!news.error&&e(F,null,
+              news.market?.length>0&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"0.75rem 1rem",marginBottom:"0"}},
+                e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"4px",display:"flex",alignItems:"center",gap:"8px"}},e("span",null,"Top Headlines"),e("div",{style:{flex:1,height:"1px",background:C.border}})),
+                e("div",{style:{paddingTop:"4px"}},...news.market.map((item,i)=>e(NewsRow,{key:i,item})))
+              ),
+              news.watchlist&&Object.keys(news.watchlist).length>0&&e("div",null,
+                e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"10px",display:"flex",alignItems:"center",gap:"8px"}},e("span",null,"Watchlist News"),e("div",{style:{flex:1,height:"1px",background:C.border}})),
+                e("div",{style:{display:"flex",flexDirection:"column",gap:"12px"}},
+                  ...Object.entries(news.watchlist).map(([ticker,items])=>
+                    e("div",{key:ticker,style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"0.75rem 1rem"}},
+                      e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}},
+                        e("span",{style:{background:C.accentBg,color:C.accent,padding:"2px 9px",borderRadius:"5px",fontWeight:"700",fontSize:"11px",border:`1px solid ${C.accentMuted}`}},ticker),
+                        e("div",{style:{flex:1,height:"1px",background:C.border}})
+                      ),
+                      ...(items||[]).map((item,i)=>e(NewsRow,{key:i,item}))
+                    )
+                  )
+                )
+              )
+            )
+          ),
+
+          // ── PREDICTION TAB ──
+          tab==="prediction"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.25rem"}},
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+              e("div",null,
+                e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Prediction Markets"),
+                e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"2px"}},"Top trending bets · powered by Kalshi")
+              ),
+              e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"5px",padding:"5px 12px",fontSize:"11px"},
+                onClick:()=>fetchKalshi(true),disabled:kalshiLoading},
+                e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",
+                  style:{animation:kalshiLoading?"spin 1s linear infinite":"none"}},
+                  e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
+                kalshiLoading?"Refreshing…":"Refresh"
+              )
+            ),
+            // Helper to render a market row
+            (()=>{
+              const KalshiRow=(m,i,arr)=>{
+                const rawP=m.yes_ask??m.last_price??null;
+                const yesPct=rawP!=null?(rawP>1?Math.round(rawP):Math.round(rawP*100)):null;
+                const vol=m.volume||0;
+                const closeDate=m.close_time?new Date(m.close_time).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):null;
+                const isYes=yesPct!=null&&yesPct>=50;
+                const url=`https://kalshi.com/markets/${(m.event_ticker||m.ticker||"").toLowerCase()}`;
+                return e("a",{key:m.ticker||i,href:url,target:"_blank",rel:"noopener noreferrer",
+                  style:{display:"flex",alignItems:"center",gap:"12px",padding:"0.65rem 1rem",
+                    borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none",
+                    textDecoration:"none",transition:"background 0.1s"},
+                  onMouseEnter:ev=>ev.currentTarget.style.background=C.surfaceAlt,
+                  onMouseLeave:ev=>ev.currentTarget.style.background=""},
+                  e("div",{style:{width:"22px",height:"22px",borderRadius:"50%",background:C.tag,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:C.muted,flexShrink:0}},i+1),
+                  e("div",{style:{flex:1,minWidth:0}},
+                    e("div",{style:{fontSize:"12px",fontWeight:"500",color:C.text,lineHeight:"1.4",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},
+                      m.title||m.ticker),
+                    e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px",display:"flex",gap:"10px"}},
+                      closeDate&&e("span",null,"Closes ",closeDate),
+                      vol>0&&e("span",null,"Vol: "+(vol>=1000?(vol/1000).toFixed(1)+"K":vol)),
+                      e("span",{style:{color:C.accent,opacity:0.6}},"kalshi ↗")
+                    )
+                  ),
+                  yesPct!=null&&e("div",{style:{flexShrink:0,display:"inline-flex",alignItems:"center",gap:"4px",
+                    background:isYes?C.upBg:C.dnBg,border:`1px solid ${isYes?C.upBorder:C.dnBorder}`,
+                    borderRadius:"20px",padding:"3px 10px",fontSize:"11px",fontWeight:"600",color:isYes?C.up:C.dn}},
+                    "YES ",yesPct+"%")
+                );
+              };
+              const KalshiSection=(title,items)=>e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+                e("div",{style:{padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:"8px"}},
+                  e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.06em"}},title),
+                  e("div",{style:{flex:1,height:"1px",background:C.border}})
+                ),
+                kalshiLoading&&e("div",{style:{padding:"0.75rem 1rem",display:"flex",flexDirection:"column",gap:"8px"}},
+                  ...[1,2,3,4,5].map(i=>e("div",{key:i,style:{height:"44px",background:C.border,borderRadius:"6px",animation:"pulse 1.2s ease-in-out infinite"}}))
+                ),
+                !kalshiLoading&&items.length===0&&e("div",{style:{padding:"1.5rem",textAlign:"center",fontSize:"12px",color:C.muted}},
+                  kalshiFetched
+                    ?(kalshiData?.total>0
+                        ?`No ${title.toLowerCase()} markets matched — ${kalshiData.total} markets fetched total.`
+                        :"Kalshi API unavailable — try refreshing.")
+                    :"Click Refresh to load."
+                ),
+                !kalshiLoading&&items.length>0&&e("div",null,...items.map((m,i)=>KalshiRow(m,i,items)))
+              );
+              return e(F,null,
+                KalshiSection("Finance",kalshiData?.finance||[]),
+                KalshiSection("Economics",kalshiData?.economics||[])
+              );
+            })()
+          ),
+
+          // ── AI ANALYSIS TAB ──
+          tab==="ai"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1rem"}},
+            !apiKey&&e("div",{style:{background:C.warnBg,border:`1px solid ${C.warnBorder}`,borderRadius:"4px",padding:"0.875rem 1rem",display:"flex",alignItems:"center",gap:"10px"}},
+              e("span",{style:{fontSize:"12px",color:C.warn}},"⚠ AI Analysis requires an Anthropic API key."),
+              e("button",{onClick:()=>{setKeyInput("");setShowKeyModal(true);},style:{...BS("p"),padding:"5px 12px",fontSize:"11px",marginLeft:"auto",background:C.warn,borderColor:C.warn}},"Set Key")
+            ),
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+              e("div",{style:{fontSize:"11px",color:C.muted,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:"12px"}},"Portfolio Intelligence — Claude + Live Web Search"),
+              e("div",{style:{display:"flex",gap:"8px"}},
+                e("input",{style:{...inp,flex:1,fontSize:"13px",padding:"10px 12px"},placeholder:"Ask anything — news, targets, risks, catalysts…",value:aiQ,onChange:ev=>setAiQ(ev.target.value),onKeyDown:ev=>ev.key==="Enter"&&callAI(aiQ)}),
+                e("button",{style:{...BS("p"),padding:"10px 18px",whiteSpace:"nowrap"},onClick:()=>callAI(aiQ),disabled:aiLoading||!aiQ.trim()},aiLoading?"Analyzing…":"Analyze →")
+              ),
+              e("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginTop:"10px"}},
+                ...QUICK.map(q=>e("button",{key:q,onClick:()=>{setAiQ(q);callAI(q);},style:{background:C.tag,border:`1px solid ${C.border}`,color:C.tagText,cursor:"pointer",borderRadius:"20px",padding:"4px 12px",fontSize:"11px",fontFamily:"inherit"}},q))
+              )
+            ),
+            aiLoading&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",display:"flex",gap:"12px",alignItems:"center"}},e("div",{style:{width:"8px",height:"8px",borderRadius:"50%",background:C.accent,animation:"pulse 1s ease-in-out infinite"}}),e("span",{style:{fontSize:"12px",color:C.muted}},"Searching live market data and news…")),
+            aiResp&&!aiLoading&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},e("span",{style:{fontSize:"11px",color:C.accent,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:"600"}},"Analysis"),e("button",{onClick:()=>setAiResp(null),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"12px"}},"✕ Clear")),
+              e("div",{style:{fontSize:"13px",lineHeight:"1.8",whiteSpace:"pre-wrap",color:C.text,borderTop:`1px solid ${C.border}`,paddingTop:"12px"}},aiResp)
+            ),
+            !aiLoading&&!aiResp&&e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"6px",padding:"2.5rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"1.9"}},"Context-aware of your portfolio, costs, P&L and targets",e("br"),"Uses live web search for latest news, analyst reports and market data"))
+          )
+        ),
+
+        // ── API Key Modal ──
+        showKeyModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.45)"},onClick:()=>setShowKeyModal(false)},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.5rem",width:"440px",maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}},
+            e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,marginBottom:"4px"}},"Anthropic API Key"),
+            e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"14px",lineHeight:"1.55"}},"Required only for the AI Analysis tab. Prices and news work without a key. Saved to ",e("code",{style:{background:C.tag,padding:"1px 5px",borderRadius:"3px"}},"localStorage"),"."),
+            e("input",{type:"password",placeholder:"sk-ant-...",value:keyInput,onChange:ev=>setKeyInput(ev.target.value),
+              onKeyDown:ev=>{ if(ev.key==="Enter"){setApiKey(keyInput);storage.set("ft-apikey",keyInput);setShowKeyModal(false);} },
+              style:{background:C.surfaceAlt,border:`1.5px solid ${C.accent}`,color:C.text,borderRadius:"8px",padding:"9px 12px",fontSize:"13px",width:"100%",outline:"none",fontFamily:"monospace",boxSizing:"border-box",boxShadow:`0 0 0 3px ${C.accentBg}`},autoFocus:true}),
+            e("div",{style:{display:"flex",gap:"8px",marginTop:"12px"}},
+              e("button",{onClick:()=>{setApiKey(keyInput);storage.set("ft-apikey",keyInput);setShowKeyModal(false);},style:BS("p")},"Save"),
+              apiKey&&e("button",{onClick:()=>{setApiKey("");setKeyInput("");storage.set("ft-apikey","");setShowKeyModal(false);},style:{...BS(),color:C.dn,borderColor:C.dnBorder}},"Remove"),
+              e("button",{onClick:()=>setShowKeyModal(false),style:BS()},"Cancel")
+            )
+          )
+        ),
+
+
+        // ── Lots Modal ──
+        lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings}),
+
+        // ── Portfolio Chart Modal ──
+        portfolioModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setPortfolioModal(null)},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",width:"900px",maxWidth:"96vw",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}},
+            // Modal header
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
+              e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
+                e("span",{style:{background:C.accentBg,color:C.accent,padding:"3px 10px",borderRadius:"6px",fontWeight:"700",fontSize:"13px",border:`1px solid ${C.accentMuted}`}},portfolioModal.ticker),
+                (()=>{
+                  const h=resolvedHoldings.find(x=>x.ticker===portfolioModal.ticker);
+                  if(!h)return null;
+                  const isUp=h.currentPrice>=h.avgCost;
+                  return e(F,null,
+                    e("span",{style:{fontSize:"18px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(h.currentPrice)),
+                    e("span",{style:{fontSize:"12px",color:isUp?C.up:C.dn,fontWeight:"600"}},
+                      (isUp?"▲":"▼")+" "+sign(h.currentPrice-h.avgCost)+"$"+$n(Math.abs(h.currentPrice-h.avgCost))+" ("+(isUp?"+":"")+((h.currentPrice-h.avgCost)/h.avgCost*100).toFixed(1)+"%)")
+                  );
+                })()
+              ),
+              e("button",{onClick:()=>setPortfolioModal(null),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"16px",padding:"2px 6px"}},"✕")
+            ),
+            // Period selector + chart type toggle
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}},
+              e("div",{style:{display:"flex",gap:"2px"}},
+                ["line","candle"].map(ct=>e("button",{key:ct,onClick:()=>setChartType(ct),
+                  style:{padding:"3px 9px",border:`1px solid ${chartType===ct?C.accent:C.border}`,borderRadius:"5px",cursor:"pointer",
+                    background:chartType===ct?C.accentBg:"transparent",color:chartType===ct?C.accent:C.muted,
+                    fontSize:"11px",fontFamily:"inherit",fontWeight:chartType===ct?"600":"400",textTransform:"capitalize"}},ct))
+              ),
+              e("div",{style:{display:"flex",gap:"2px"}},
+                PERIODS.map(p=>e("button",{key:p,
+                  onClick:()=>{
+                    setPortfolioModal(prev=>prev?{...prev,period:p,series:null,timestamps:null,ohlc:null,loading:true}:prev);
+                    fetchPortfolioChart(portfolioModal.ticker,p);
+                  },
+                  style:{padding:"3px 9px",border:`1px solid ${portfolioModal.period===p?C.accent:C.border}`,borderRadius:"5px",cursor:"pointer",
+                    background:portfolioModal.period===p?C.accentBg:"transparent",color:portfolioModal.period===p?C.accent:C.muted,
+                    fontSize:"11px",fontFamily:"inherit",fontWeight:portfolioModal.period===p?"600":"400"}},p))
+              )
+            ),
+            // Chart area
+            portfolioModal.loading
+              ?e("div",{style:{height:320,display:"flex",alignItems:"center",justifyContent:"center"}},
+                 e("div",{style:{width:"14px",height:"14px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}))
+              :(()=>{
+                  const h=resolvedHoldings.find(x=>x.ticker===portfolioModal.ticker);
+                  const modalColor=h?(h.currentPrice>=h.avgCost?C.up:C.dn):C.accent;
+                  if(chartType==="candle"&&portfolioModal.ohlc&&portfolioModal.ohlc.length>=2)
+                    return e(CandlestickChart,{candles:portfolioModal.ohlc,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320});
+                  return e(LargeChart,{pts:portfolioModal.series||[],color:modalColor,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320,ohlc:portfolioModal.ohlc});
+                })()
+          )
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(e(FinTrack));
+  })();
+  </script>
+</body>
+</html>
+
+</body>
+</html>
