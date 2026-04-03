@@ -1015,13 +1015,11 @@
           }));
         }
 
-        // 3. Stooq proxy fallback
+        // 3. Stooq proxy fallback for anything still missing after FMP
         const sq=async(sym)=>{const c=await stooqCandles(sym,"1W");if(!c||c.length<1)throw new Error();const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};};
-        await Promise.allSettled(allDefsIM.map(async s=>{
+        const fmpMissing=allDefsIM.filter(s=>!yfQ[s.yf]?.price&&!stillMissing.find(x=>x.yf===s.yf));
+        await Promise.allSettled([...stillMissing,...fmpMissing].map(async s=>{
           const key=INDICES.includes(s)?"indices":"macro";
-          // check current state
-          const nowVal=await new Promise(r=>setMarketData(p=>{r(p?.[key]?.find(x=>x.yf===s.yf)?.value||0:0);return p;}));
-          if(nowVal>0)return;
           try{upd(key,s.yf,await sq(s.stooq));}catch{}
         }));
 
