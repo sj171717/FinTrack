@@ -983,15 +983,15 @@
           upd("currencies","TWDUSD=X",{price:tr.twd||0,changePct:pct(tr.twd,yr?.twd)});
         }catch{}})();
 
-        // ── Indices + Macro: Yahoo Finance via proxy, Stooq via proxy as fallback ──
+        // ── Indices + Macro: Stooq via proxy (reliable, no auth needed) ──
         const allDefsIM=[...INDICES,...MACRO_DEF];
-        const sq=async(sym)=>{const c=await stooqCandles(sym,"1W");if(!c||c.length<1)throw new Error();const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};};
-        // 1. Yahoo Finance (via Netlify proxy — server-side, no CORS issue)
-        let yfQ={};
-        try{yfQ=await yfQuote(allDefsIM.map(s=>s.yf));}catch{}
-        allDefsIM.forEach(s=>{const d=yfQ[s.yf];if(d?.price){const key=INDICES.includes(s)?"indices":"macro";upd(key,s.yf,d);}});
-        // 2. Stooq fallback for anything Yahoo missed
-        await Promise.allSettled(allDefsIM.filter(s=>!yfQ[s.yf]?.price).map(async s=>{
+        const sq=async(sym)=>{
+          const c=await stooqCandles(sym,"1W");
+          if(!c||c.length<1)throw new Error("no data");
+          const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;
+          return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};
+        };
+        await Promise.allSettled(allDefsIM.map(async s=>{
           const key=INDICES.includes(s)?"indices":"macro";
           try{upd(key,s.yf,await sq(s.stooq));}catch{}
         }));
