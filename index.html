@@ -52,18 +52,10 @@
         throw err;
       }
     }
-    // ── Yahoo Finance live quotes — no API key needed ──
+    // ── Yahoo Finance quotes — always via our Netlify proxy (server-side, no CORS) ──
     async function yfQuote(symbols) {
-      const q1=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
-      const q2=`https://query2.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
-      let txt;
-      try {
-        const r=await fetch(q1,{headers:{accept:"application/json"}});
-        if(!r.ok) throw new Error(r.status);
-        txt=await r.text();
-      } catch {
-        try { txt=await fetchViaProxy(q1,14000); } catch { txt=await fetchViaProxy(q2,14000); }
-      }
+      const url=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
+      const txt=await fetchViaProxy(url,14000);
       const data=JSON.parse(txt);
       const out={};
       for(const r of data?.quoteResponse?.result||[]){
@@ -98,13 +90,7 @@
       const url1=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
       const url2=`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
       let txt;
-      try {
-        const r=await fetch(url1,{headers:{accept:"application/json"}});
-        if(!r.ok)throw new Error(r.status);
-        txt=await r.text();
-      } catch {
-        try { txt=await fetchViaProxy(url1,14000); } catch { txt=await fetchViaProxy(url2,14000); }
-      }
+      try{txt=await fetchViaProxy(url1,14000);}catch{txt=await fetchViaProxy(url2,14000);}
       const data=JSON.parse(txt);
       const result=data?.chart?.result?.[0];
       if(!result?.timestamp)throw new Error("no data");
@@ -995,30 +981,15 @@
           upd("currencies","USDJPY=X",{price:tr.jpy||0,changePct:pct(tr.jpy,yr?.jpy)});
         }catch{}})();
 
-        // ── Indices + Macro: try Yahoo Finance direct, then FMP (free, has CORS), then Stooq proxy ──
+        // ── Indices + Macro: Yahoo Finance via proxy, Stooq via proxy as fallback ──
         const allDefsIM=[...INDICES,...MACRO_DEF];
-        // 1. Yahoo Finance
+        const sq=async(sym)=>{const c=await stooqCandles(sym,"1W");if(!c||c.length<1)throw new Error();const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};};
+        // 1. Yahoo Finance (via Netlify proxy — server-side, no CORS issue)
         let yfQ={};
         try{yfQ=await yfQuote(allDefsIM.map(s=>s.yf));}catch{}
         allDefsIM.forEach(s=>{const d=yfQ[s.yf];if(d?.price){const key=INDICES.includes(s)?"indices":"macro";upd(key,s.yf,d);}});
-
-        // 2. FMP free API (no key needed for major indices)
-        const stillMissing=allDefsIM.filter(s=>!yfQ[s.yf]?.price);
-        if(stillMissing.length){
-          await Promise.allSettled(stillMissing.map(async s=>{
-            try{
-              const r=await fetch(`https://financialmodelingprep.com/api/v3/quote-short/${s.fmp}?apikey=demo`);
-              const j=await r.json();
-              const q=Array.isArray(j)?j[0]:j;
-              if(q?.price){const key=INDICES.includes(s)?"indices":"macro";upd(key,s.yf,{price:q.price,change:q.change||0,changePct:q.changesPercentage||0});}
-            }catch{}
-          }));
-        }
-
-        // 3. Stooq proxy fallback for anything still missing after FMP
-        const sq=async(sym)=>{const c=await stooqCandles(sym,"1W");if(!c||c.length<1)throw new Error();const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};};
-        const fmpMissing=allDefsIM.filter(s=>!yfQ[s.yf]?.price&&!stillMissing.find(x=>x.yf===s.yf));
-        await Promise.allSettled([...stillMissing,...fmpMissing].map(async s=>{
+        // 2. Stooq fallback for anything Yahoo missed
+        await Promise.allSettled(allDefsIM.filter(s=>!yfQ[s.yf]?.price).map(async s=>{
           const key=INDICES.includes(s)?"indices":"macro";
           try{upd(key,s.yf,await sq(s.stooq));}catch{}
         }));
