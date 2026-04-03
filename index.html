@@ -164,14 +164,14 @@
       return [];
     }
 
-    // ── Market symbols — Yahoo Finance symbols, no API key needed ──
+    // ── Market symbols ──
     const INDICES = [
-      { name:"S&P 500",    symbol:"SPX", yf:"^GSPC", stooq:"^spx" },
-      { name:"NASDAQ 100", symbol:"NDX", yf:"^NDX",  stooq:"^ndx" },
-      { name:"Dow Jones",  symbol:"DJI", yf:"^DJI",  stooq:"^dji" },
-      { name:"FTSE 100",   symbol:"UKX", yf:"^FTSE", stooq:"^ftx" },
-      { name:"Nikkei 225", symbol:"NKY", yf:"^N225", stooq:"^nkx" },
-      { name:"Hang Seng",  symbol:"HSI", yf:"^HSI",  stooq:"^hsi" },
+      { name:"S&P 500",    yf:"^GSPC", stooq:"^spx",  fmp:"%5EGSPC"  },
+      { name:"NASDAQ 100", yf:"^NDX",  stooq:"^ndx",  fmp:"%5ENDX"   },
+      { name:"Dow Jones",  yf:"^DJI",  stooq:"^dji",  fmp:"%5EDJI"   },
+      { name:"FTSE 100",   yf:"^FTSE", stooq:"^ftx",  fmp:"%5EFTSE"  },
+      { name:"Nikkei 225", yf:"^N225", stooq:"^nkx",  fmp:"%5EN225"  },
+      { name:"Hang Seng",  yf:"^HSI",  stooq:"^hsi",  fmp:"%5EHSI"   },
     ];
     const CURRENCIES = [
       { name:"EUR/USD", yf:"EURUSD=X", stooq:"eurusd" },
@@ -179,8 +179,10 @@
       { name:"USD/JPY", yf:"USDJPY=X", stooq:"usdjpy" },
     ];
     const MACRO_DEF = [
-      { name:"Gold (XAU/USD)",  symbol:"XAU", yf:"GC=F",  stooq:"xauusd", unit:"USD/oz"     },
-      { name:"Crude Oil (WTI)", symbol:"WTI", yf:"CL=F",  stooq:"clusd",  unit:"USD/barrel" },
+      { name:"Gold",         yf:"GC=F",  stooq:"xauusd", fmp:"GCUSD",  unit:"USD/oz"  },
+      { name:"Crude Oil WTI",yf:"CL=F",  stooq:"clusd",  fmp:"CLUSD",  unit:"USD/bbl" },
+      { name:"Bitcoin",      yf:"BTC-USD",stooq:"btcusd", fmp:"BTCUSD", unit:"USD"     },
+      { name:"US 10Y Yield", yf:"^TNX",  stooq:"10usb",  fmp:"%5ETNX", unit:"%"       },
     ];
 
     const DEFAULT_EXIT_PCT = 0.85;
@@ -977,12 +979,52 @@
         setMarketLoading(true);
         setMarketData({indices:INDICES.map(s=>({...s,value:0,change:0,changePct:0})),currencies:CURRENCIES.map(s=>({...s,value:0,changePct:0})),macro:MACRO_DEF.map(s=>({...s,value:0,changePct:0}))});
         const upd=(key,yf,d)=>setMarketData(prev=>prev&&!prev.error?{...prev,[key]:prev[key].map(s=>s.yf===yf?{...s,value:d.price||0,change:d.change||0,changePct:d.changePct||0}:s)}:prev);
+
+        // ── Currencies: jsDelivr CDN, always has CORS ──
+        (async()=>{try{
+          const yest=new Date(Date.now()-86400000).toISOString().split("T")[0];
+          const[tod,yes]=await Promise.allSettled([
+            fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json").then(r=>r.json()),
+            fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${yest}/v1/currencies/usd.json`).then(r=>r.json()),
+          ]);
+          const tr=tod.status==="fulfilled"?tod.value?.usd:null,yr=yes.status==="fulfilled"?yes.value?.usd:null;
+          if(!tr)throw new Error();
+          const pct=(a,b)=>a&&b?((a-b)/b)*100:0;
+          upd("currencies","EURUSD=X",{price:tr.eur?1/tr.eur:0,changePct:pct(tr.eur&&1/tr.eur,yr?.eur&&1/yr.eur)});
+          upd("currencies","GBPUSD=X",{price:tr.gbp?1/tr.gbp:0,changePct:pct(tr.gbp&&1/tr.gbp,yr?.gbp&&1/yr.gbp)});
+          upd("currencies","USDJPY=X",{price:tr.jpy||0,changePct:pct(tr.jpy,yr?.jpy)});
+        }catch{}})();
+
+        // ── Indices + Macro: try Yahoo Finance direct, then FMP (free, has CORS), then Stooq proxy ──
+        const allDefsIM=[...INDICES,...MACRO_DEF];
+        // 1. Yahoo Finance
+        let yfQ={};
+        try{yfQ=await yfQuote(allDefsIM.map(s=>s.yf));}catch{}
+        allDefsIM.forEach(s=>{const d=yfQ[s.yf];if(d?.price){const key=INDICES.includes(s)?"indices":"macro";upd(key,s.yf,d);}});
+
+        // 2. FMP free API (no key needed for major indices)
+        const stillMissing=allDefsIM.filter(s=>!yfQ[s.yf]?.price);
+        if(stillMissing.length){
+          await Promise.allSettled(stillMissing.map(async s=>{
+            try{
+              const r=await fetch(`https://financialmodelingprep.com/api/v3/quote-short/${s.fmp}?apikey=demo`);
+              const j=await r.json();
+              const q=Array.isArray(j)?j[0]:j;
+              if(q?.price){const key=INDICES.includes(s)?"indices":"macro";upd(key,s.yf,{price:q.price,change:q.change||0,changePct:q.changesPercentage||0});}
+            }catch{}
+          }));
+        }
+
+        // 3. Stooq proxy fallback
         const sq=async(sym)=>{const c=await stooqCandles(sym,"1W");if(!c||c.length<1)throw new Error();const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};};
-        (async()=>{try{const yest=new Date(Date.now()-86400000).toISOString().split("T")[0];const[tod,yes]=await Promise.allSettled([fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json").then(r=>r.json()),fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${yest}/v1/currencies/usd.json`).then(r=>r.json())]);const tr=tod.status==="fulfilled"?tod.value?.usd:null,yr=yes.status==="fulfilled"?yes.value?.usd:null;if(!tr)throw new Error();const pct=(a,b)=>a&&b?((a-b)/b)*100:0;upd("currencies","EURUSD=X",{price:tr.eur?1/tr.eur:0,changePct:pct(tr.eur&&1/tr.eur,yr?.eur&&1/yr.eur)});upd("currencies","GBPUSD=X",{price:tr.gbp?1/tr.gbp:0,changePct:pct(tr.gbp&&1/tr.gbp,yr?.gbp&&1/yr.gbp)});upd("currencies","USDJPY=X",{price:tr.jpy||0,changePct:pct(tr.jpy,yr?.jpy)});}catch{}})();
-        let yfQ={};try{yfQ=await yfQuote([...INDICES.map(s=>s.yf),...MACRO_DEF.map(s=>s.yf)]);}catch{}
-        INDICES.forEach(s=>{const d=yfQ[s.yf];if(d?.price)upd("indices",s.yf,d);});
-        MACRO_DEF.forEach(s=>{const d=yfQ[s.yf];if(d?.price)upd("macro",s.yf,d);});
-        await Promise.allSettled([...INDICES.map(async s=>{if(yfQ[s.yf]?.price)return;try{upd("indices",s.yf,await sq(s.stooq));}catch{}}),...MACRO_DEF.map(async s=>{if(yfQ[s.yf]?.price)return;try{upd("macro",s.yf,await sq(s.stooq));}catch{}})]);
+        await Promise.allSettled(allDefsIM.map(async s=>{
+          const key=INDICES.includes(s)?"indices":"macro";
+          // check current state
+          const nowVal=await new Promise(r=>setMarketData(p=>{r(p?.[key]?.find(x=>x.yf===s.yf)?.value||0:0);return p;}));
+          if(nowVal>0)return;
+          try{upd(key,s.yf,await sq(s.stooq));}catch{}
+        }));
+
         setMarketData(prev=>{if(!prev||prev.error)return{error:true};return[...prev.indices,...prev.currencies,...prev.macro].some(s=>s.value>0)?prev:{error:true};});
         setMarketLoading(false);
       };
@@ -1245,13 +1287,14 @@
       };
       const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.accent,letterSpacing:"0.08em",textTransform:"uppercase",padding:"14px 0 6px"}},label);
 
-      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0 1.25rem 1rem"}},
-        MktSectionHead("Global Indices"),
-        ...(marketData.indices||[]).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2)),
-        MktSectionHead("Currencies (vs USD)"),
-        ...(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4)),
-        MktSectionHead("Commodities"),
-        ...(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2))
+      const MktCol=(label,rows)=>e("div",{style:{display:"flex",flexDirection:"column",minWidth:0}},
+        MktSectionHead(label),
+        ...rows
+      );
+      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0.25rem 1.25rem 1.25rem",display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"0 2rem"}},
+        MktCol("Global Indices",(marketData.indices||[]).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
+        MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4))),
+        MktCol("Commodities & Key Data",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2)))
       ):null;
 
       // ── Holdings sparkline strip for news tab ──
