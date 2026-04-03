@@ -1101,28 +1101,70 @@
         holdingSparklinesRef.current=false; // reset so next addition triggers fetch
       };
 
-      // ── PORTFOLIO VALUE CHART: fetch historical prices for all holdings, sum qty×price ──
+      // ── PORTFOLIO VALUE CHART ──
       const fetchPortfolioSeries=async(period)=>{
         const nonCash=resolvedHoldings.filter(h=>h.ticker!=="Cash");
         if(!nonCash.length)return;
         setPortfolioChartLoading(true);
+
+        // For ALL: find the earliest lot purchase date across all holdings
+        let fetchPeriod=period;
+        let earliestMs=null;
+        if(period==="ALL"){
+          for(const h of nonCash){
+            const dates=(h.lots||[]).map(l=>new Date(l.date).getTime()).filter(t=>!isNaN(t));
+            if(dates.length) earliestMs=earliestMs?Math.min(earliestMs,...dates):Math.min(...dates);
+          }
+          // Map earliest date to a YF period string
+          if(earliestMs){
+            const daysAgo=(Date.now()-earliestMs)/86400000;
+            if(daysAgo<=35)      fetchPeriod="1M";
+            else if(daysAgo<=185) fetchPeriod="6M";
+            else if(daysAgo<=370) fetchPeriod="1Y";
+            else if(daysAgo<=740) fetchPeriod="2Y";
+            else if(daysAgo<=1830)fetchPeriod="5Y";
+            else                  fetchPeriod="MAX";
+          } else { fetchPeriod="MAX"; }
+        }
+
         const results=await Promise.allSettled(nonCash.map(async h=>{
           let candles=null;
-          try{candles=await yfCandles(h.ticker,period);}catch{}
-          if(!candles?.length) try{candles=await stooqCandles(h.ticker.toLowerCase()+".us",period);}catch{}
+          try{candles=await yfCandles(h.ticker,fetchPeriod);}catch{}
+          if(!candles?.length) try{candles=await stooqCandles(h.ticker.toLowerCase()+".us",fetchPeriod);}catch{}
           return {h,candles:candles||[]};
         }));
         const valid=results.filter(r=>r.status==="fulfilled"&&r.value.candles.length>=2).map(r=>r.value);
         if(!valid.length){setPortfolioChartLoading(false);return;}
+
+        // For ALL: trim each holding's candles to start from its own purchase date
+        if(period==="ALL"&&earliestMs){
+          for(const v of valid){
+            const h=v.h;
+            const dates=(h.lots||[]).map(l=>new Date(l.date).getTime()).filter(t=>!isNaN(t));
+            const buyMs=dates.length?Math.min(...dates):earliestMs;
+            // Keep only candles on or after this holding's purchase date
+            // Before purchase date, holding contributes 0 to portfolio value
+            v.buyMs=buyMs;
+          }
+        }
+
+        // Align all series to the same timestamps using the shortest common range
         const minLen=Math.min(...valid.map(v=>v.candles.length));
         const cash=resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0;
+        const alignedTs=valid[0].candles.slice(-minLen).map(c=>c.ts);
+
         const pts=Array.from({length:minLen},(_,i)=>{
+          const ts=alignedTs[i];
           let val=cash;
-          for(const {h,candles} of valid) val+=h.qty*candles[candles.length-minLen+i].c;
+          for(const {h,candles,buyMs} of valid){
+            const c=candles[candles.length-minLen+i];
+            // Only count this holding if timestamp is on or after its purchase date
+            if(!buyMs||ts>=buyMs) val+=h.qty*c.c;
+          }
           return val;
         });
-        const ts=valid[0].candles.slice(-minLen).map(c=>c.ts);
-        setPortfolioChartData({pts,ts});
+
+        setPortfolioChartData({pts,ts:alignedTs});
         setPortfolioChartLoading(false);
       };
 
