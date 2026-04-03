@@ -8,27 +8,27 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: "Missing url param" };
   }
 
-  let parsedUrl;
-  try {
-    parsedUrl = new URL(target);
-  } catch {
-    return { statusCode: 400, body: "Invalid url" };
-  }
+  // Validate host without re-encoding the URL
+  const hostMatch = target.match(/^https?:\/\/([^/?#]+)/);
+  if (!hostMatch) return { statusCode: 400, body: "Invalid url" };
+  const hostname = hostMatch[1];
 
-  // Only allow known safe financial data hosts
   const allowed = [
     "query1.finance.yahoo.com",
     "query2.finance.yahoo.com",
     "stooq.com",
     "cdn.jsdelivr.net",
   ];
-  if (!allowed.includes(parsedUrl.hostname)) {
+  if (!allowed.includes(hostname)) {
     return { statusCode: 403, body: "Host not allowed" };
   }
 
+  // Use the raw target URL so ^ and other chars are NOT double-encoded
+  const rawPath = target.replace(/^https?:\/\/[^/?#]+/, "") || "/";
+
   const options = {
-    hostname: parsedUrl.hostname,
-    path: parsedUrl.pathname + parsedUrl.search,
+    hostname,
+    path: rawPath,
     method: "GET",
     headers: {
       "User-Agent": "Mozilla/5.0 (compatible; FinTrack/1.0)",
@@ -37,7 +37,7 @@ exports.handler = async (event) => {
     timeout: 10000,
   };
 
-  const lib = parsedUrl.protocol === "https:" ? https : http;
+  const lib = target.startsWith("https://") ? https : http;
 
   try {
     const body = await new Promise((resolve, reject) => {
