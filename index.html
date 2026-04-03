@@ -4,18 +4,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinTrack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #edf0f4; font-family: 'Inter','Helvetica Neue',sans-serif; }
-    #root { max-width: 1500px; margin: 0 auto; padding: 0.75rem; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+    body { background: #070b14; font-family: 'Inter','Helvetica Neue',sans-serif; min-height: 100vh; }
+    #root { max-width: 1500px; margin: 0 auto; padding: 1rem; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
     @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-    input::placeholder { color: #94a3b8; }
-    input:focus { border-color: #1d4ed8 !important; box-shadow: 0 0 0 2px rgba(29,78,216,0.15) !important; }
-    tr:hover td { background: rgba(29,78,216,0.025); }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a3347; border-radius: 99px; }
+    input::placeholder { color: #4a5568; }
+    input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important; }
+    tr:hover td { background: rgba(99,102,241,0.04) !important; }
     .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing: -0.01em; }
+    .card-anim { animation: fadeIn 0.2s ease; }
   </style>
 </head>
 <body>
@@ -29,11 +36,12 @@
     // ── Network helpers ──
     const GN_MKT_URL = "https://news.google.com/rss/search?q=stock+market+wall+street+S%26P500&hl=en-US&gl=US&ceid=US:en";
     const CORS_PROXIES = [
-      u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
       u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+      u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
       u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+      u => `https://corsproxy.org/?${encodeURIComponent(u)}`,
     ];
-    async function fetchViaProxy(url, timeoutMs=10000) {
+    async function fetchViaProxy(url, timeoutMs=12000) {
       const attempt = mk => new Promise((res,rej) => {
         const t = setTimeout(() => rej(new Error("timeout")), timeoutMs);
         fetch(mk(url))
@@ -45,13 +53,16 @@
     }
     // ── Yahoo Finance live quotes — no API key needed ──
     async function yfQuote(symbols) {
-      const url=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
+      const q1=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
+      const q2=`https://query2.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
       let txt;
       try {
-        const r=await fetch(url,{headers:{accept:"application/json"}});
+        const r=await fetch(q1,{headers:{accept:"application/json"}});
         if(!r.ok) throw new Error(r.status);
         txt=await r.text();
-      } catch { txt=await fetchViaProxy(url,12000); }
+      } catch {
+        try { txt=await fetchViaProxy(q1,14000); } catch { txt=await fetchViaProxy(q2,14000); }
+      }
       const data=JSON.parse(txt);
       const out={};
       for(const r of data?.quoteResponse?.result||[]){
@@ -65,7 +76,8 @@
       const days = daysMap[period] || 35;
       const end = new Date(), start = new Date(+end - days*86400000);
       const fmt = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-      const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(stooqSym)}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
+      // Do NOT encodeURIComponent the symbol — ^ chars get double-encoded through proxies
+      const url = `https://stooq.com/q/d/l/?s=${stooqSym}&d1=${fmt(start)}&d2=${fmt(end)}&i=d`;
       const csv = await fetchViaProxy(url, 12000);
       const lines = csv.trim().split('\n');
       if (lines.length < 2 || !lines[0].toLowerCase().includes('date')) throw new Error("bad data");
@@ -82,13 +94,16 @@
       const intMap={"1D":"5m","5D":"15m","1M":"1d","6M":"1d","YTD":"1d","1Y":"1d","2Y":"1wk","5Y":"1wk","MAX":"1mo"};
       const range=rangeMap[period]||"1mo";
       const interval=intMap[period]||"1d";
-      const url=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
+      const url1=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
+      const url2=`https://query2.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
       let txt;
       try {
-        const r=await fetch(url,{headers:{accept:"application/json"}});
+        const r=await fetch(url1,{headers:{accept:"application/json"}});
         if(!r.ok)throw new Error(r.status);
         txt=await r.text();
-      } catch { txt=await fetchViaProxy(url,10000); }
+      } catch {
+        try { txt=await fetchViaProxy(url1,14000); } catch { txt=await fetchViaProxy(url2,14000); }
+      }
       const data=JSON.parse(txt);
       const result=data?.chart?.result?.[0];
       if(!result?.timestamp)throw new Error("no data");
@@ -180,34 +195,26 @@
     ];
 
     // C is module-level, mutated by Object.assign on each render for dark/light mode
-    const C = {
-      bg:"#edf0f4", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f4f6f9",
-      border:"#d0d5de", text:"#0d1117", muted:"#57606a", faint:"#c5ccd8",
-      accent:"#1d4ed8", accentBg:"#eff6ff", accentMuted:"#93c5fd",
-      up:"#0d6b3a", upBg:"#e6f6ec", upBorder:"#a8d5b8",
-      dn:"#b91c1c", dnBg:"#fef0f0", dnBorder:"#f5b8b8",
-      warn:"#92600a", warnBg:"#fdf6e3", warnBorder:"#e3c97a",
-      tag:"#edf0f4", tagText:"#57606a",
-    };
+    const C = {};
 
     const C_LIGHT = {
-      bg:"#edf0f4", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f4f6f9",
-      border:"#d0d5de", text:"#0d1117", muted:"#57606a", faint:"#c5ccd8",
-      accent:"#1d4ed8", accentBg:"#eff6ff", accentMuted:"#93c5fd",
-      up:"#0d6b3a", upBg:"#e6f6ec", upBorder:"#a8d5b8",
-      dn:"#b91c1c", dnBg:"#fef0f0", dnBorder:"#f5b8b8",
-      warn:"#92600a", warnBg:"#fdf6e3", warnBorder:"#e3c97a",
-      tag:"#edf0f4", tagText:"#57606a",
+      bg:"#f4f6fb", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f0f2f8",
+      border:"#e0e6f0", borderMid:"#c8d0e4", text:"#080d1a", muted:"#5a6a85", faint:"#d0d8ea",
+      accent:"#4f52e8", accentBg:"#eeefff", accentMuted:"#9698ef",
+      up:"#00976a", upBg:"#e4fdf3", upBorder:"#85deba",
+      dn:"#e0183a", dnBg:"#fff0f2", dnBorder:"#f8aab8",
+      warn:"#c96d00", warnBg:"#fff8ee", warnBorder:"#fdd49a",
+      tag:"#eeefff", tagText:"#5a6a85",
     };
 
     const C_DARK = {
-      bg:"#0d1117", panel:"#161b22", surface:"#161b22", surfaceAlt:"#1c2330",
-      border:"#21262d", text:"#e6edf3", muted:"#7d8590", faint:"#21262d",
-      accent:"#f0883e", accentBg:"rgba(240,136,62,0.12)", accentMuted:"#d1815a",
-      up:"#3fb950", upBg:"rgba(63,185,80,0.1)", upBorder:"#238636",
-      dn:"#f85149", dnBg:"rgba(248,81,73,0.1)", dnBorder:"#da3633",
-      warn:"#d29922", warnBg:"rgba(210,153,34,0.1)", warnBorder:"#9e6a03",
-      tag:"#1c2330", tagText:"#7d8590",
+      bg:"#070b14", panel:"#0d1424", surface:"#0f1928", surfaceAlt:"#141e30",
+      border:"#1c2a3f", borderMid:"#253347", text:"#e2e8f8", muted:"#6b7d99", faint:"#1c2a3f",
+      accent:"#818cf8", accentBg:"rgba(129,140,248,0.12)", accentMuted:"#4f52b8",
+      up:"#10e8a8", upBg:"rgba(16,232,168,0.08)", upBorder:"rgba(16,232,168,0.25)",
+      dn:"#ff4d72", dnBg:"rgba(255,77,114,0.08)", dnBorder:"rgba(255,77,114,0.25)",
+      warn:"#fbbf24", warnBg:"rgba(251,191,36,0.08)", warnBorder:"rgba(251,191,36,0.25)",
+      tag:"#141e30", tagText:"#6b7d99",
     };
 
     const $n = (n,d=2) => n==null?"—":n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -256,9 +263,9 @@
     };
 
     const BS = v => ({
-      padding:"7px 16px", border:`1.5px solid ${v==="p"?C.accent:C.border}`, cursor:"pointer", borderRadius:"7px",
-      background:v==="p"?C.accent:C.surface, color:v==="p"?"#fff":C.muted,
-      fontWeight:v==="p"?"600":"400", fontSize:"12px", fontFamily:"inherit",
+      padding:"6px 14px", border:`1px solid ${v==="p"?C.accent:C.border}`, cursor:"pointer", borderRadius:"8px",
+      background:v==="p"?C.accent:C.surfaceAlt, color:v==="p"?"#fff":C.muted,
+      fontWeight:v==="p"?"600":"500", fontSize:"12px", fontFamily:"inherit",
     });
 
     function PnlCell({amount,pct,hidden}) {
@@ -321,11 +328,11 @@
       );
     }
 
-    const TH=({c,right})=>e("th",{style:{padding:"9px 12px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"500",fontSize:"10px",letterSpacing:"0.07em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
-    const TD=({children,right,style:s})=>e("td",{style:{padding:"10px 12px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
+    const TH=({c,right})=>e("th",{style:{padding:"10px 14px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"600",fontSize:"10px",letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
+    const TD=({children,right,style:s})=>e("td",{style:{padding:"11px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
 
     function MetCard({label,value,color,sub}) {
-      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"10px 14px",flex:"1 1 120px",borderTop:`2px solid ${color||C.accent}`}},
+      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
         e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},label),
         e("div",{style:{fontSize:"19px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},value),
         sub&&e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},sub)
@@ -784,7 +791,7 @@
 
     function FinTrack() {
       // Apply dark/light mode to C on every render (option b)
-      const [darkMode,setDarkMode]=useState(false);
+      const [darkMode,setDarkMode]=useState(true);
       Object.assign(C, darkMode ? C_DARK : C_LIGHT);
 
       const [holdings,setHoldings]=useState(null);
@@ -824,7 +831,12 @@
       const [lotsModal,setLotsModal]=useState(null); // {holding, newBuy:{date,price,qty}, newSell:{date,price,qty}}
 
       // Dark mode body background
-      useEffect(()=>{ document.body.style.background = darkMode ? "#0d1117" : "#edf0f4"; }, [darkMode]);
+      useEffect(()=>{
+        document.body.style.background = darkMode
+          ? "#070b14"
+          : "linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%)";
+        document.body.style.minHeight = "100vh";
+      },[darkMode]);
 
       useEffect(()=>{
         (async()=>{
@@ -866,7 +878,7 @@
           fetchHoldingSparklines();
           fetchPortfolioSeries(portfolioChartPeriod);
         }
-        if(tab==="news"){fetchMarketData();if(holdings)fetchNews();}
+        if(tab==="news"){fetchMarketData();if(holdings){fetchNews();fetchHoldingSparklines();}}
         if(tab==="prediction"){fetchKalshi();}
       },[tab,holdings]);
 
@@ -957,19 +969,20 @@
         setPriceLoading(false);
       };
 
-      // ── MARKET DATA via Yahoo Finance (no API key needed) ──
+      // ── MARKET DATA ──
       const fetchMarketData=async(force=false)=>{
         if(marketLoading)return;
         if(marketData&&!marketData.error&&!force)return;
         setMarketLoading(true);
-        try{
-          const syms=[...INDICES.map(i=>i.yf),...CURRENCIES.map(c=>c.yf),...MACRO_DEF.map(m=>m.yf)];
-          const q=await yfQuote(syms);
-          const indices=INDICES.map(i=>{const d=q[i.yf]||{};return{...i,value:d.price||0,change:d.change||0,changePct:d.changePct||0};});
-          const currencies=CURRENCIES.map(c=>{const d=q[c.yf]||{};return{...c,value:d.price||0,changePct:d.changePct||0};});
-          const macro=MACRO_DEF.map(m=>{const d=q[m.yf]||{};return{...m,value:d.price||0,changePct:d.changePct||0};});
-          setMarketData(Object.keys(q).length>0?{indices,currencies,macro}:{error:true});
-        }catch{setMarketData({error:true});}
+        setMarketData({indices:INDICES.map(s=>({...s,value:0,change:0,changePct:0})),currencies:CURRENCIES.map(s=>({...s,value:0,changePct:0})),macro:MACRO_DEF.map(s=>({...s,value:0,changePct:0}))});
+        const upd=(key,yf,d)=>setMarketData(prev=>prev&&!prev.error?{...prev,[key]:prev[key].map(s=>s.yf===yf?{...s,value:d.price||0,change:d.change||0,changePct:d.changePct||0}:s)}:prev);
+        const sq=async(sym)=>{const c=await stooqCandles(sym,"1W");if(!c||c.length<1)throw new Error();const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};};
+        (async()=>{try{const yest=new Date(Date.now()-86400000).toISOString().split("T")[0];const[tod,yes]=await Promise.allSettled([fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json").then(r=>r.json()),fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${yest}/v1/currencies/usd.json`).then(r=>r.json())]);const tr=tod.status==="fulfilled"?tod.value?.usd:null,yr=yes.status==="fulfilled"?yes.value?.usd:null;if(!tr)throw new Error();const pct=(a,b)=>a&&b?((a-b)/b)*100:0;upd("currencies","EURUSD=X",{price:tr.eur?1/tr.eur:0,changePct:pct(tr.eur&&1/tr.eur,yr?.eur&&1/yr.eur)});upd("currencies","GBPUSD=X",{price:tr.gbp?1/tr.gbp:0,changePct:pct(tr.gbp&&1/tr.gbp,yr?.gbp&&1/yr.gbp)});upd("currencies","USDJPY=X",{price:tr.jpy||0,changePct:pct(tr.jpy,yr?.jpy)});}catch{}})();
+        let yfQ={};try{yfQ=await yfQuote([...INDICES.map(s=>s.yf),...MACRO_DEF.map(s=>s.yf)]);}catch{}
+        INDICES.forEach(s=>{const d=yfQ[s.yf];if(d?.price)upd("indices",s.yf,d);});
+        MACRO_DEF.forEach(s=>{const d=yfQ[s.yf];if(d?.price)upd("macro",s.yf,d);});
+        await Promise.allSettled([...INDICES.map(async s=>{if(yfQ[s.yf]?.price)return;try{upd("indices",s.yf,await sq(s.stooq));}catch{}}),...MACRO_DEF.map(async s=>{if(yfQ[s.yf]?.price)return;try{upd("macro",s.yf,await sq(s.stooq));}catch{}})]);
+        setMarketData(prev=>{if(!prev||prev.error)return{error:true};return[...prev.indices,...prev.currencies,...prev.macro].some(s=>s.value>0)?prev:{error:true};});
         setMarketLoading(false);
       };
 
@@ -1204,25 +1217,28 @@
       });
 
       // ── Market list row helper ──
+      const pulse={height:"13px",borderRadius:"3px",background:C.border,animation:"pulse 1.2s ease-in-out infinite"};
       const MktRow=(name,value,changePct,change,unit,decimals=2)=>{
-        const up=changePct>=0, col=up?C.up:C.dn;
-        const fmtVal=value?value.toLocaleString("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):"—";
+        const loaded=value>0;
+        const up=changePct>=0, col=loaded?(up?C.up:C.dn):C.muted;
+        const fmtVal=loaded?value.toLocaleString("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):"—";
         return e("div",{style:{display:"flex",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}},
           e("span",{style:{flex:1,fontSize:"12px",color:C.text,fontWeight:"500"}},name),
-          e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:C.text,fontWeight:"600",marginRight:"16px"}},
-            fmtVal,unit?e("span",{style:{fontSize:"9px",color:C.muted,marginLeft:"4px",fontWeight:"400"}},unit):null
-          ),
-          e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:col,fontWeight:"600",minWidth:"52px",textAlign:"right"}},
-            (up?"+":"")+$n(changePct,2)+"%"
-          ),
-          e("span",{style:{fontSize:"11px",fontVariantNumeric:"tabular-nums",color:col,minWidth:"80px",textAlign:"right"}},
-            change!=null?"("+sign(change)+"$"+$n(Math.abs(change),2)+")":""
-          )
+          loaded
+            ?e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:C.text,fontWeight:"600",marginRight:"16px"}},
+                fmtVal,unit?e("span",{style:{fontSize:"9px",color:C.muted,marginLeft:"4px",fontWeight:"400"}},unit):null)
+            :e("div",{style:{...pulse,width:"70px",marginRight:"16px"}}),
+          loaded
+            ?e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:col,fontWeight:"600",minWidth:"52px",textAlign:"right"}},(up?"+":"")+$n(changePct,2)+"%")
+            :e("div",{style:{...pulse,width:"44px"}}),
+          loaded&&change!=null
+            ?e("span",{style:{fontSize:"11px",fontVariantNumeric:"tabular-nums",color:col,minWidth:"80px",textAlign:"right"}},"("+sign(change)+"$"+$n(Math.abs(change),2)+")")
+            :e("div",{style:{minWidth:"80px"}})
         );
       };
       const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",padding:"10px 0 4px",borderBottom:`1px solid ${C.border}`}},label);
 
-      const marketListSection=(!marketLoading&&marketData&&!marketData.error)?e("div",{style:{padding:"0 1rem 0.75rem"}},
+      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0 1rem 0.75rem"}},
         MktSectionHead("Global Indices"),
         ...(marketData.indices||[]).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2)),
         MktSectionHead("Currencies (vs USD)"),
@@ -1260,38 +1276,41 @@
         )
       );
 
-      return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'Inter','Helvetica Neue',sans-serif",borderRadius:"6px"}},
+      return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'Inter','Helvetica Neue',sans-serif",borderRadius:"16px",overflow:"hidden",boxShadow:darkMode?"0 0 0 1px rgba(255,255,255,0.05)":"0 4px 24px rgba(80,90,140,0.10), 0 1px 3px rgba(80,90,140,0.08)"}},
 
         // ── Header ──
-        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 1rem",borderBottom:`1px solid ${C.border}`,background:C.panel,height:"44px"}},
-          e("div",{style:{display:"flex",alignItems:"center",gap:"16px"}},
-            e("div",{style:{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}},
-              e("div",{style:{width:"24px",height:"24px",borderRadius:"5px",background:C.accent,display:"flex",alignItems:"center",justifyContent:"center"}},
-                e("svg",{width:"12",height:"12",viewBox:"0 0 14 14",fill:"none"},e("polyline",{points:"1,10 4,6 7,8 10,3 13,5",stroke:"white",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round"}))
+        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 1.25rem",borderBottom:`1px solid ${C.border}`,background:C.panel,height:"52px",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}},
+          e("div",{style:{display:"flex",alignItems:"center",gap:"20px"}},
+            e("div",{style:{display:"flex",alignItems:"center",gap:"9px",flexShrink:0}},
+              e("div",{style:{width:"28px",height:"28px",borderRadius:"8px",background:`linear-gradient(135deg,${C.accent},${C.accentMuted})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 12px ${C.accentBg}`}},
+                e("svg",{width:"13",height:"13",viewBox:"0 0 14 14",fill:"none"},e("polyline",{points:"1,10 4,6 7,8 10,3 13,5",stroke:"white",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"}))
               ),
-              e("span",{style:{fontSize:"13px",fontWeight:"700",color:C.text,letterSpacing:"-0.01em",whiteSpace:"nowrap"}},"FinTrack")
+              e("span",{style:{fontSize:"14px",fontWeight:"700",color:C.text,letterSpacing:"-0.02em",whiteSpace:"nowrap"}},"FinTrack")
             ),
             // Tabs inline in header
-            e("div",{style:{display:"flex",alignItems:"stretch",height:"44px",gap:"2px"}},
-              [["news","Markets"],["prediction","Prediction"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
+            e("div",{style:{display:"flex",alignItems:"center",gap:"2px",background:C.surfaceAlt,borderRadius:"10px",padding:"3px",border:`1px solid ${C.border}`}},
+              [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
                 e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
-                  style:{padding:"0 16px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
-                    background:"transparent",color:tab===k?C.accent:C.muted,
-                    fontWeight:tab===k?"600":"400",fontSize:"12px",fontFamily:"inherit",transition:"color 0.1s"}},l)
+                  style:{padding:"5px 14px",border:"none",borderRadius:"7px",cursor:"pointer",
+                    background:tab===k?C.surface:"transparent",
+                    color:tab===k?C.text:C.muted,
+                    fontWeight:tab===k?"600":"400",fontSize:"12px",fontFamily:"inherit",
+                    transition:"all 0.15s",
+                    boxShadow:tab===k?`0 1px 3px rgba(0,0,0,0.15)`:"none"}},l)
               )
             ),
-            breaches>0&&e("span",{style:{fontSize:"10px",background:C.dnBg,border:`1px solid ${C.dnBorder}`,color:C.dn,padding:"2px 8px",borderRadius:"4px",fontWeight:"600",whiteSpace:"nowrap"}},"⚠ "+breaches+" EXIT BREACH"+(breaches>1?"ES":""))
+            breaches>0&&e("span",{style:{fontSize:"10px",background:C.dnBg,border:`1px solid ${C.dnBorder}`,color:C.dn,padding:"3px 10px",borderRadius:"20px",fontWeight:"600",whiteSpace:"nowrap"}},"⚠ "+breaches+" EXIT BREACH"+(breaches>1?"ES":""))
           ),
-          e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
-            e("div",{style:{fontSize:"12px",color:C.muted}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})),
+          e("div",{style:{display:"flex",alignItems:"center",gap:"6px"}},
+            e("div",{style:{fontSize:"11px",color:C.muted,marginRight:"4px"}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})),
             e("button",{onClick:()=>{setKeyInput(apiKey);setShowKeyModal(true);},title:"API key for AI Analysis",
-              style:{display:"flex",alignItems:"center",gap:"6px",background:apiKey?C.upBg:C.surfaceAlt,border:`1px solid ${apiKey?C.upBorder:C.border}`,color:apiKey?C.up:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit"}},
-              e("svg",{width:"13",height:"13",viewBox:"0 0 13 13",fill:"none",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round",strokeLinejoin:"round"},e("circle",{cx:"5",cy:"5.5",r:"2.5"}),e("path",{d:"M7 7.5l4 4"}),e("path",{d:"M6.5 5.5h1.5v1.5"})),
-              apiKey?"AI Key Set":"AI Key"
+              style:{display:"flex",alignItems:"center",gap:"5px",background:apiKey?C.upBg:C.surfaceAlt,border:`1px solid ${apiKey?C.upBorder:C.border}`,color:apiKey?C.up:C.muted,cursor:"pointer",borderRadius:"8px",padding:"5px 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"500"}},
+              e("svg",{width:"12",height:"12",viewBox:"0 0 13 13",fill:"none",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round",strokeLinejoin:"round"},e("circle",{cx:"5",cy:"5.5",r:"2.5"}),e("path",{d:"M7 7.5l4 4"}),e("path",{d:"M6.5 5.5h1.5v1.5"})),
+              apiKey?"Key Set":"API Key"
             ),
-            e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Switch to light mode":"Switch to dark mode",
-              style:{display:"flex",alignItems:"center",gap:"5px",background:darkMode?C.surfaceAlt:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit"}},
-              darkMode?"☀ Light":"☽ Dark"
+            e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Light mode":"Dark mode",
+              style:{display:"flex",alignItems:"center",gap:"5px",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:"5px 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"500"}},
+              darkMode?"☀":"☽"
             ),
             e("button",{onClick:()=>setHidden(v=>!v),title:hidden?"Show numbers":"Hide numbers",
               style:{display:"flex",alignItems:"center",gap:"6px",background:hidden?C.accentBg:C.surfaceAlt,border:`1px solid ${hidden?C.accentMuted:C.border}`,color:hidden?C.accent:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:hidden?"600":"400"}},
@@ -1325,7 +1344,7 @@
 
 
           // ── PORTFOLIO TAB ──
-          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.875rem 1rem",borderBottom:`1px solid ${C.border}`}},
               e("div",{style:{display:"flex",alignItems:"center",gap:"12px"}},
                 e("span",{style:{fontSize:"11px",color:C.muted}},"Click any value to edit · Force Exit default = avg cost × 85%"),
@@ -1435,23 +1454,21 @@
 
           // ── NEWS TAB ──
           tab==="news"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.25rem"}},
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`}},
-                e("div",null,
+                e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
                   e("span",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Market Summary"),
-                  e("span",{style:{fontSize:"10.5px",color:C.muted,marginLeft:"8px"}},"prices & charts via Yahoo Finance · news via Google News")
+                  marketLoading&&e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:C.muted,strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:"spin 1s linear infinite"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
+                  e("span",{style:{fontSize:"10.5px",color:C.muted}},"via Stooq · news via Google News")
                 ),
                 e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"5px",padding:"5px 12px",fontSize:"11px"},onClick:()=>{fetchMarketData(true);fetchNews(true);},disabled:marketLoading||newsLoading},
-                  e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:(marketLoading||newsLoading)?"spin 1s linear infinite":"none"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
-                  (marketLoading||newsLoading)?"Refreshing…":"Refresh All"
+                  e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:newsLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
+                  newsLoading?"Refreshing…":"Refresh All"
                 )
               ),
-              marketLoading&&e("div",{style:{padding:"0.75rem 1rem 0.5rem",animation:"pulse 1.2s ease-in-out infinite"}},
-                ...[1,2,3,4,5,6,7,8,9,10,11].map(i=>e("div",{key:i,style:{height:"32px",background:C.border,borderRadius:"4px",marginBottom:"4px"}}))
-              ),
               marketListSection,
-              !marketLoading&&marketData?.error&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Could not load market data — check your internet connection and try ",e("strong",null,"Refresh All"),".")),
-              !marketLoading&&!marketData&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Click ",e("strong",null,"Refresh All")," to load live market data"))
+              !marketData&&!marketLoading&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Click ",e("strong",null,"Refresh All")," to load market data")),
+              marketData?.error&&e("div",{style:{padding:"2rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted}},"Could not load market data — check your connection and try ",e("strong",null,"Refresh All"),"."))
             ),
 
             // Holdings sparkline strip
@@ -1534,7 +1551,7 @@
                     "YES ",yesPct+"%")
                 );
               };
-              const KalshiSection=(title,items)=>e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+              const KalshiSection=(title,items)=>e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
                 e("div",{style:{padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:"8px"}},
                   e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.06em"}},title),
                   e("div",{style:{flex:1,height:"1px",background:C.border}})
@@ -1663,6 +1680,15 @@
   </script>
 </body>
 </html>
+
+</body>
+</html>
+l>
+
+</body>
+</html>
+>
+l>
 
 </body>
 </html>
