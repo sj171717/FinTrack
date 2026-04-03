@@ -1218,28 +1218,34 @@
       });
 
       // ── Market list row helper ──
-      const pulse={height:"13px",borderRadius:"3px",background:C.border,animation:"pulse 1.2s ease-in-out infinite"};
+      const pulseSk={borderRadius:"6px",background:C.border,animation:"pulse 1.2s ease-in-out infinite"};
       const MktRow=(name,value,changePct,change,unit,decimals=2)=>{
         const loaded=value>0;
-        const up=changePct>=0, col=loaded?(up?C.up:C.dn):C.muted;
+        const up=changePct>=0;
+        const col=loaded?(up?C.up:C.dn):C.muted;
+        const bg=loaded?(up?C.upBg:C.dnBg):C.surfaceAlt;
         const fmtVal=loaded?value.toLocaleString("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):"—";
-        return e("div",{style:{display:"flex",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}},
-          e("span",{style:{flex:1,fontSize:"12px",color:C.text,fontWeight:"500"}},name),
+        return e("div",{style:{display:"flex",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${C.border}`,gap:"12px"}},
+          // Arrow
           loaded
-            ?e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:C.text,fontWeight:"600",marginRight:"16px"}},
-                fmtVal,unit?e("span",{style:{fontSize:"9px",color:C.muted,marginLeft:"4px",fontWeight:"400"}},unit):null)
-            :e("div",{style:{...pulse,width:"70px",marginRight:"16px"}}),
+            ?e("span",{style:{fontSize:"11px",color:col,flexShrink:0,width:"14px",textAlign:"center"}},up?"▲":"▼")
+            :e("div",{style:{...pulseSk,width:"12px",height:"12px",flexShrink:0}}),
+          // Name
+          e("span",{style:{flex:1,fontSize:"13px",fontWeight:"600",color:C.text}},name),
+          // Value
           loaded
-            ?e("span",{style:{fontSize:"12px",fontVariantNumeric:"tabular-nums",color:col,fontWeight:"600",minWidth:"52px",textAlign:"right"}},(up?"+":"")+$n(changePct,2)+"%")
-            :e("div",{style:{...pulse,width:"44px"}}),
-          loaded&&change!=null
-            ?e("span",{style:{fontSize:"11px",fontVariantNumeric:"tabular-nums",color:col,minWidth:"80px",textAlign:"right"}},"("+sign(change)+"$"+$n(Math.abs(change),2)+")")
-            :e("div",{style:{minWidth:"80px"}})
+            ?e("span",{style:{fontSize:"13px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},
+                fmtVal,unit?e("span",{style:{fontSize:"10px",color:C.muted,marginLeft:"4px",fontWeight:"400"}},unit):null)
+            :e("div",{style:{...pulseSk,width:"80px",height:"14px"}}),
+          // % pill badge
+          loaded
+            ?e("span",{style:{fontSize:"13px",fontWeight:"700",color:col,background:bg,padding:"5px 14px",borderRadius:"20px",minWidth:"80px",textAlign:"center",fontVariantNumeric:"tabular-nums"}},(up?"+":"")+$n(changePct,2)+"%")
+            :e("div",{style:{...pulseSk,width:"72px",height:"28px",borderRadius:"20px"}})
         );
       };
-      const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",padding:"10px 0 4px",borderBottom:`1px solid ${C.border}`}},label);
+      const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.accent,letterSpacing:"0.08em",textTransform:"uppercase",padding:"14px 0 6px"}},label);
 
-      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0 1rem 0.75rem"}},
+      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0 1.25rem 1rem"}},
         MktSectionHead("Global Indices"),
         ...(marketData.indices||[]).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2)),
         MktSectionHead("Currencies (vs USD)"),
