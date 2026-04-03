@@ -1046,13 +1046,10 @@
           return fScore>=eScore?"finance":"economics";
         };
         let allMarkets=[];
-        // Single fetch — markets endpoint is public on Kalshi
-        const url="https://trading-api.kalshi.com/trade-api/v2/markets?status=open&limit=200";
+        const url="https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=200";
         try{
-          // Try direct fetch first
           let data=null;
           try{const r=await fetch(url,{headers:{accept:"application/json"}});if(r.ok)data=await r.json();}catch{}
-          // Proxy fallback
           if(!data?.markets?.length){
             try{data=JSON.parse(await fetchViaProxy(url));}catch{}
           }

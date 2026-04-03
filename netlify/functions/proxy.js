@@ -14,6 +14,7 @@ exports.handler = async (event) => {
     "query2.finance.yahoo.com",
     "stooq.com",
     "cdn.jsdelivr.net",
+    "api.elections.kalshi.com",
   ];
   if (!allowed.includes(hostname)) return { statusCode: 403, body: "Host not allowed" };
 
