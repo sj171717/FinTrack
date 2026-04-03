@@ -983,17 +983,18 @@
           upd("currencies","TWDUSD=X",{price:tr.twd||0,changePct:pct(tr.twd,yr?.twd)});
         }catch{}})();
 
-        // ── Indices + Macro: Stooq via proxy (reliable, no auth needed) ──
+        // ── Indices + Macro: use yfCandles (same path as sparklines — proven to work) ──
         const allDefsIM=[...INDICES,...MACRO_DEF];
-        const sq=async(sym)=>{
-          const c=await stooqCandles(sym,"1W");
-          if(!c||c.length<1)throw new Error("no data");
-          const last=c[c.length-1],prev=c.length>=2?c[c.length-2]:null,ch=prev?last.c-prev.c:0;
-          return{price:last.c,change:ch,changePct:prev&&prev.c?(ch/prev.c)*100:0};
+        const getQuote=async(yfsym)=>{
+          const c=await yfCandles(yfsym,"5D");
+          if(!c||c.length<2)throw new Error("no data");
+          const last=c[c.length-1],first=c[0];
+          const ch=last.c-first.c;
+          return{price:last.c,change:ch,changePct:first.c?(ch/first.c)*100:0};
         };
         await Promise.allSettled(allDefsIM.map(async s=>{
           const key=INDICES.includes(s)?"indices":"macro";
-          try{upd(key,s.yf,await sq(s.stooq));}catch{}
+          try{upd(key,s.yf,await getQuote(s.yf));}catch{}
         }));
 
         setMarketData(prev=>{if(!prev||prev.error)return{error:true};return[...prev.indices,...prev.currencies,...prev.macro].some(s=>s.value>0)?prev:{error:true};});
