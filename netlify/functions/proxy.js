@@ -23,12 +23,13 @@ exports.handler = async (event) => {
     return { statusCode: 403, body: "Host not allowed" };
   }
 
-  // Use the raw target URL so ^ and other chars are NOT double-encoded
+  // Re-encode special chars that Node's http module needs percent-encoded in the path
   const rawPath = target.replace(/^https?:\/\/[^/?#]+/, "") || "/";
+  const safePath = rawPath.replace(/\^/g, "%5E").replace(/=/g, "%3D");
 
   const options = {
     hostname,
-    path: rawPath,
+    path: safePath,
     method: "GET",
     headers: {
       "User-Agent": "Mozilla/5.0 (compatible; FinTrack/1.0)",

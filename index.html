@@ -163,6 +163,7 @@
       { name:"EUR/USD", yf:"EURUSD=X", stooq:"eurusd" },
       { name:"GBP/USD", yf:"GBPUSD=X", stooq:"gbpusd" },
       { name:"USD/JPY", yf:"USDJPY=X", stooq:"usdjpy" },
+      { name:"USD/TWD", yf:"TWDUSD=X", stooq:"usdtwd" },
     ];
     const MACRO_DEF = [
       { name:"Gold",         yf:"GC=F",  stooq:"xauusd", fmp:"GCUSD",  unit:"USD/oz"  },
@@ -979,6 +980,7 @@
           upd("currencies","EURUSD=X",{price:tr.eur?1/tr.eur:0,changePct:pct(tr.eur&&1/tr.eur,yr?.eur&&1/yr.eur)});
           upd("currencies","GBPUSD=X",{price:tr.gbp?1/tr.gbp:0,changePct:pct(tr.gbp&&1/tr.gbp,yr?.gbp&&1/yr.gbp)});
           upd("currencies","USDJPY=X",{price:tr.jpy||0,changePct:pct(tr.jpy,yr?.jpy)});
+          upd("currencies","TWDUSD=X",{price:tr.twd||0,changePct:pct(tr.twd,yr?.twd)});
         }catch{}})();
 
         // ── Indices + Macro: Yahoo Finance via proxy, Stooq via proxy as fallback ──
