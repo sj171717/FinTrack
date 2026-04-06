@@ -5,3 +5,8 @@
   from = "/api/proxy"
   to = "/.netlify/functions/proxy"
   status = 200
+
+[[redirects]]
+  from = "/api/ai"
+  to = "/.netlify/functions/ai"
+  status = 200
