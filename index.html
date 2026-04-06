@@ -1035,39 +1035,30 @@
       const fetchKalshi=async(force=false)=>{
         if(kalshiLoading||(kalshiFetched&&!force))return;
         setKalshiLoading(true);
-        // Two distinct keyword sets for client-side classification
-        const FIN_KW=["stock","s&p","nasdaq","dow","equity","share","ipo","etf","bitcoin","crypto","coin","treasury","bond","yield","fed fund","interest rate","prime rate","brokerage","market cap","index","indices"];
-        const ECON_KW=["federal reserve","fed rate","fed cut","fed hike","gdp","inflation","cpi","pce","unemployment","payroll","jobs","recession","tariff","trade deficit","trade war","fiscal","monetary policy","economic","economy","wage","consumer price","housing price"];
-        const classify=txt=>{
-          const t=txt.toLowerCase();
-          const fScore=FIN_KW.filter(k=>t.includes(k)).length;
-          const eScore=ECON_KW.filter(k=>t.includes(k)).length;
-          if(fScore===0&&eScore===0)return null; // unrelated
-          return fScore>=eScore?"finance":"economics";
+        // Query specific financial/economic series (generic endpoint only returns sports markets)
+        const FIN_SERIES=["KXBTCMAXY","KXBTCMINY","KXBTC2026200","KXBTCD","KXINXMINY","KXINXHIGH","KXCREDITRATING","KXSOLNASDAQ"];
+        const ECON_SERIES=["KXFED","KXRATECUT","KXGDP","KXRECSS","KXLARGETARIFF","KXCHINATARIFF","KXMORTGAGERATE","KXECONPATH","KXAVGTARIFF"];
+        const fetchSeries=async(s)=>{
+          const url=`https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=10&series_ticker=${s}`;
+          try{
+            let data=null;
+            try{const r=await fetch(url,{headers:{accept:"application/json"}});if(r.ok)data=await r.json();}catch{}
+            if(!data?.markets?.length){try{data=JSON.parse(await fetchViaProxy(url));}catch{}}
+            return data?.markets||[];
+          }catch{return[];}
         };
-        let allMarkets=[];
-        const url="https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=200";
-        try{
-          let data=null;
-          try{const r=await fetch(url,{headers:{accept:"application/json"}});if(r.ok)data=await r.json();}catch{}
-          if(!data?.markets?.length){
-            try{data=JSON.parse(await fetchViaProxy(url));}catch{}
-          }
-          allMarkets=data?.markets||[];
-        }catch{}
-        // Classify and split
-        const finance=[],economics=[];
-        for(const m of allMarkets){
-          const text=`${m.title||""} ${m.subtitle||""}`;
-          const cat=classify(text);
-          if(cat==="finance") finance.push(m);
-          else if(cat==="economics") economics.push(m);
-        }
-        const byVol=(a,b)=>(b.volume||0)-(a.volume||0);
+        const[finResults,econResults]=await Promise.all([
+          Promise.all(FIN_SERIES.map(fetchSeries)),
+          Promise.all(ECON_SERIES.map(fetchSeries)),
+        ]);
+        const dedup=arr=>{const seen=new Set();return arr.filter(m=>{if(seen.has(m.ticker))return false;seen.add(m.ticker);return true;});};
+        const byVol=(a,b)=>parseFloat(b.volume_fp||b.volume_24h_fp||0)-parseFloat(a.volume_fp||a.volume_24h_fp||0);
+        const finAll=dedup(finResults.flat());
+        const econAll=dedup(econResults.flat());
         setKalshiData({
-          finance:finance.sort(byVol).slice(0,5),
-          economics:economics.sort(byVol).slice(0,5),
-          total:allMarkets.length,
+          finance:finAll.sort(byVol).slice(0,5),
+          economics:econAll.sort(byVol).slice(0,5),
+          total:finAll.length+econAll.length,
         });
         setKalshiFetched(true);
         setKalshiLoading(false);
@@ -1584,9 +1575,9 @@
             // Helper to render a market row
             (()=>{
               const KalshiRow=(m,i,arr)=>{
-                const rawP=m.yes_ask??m.last_price??null;
-                const yesPct=rawP!=null?(rawP>1?Math.round(rawP):Math.round(rawP*100)):null;
-                const vol=m.volume||0;
+                const rawP=m.yes_ask_dollars??m.last_price_dollars??null;
+                const yesPct=rawP!=null?(parseFloat(rawP)>1?Math.round(parseFloat(rawP)):Math.round(parseFloat(rawP)*100)):null;
+                const vol=parseFloat(m.volume_fp||m.volume_24h_fp||0);
                 const closeDate=m.close_time?new Date(m.close_time).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):null;
                 const isYes=yesPct!=null&&yesPct>=50;
                 const url=`https://kalshi.com/markets/${(m.event_ticker||m.ticker||"").toLowerCase()}`;
