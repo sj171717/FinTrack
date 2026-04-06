@@ -1666,12 +1666,10 @@
                     e("div",{style:{height:"1px",background:C.border,margin:"5px 0"}}),
                     // Outcome rows
                     e("div",{style:{flex:1,display:"flex",flexDirection:"column",gap:"5px"}},
-                      ...outcomes.map((o,oi)=>e("div",{key:oi,style:{display:"flex",alignItems:"center",gap:"8px"}},
-                        e("div",{style:{flex:1,minWidth:0}},
-                          e("span",{style:{fontSize:"11.5px",fontWeight:"500",color:C.text,borderBottom:`2px solid ${OC[oi]||OC[2]}`,paddingBottom:"1px",display:"inline-block",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},o.label)
-                        ),
-                        o.mult&&e("span",{style:{fontSize:"10.5px",color:C.muted,flexShrink:0,fontVariantNumeric:"tabular-nums",minWidth:"34px",textAlign:"right"}},o.mult),
-                        e("div",{style:{flexShrink:0,border:`1.5px solid ${OC[oi]||OC[2]}`,borderRadius:"20px",padding:"1px 8px",fontSize:"11.5px",fontWeight:"700",color:OC[oi]||OC[2],minWidth:"46px",textAlign:"center"}},o.pct+"%")
+                      ...outcomes.map((o,oi)=>e("div",{key:oi,style:{display:"flex",alignItems:"center",gap:"6px"}},
+                        e("span",{style:{fontSize:"11.5px",fontWeight:"500",color:C.text,borderBottom:`2px solid ${OC[oi]||OC[2]}`,paddingBottom:"1px",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},o.label),
+                        o.mult&&e("span",{style:{fontSize:"10px",color:C.muted,flexShrink:0,fontVariantNumeric:"tabular-nums"}},o.mult),
+                        e("div",{style:{flexShrink:0,border:`1.5px solid ${OC[oi]||OC[2]}`,borderRadius:"20px",padding:"1px 7px",fontSize:"11.5px",fontWeight:"700",color:OC[oi]||OC[2],minWidth:"42px",textAlign:"center"}},o.pct+"%")
                       ))
                     ),
                     // Footer
