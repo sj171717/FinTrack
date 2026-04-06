@@ -1559,23 +1559,21 @@
 
           // ── PREDICTION TAB ──
           tab==="prediction"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1rem"}},
-            // Casino-style header banner
-            e("div",{style:{background:"linear-gradient(135deg,#0d1f0d 0%,#0a1a0a 40%,#051205 100%)",border:"1px solid #1a4d1a",borderRadius:"16px",padding:"1.25rem 1.5rem",position:"relative",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,180,0,0.12)"}},
-              e("div",{style:{position:"absolute",top:0,left:0,right:0,bottom:0,backgroundImage:"repeating-linear-gradient(45deg,rgba(255,255,255,0.015) 0px,rgba(255,255,255,0.015) 1px,transparent 1px,transparent 8px)",pointerEvents:"none"}}),
-              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative"}},
-                e("div",null,
-                  e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
-                    e("span",{style:{fontSize:"22px"}},"🎰"),
-                    e("div",null,
-                      e("div",{style:{fontSize:"15px",fontWeight:"700",color:"#00e676",letterSpacing:"0.05em",textShadow:"0 0 12px rgba(0,230,118,0.5)"}},"PREDICTION MARKETS"),
-                      e("div",{style:{fontSize:"10.5px",color:"#4caf50",marginTop:"2px",letterSpacing:"0.04em"}},"Live odds · powered by Kalshi")
-                    )
+            // Header
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"16px",padding:"1.25rem 1.5rem",position:"relative",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 2px 12px rgba(0,0,0,0.07)"}},
+              e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"3px",background:`linear-gradient(90deg,${C.accent},${C.up},${C.accent})`,opacity:0.7}}),
+              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
+                  e("span",{style:{fontSize:"22px"}},"🎰"),
+                  e("div",null,
+                    e("div",{style:{fontSize:"14px",fontWeight:"700",color:C.text,letterSpacing:"0.04em"}},"PREDICTION MARKETS"),
+                    e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"2px"}},"Live odds · powered by Kalshi")
                   )
                 ),
                 e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
-                  kalshiData&&e("div",{style:{background:"rgba(0,230,118,0.1)",border:"1px solid rgba(0,230,118,0.25)",borderRadius:"20px",padding:"3px 12px",fontSize:"10px",color:"#00e676",fontWeight:"600",letterSpacing:"0.06em"}},
+                  kalshiData&&e("div",{style:{background:C.accentBg,border:`1px solid ${C.accent}`,borderRadius:"20px",padding:"3px 12px",fontSize:"10px",color:C.accent,fontWeight:"600",letterSpacing:"0.06em"}},
                     kalshiData.total+" MARKETS LIVE"),
-                  e("button",{style:{background:"linear-gradient(135deg,#1b5e20,#2e7d32)",border:"1px solid #388e3c",borderRadius:"8px",color:"#a5d6a7",cursor:"pointer",padding:"6px 14px",fontSize:"11px",fontWeight:"600",fontFamily:"inherit",display:"flex",alignItems:"center",gap:"5px",boxShadow:"0 2px 8px rgba(0,100,0,0.4)"},
+                  e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"5px",padding:"6px 14px",fontSize:"11px"},
                     onClick:()=>fetchKalshi(true),disabled:kalshiLoading},
                     e("svg",{width:"10",height:"10",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:kalshiLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
                     kalshiLoading?"Loading…":"Refresh Odds")
@@ -1585,11 +1583,10 @@
             // Casino betting cards
             (()=>{
               const seriesOf=et=>{
-                // Extract series by stripping -YYMMM date suffix
                 const m2=et&&et.match(/^([A-Z0-9]+)-\d{2}[A-Z]/);
                 return m2?m2[1].toLowerCase():et?.toLowerCase()||"";
               };
-              const KalshiCard=(m,i)=>{
+              const KalshiCard=(m,i,arr)=>{
                 const rawP=m.yes_ask_dollars??m.last_price_dollars??null;
                 const yesPct=rawP!=null?Math.round(parseFloat(rawP)*100):null;
                 const noPct=yesPct!=null?100-yesPct:null;
@@ -1600,38 +1597,40 @@
                 const url=series?`https://kalshi.com/markets/${series}/${eventT}`:`https://kalshi.com/markets/${eventT}`;
                 const isHot=yesPct!=null&&yesPct>=70;
                 const isCold=yesPct!=null&&yesPct<=30;
-                const glow=isHot?"0 0 16px rgba(0,230,118,0.2)":isCold?"0 0 16px rgba(255,77,77,0.2)":"none";
-                return e("a",{key:m.ticker||i,href:url,target:"_blank",rel:"noopener noreferrer",style:{textDecoration:"none",display:"block"}},
-                  e("div",{style:{background:"linear-gradient(135deg,#0d1a0d,#111d11)",border:`1px solid ${isHot?"#2e7d32":isCold?"#7f1515":"#1a3a1a"}`,borderRadius:"12px",padding:"0.9rem 1rem",cursor:"pointer",transition:"all 0.15s",boxShadow:glow,position:"relative",overflow:"hidden"},
-                    onMouseEnter:ev=>{ev.currentTarget.style.borderColor=isHot?"#4caf50":isCold?"#ef5350":"#2e7d32";ev.currentTarget.style.transform="translateY(-1px)";},
-                    onMouseLeave:ev=>{ev.currentTarget.style.borderColor=isHot?"#2e7d32":isCold?"#7f1515":"#1a3a1a";ev.currentTarget.style.transform="";}},
-                    // Shimmer stripe
-                    e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"2px",background:isHot?"linear-gradient(90deg,transparent,#00e676,transparent)":isCold?"linear-gradient(90deg,transparent,#ef5350,transparent)":"linear-gradient(90deg,transparent,#388e3c,transparent)",opacity:0.7}}),
+                const isLast=i===arr.length-1&&arr.length%2===1;
+                const accentCol=isHot?C.up:isCold?C.dn:C.accent;
+                const accentBg=isHot?C.upBg:isCold?C.dnBg:C.accentBg;
+                const accentBorder=isHot?C.upBorder:isCold?C.dnBorder:C.borderMid;
+                return e("a",{key:m.ticker||i,href:url,target:"_blank",rel:"noopener noreferrer",
+                  style:{textDecoration:"none",display:"block",gridColumn:isLast?"1 / -1":""}},
+                  e("div",{style:{background:C.surface,border:`1.5px solid ${C.border}`,borderRadius:"12px",padding:"0.9rem 1rem",cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden",height:"100%"},
+                    onMouseEnter:ev=>{ev.currentTarget.style.borderColor=accentCol;ev.currentTarget.style.transform="translateY(-1px)";ev.currentTarget.style.boxShadow=`0 4px 16px ${accentBg}`;},
+                    onMouseLeave:ev=>{ev.currentTarget.style.borderColor=C.border;ev.currentTarget.style.transform="";ev.currentTarget.style.boxShadow="";}},
+                    e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"2px",background:`linear-gradient(90deg,transparent,${accentCol},transparent)`,opacity:0.8}}),
                     e("div",{style:{display:"flex",alignItems:"flex-start",gap:"10px",marginBottom:"8px"}},
-                      e("div",{style:{width:"28px",height:"28px",borderRadius:"6px",background:"rgba(0,230,118,0.08)",border:"1px solid rgba(0,230,118,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",flexShrink:0}},
+                      e("div",{style:{width:"28px",height:"28px",borderRadius:"6px",background:accentBg,border:`1px solid ${accentBorder}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",flexShrink:0}},
                         isHot?"🔥":isCold?"❄️":"🎲"),
                       e("div",{style:{flex:1,minWidth:0}},
-                        e("div",{style:{fontSize:"12px",fontWeight:"600",color:"#c8e6c9",lineHeight:"1.45",overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}},m.title||m.ticker),
-                        closeDate&&e("div",{style:{fontSize:"10px",color:"#558b2f",marginTop:"3px"}},"Closes "+closeDate)
+                        e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text,lineHeight:"1.45",overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}},m.title||m.ticker),
+                        closeDate&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"3px"}},"Closes "+closeDate)
                       )
                     ),
-                    // Odds bar
                     yesPct!=null&&e("div",null,
-                      e("div",{style:{display:"flex",borderRadius:"6px",overflow:"hidden",height:"22px",border:"1px solid rgba(0,230,118,0.12)",marginBottom:"5px"}},
-                        e("div",{style:{width:yesPct+"%",background:"linear-gradient(90deg,#1b5e20,#2e7d32)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#a5d6a7",minWidth:yesPct>15?"30px":"0",transition:"width 0.3s"}},
+                      e("div",{style:{display:"flex",borderRadius:"6px",overflow:"hidden",height:"20px",border:`1px solid ${C.border}`,marginBottom:"5px"}},
+                        e("div",{style:{width:yesPct+"%",background:C.up,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#fff",minWidth:yesPct>15?"34px":"0",transition:"width 0.3s"}},
                           yesPct>15?"YES":""),
-                        e("div",{style:{flex:1,background:"linear-gradient(90deg,#4a0000,#3b0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#ef9a9a",minWidth:noPct>15?"30px":"0"}},
+                        e("div",{style:{flex:1,background:C.dn,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#fff",minWidth:noPct>15?"30px":"0"}},
                           noPct>15?"NO":"")
                       ),
                       e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
                         e("div",{style:{display:"flex",gap:"12px"}},
-                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:"#00e676"}},"YES "+yesPct+"%"),
-                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:"#ef5350"}},"NO "+noPct+"%")
+                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.up}},"YES "+yesPct+"%"),
+                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.dn}},"NO "+noPct+"%")
                         ),
                         e("div",{style:{display:"flex",alignItems:"center",gap:"6px"}},
-                          vol>0&&e("span",{style:{fontSize:"10px",color:"#558b2f",fontVariantNumeric:"tabular-nums"}},
+                          vol>0&&e("span",{style:{fontSize:"10px",color:C.muted,fontVariantNumeric:"tabular-nums"}},
                             "Vol "+(vol>=1000000?(vol/1000000).toFixed(1)+"M":vol>=1000?(vol/1000).toFixed(1)+"K":vol.toFixed(0))),
-                          e("span",{style:{fontSize:"10px",color:"#2e7d32",fontWeight:"600"}},"↗ bet")
+                          e("span",{style:{fontSize:"10px",color:C.accent,fontWeight:"600"}},"↗ bet")
                         )
                       )
                     )
@@ -1642,17 +1641,17 @@
               const KalshiSection=(title,items)=>e("div",null,
                 e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}},
                   e("span",{style:{fontSize:"14px"}},(icons[title]||"🎯")),
-                  e("span",{style:{fontSize:"11px",fontWeight:"700",color:"#4caf50",textTransform:"uppercase",letterSpacing:"0.1em"}},"— "+title+" —"),
-                  e("div",{style:{flex:1,height:"1px",background:"linear-gradient(90deg,#1a4d1a,transparent)"}})
+                  e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.1em"}},"— "+title+" —"),
+                  e("div",{style:{flex:1,height:"1px",background:`linear-gradient(90deg,${C.border},transparent)`}})
                 ),
                 kalshiLoading&&e("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}},
-                  ...[1,2,3,4].map(i=>e("div",{key:i,style:{height:"88px",background:"#0d1a0d",border:"1px solid #1a3a1a",borderRadius:"12px",animation:"pulse 1.2s ease-in-out infinite"}}))
+                  ...[1,2,3,4].map(i=>e("div",{key:i,style:{height:"88px",background:C.surfaceAlt,borderRadius:"12px",animation:"pulse 1.2s ease-in-out infinite"}}))
                 ),
-                !kalshiLoading&&items.length===0&&e("div",{style:{background:"#0a160a",border:"1px dashed #1a3a1a",borderRadius:"10px",padding:"1.5rem",textAlign:"center",fontSize:"12px",color:"#4a7a4a"}},
+                !kalshiLoading&&items.length===0&&e("div",{style:{background:C.surfaceAlt,border:`1px dashed ${C.border}`,borderRadius:"10px",padding:"1.5rem",textAlign:"center",fontSize:"12px",color:C.muted}},
                   kalshiFetched?"No markets loaded — try Refresh Odds.":"Click Refresh Odds to load live bets."
                 ),
-                !kalshiLoading&&items.length>0&&e("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:"8px"}},
-                  ...items.map((m,i)=>KalshiCard(m,i)))
+                !kalshiLoading&&items.length>0&&e("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}},
+                  ...items.map((m,i,arr)=>KalshiCard(m,i,arr)))
               );
               return e(F,null,
                 KalshiSection("Finance",kalshiData?.finance||[]),
