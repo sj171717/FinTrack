@@ -1651,7 +1651,7 @@
                 const isLast=i===arr.length-1&&arr.length%2===1;
                 return e("a",{key:event_ticker,href:url,target:"_blank",rel:"noopener noreferrer",
                   style:{textDecoration:"none",display:"block",gridColumn:isLast?"1 / -1":""}},
-                  e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"0.7rem 0.9rem",cursor:"pointer",transition:"box-shadow 0.15s,border-color 0.15s",height:"100%",display:"flex",flexDirection:"column"},
+                  e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"0.7rem 0.9rem",cursor:"pointer",transition:"box-shadow 0.15s,border-color 0.15s",display:"flex",flexDirection:"column"},
                     onMouseEnter:x=>{x.currentTarget.style.borderColor=C.borderMid;x.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.08)";},
                     onMouseLeave:x=>{x.currentTarget.style.borderColor=C.border;x.currentTarget.style.boxShadow="";}},
                     // Category icon + label
@@ -1665,7 +1665,7 @@
                     // Divider
                     e("div",{style:{height:"1px",background:C.border,margin:"5px 0"}}),
                     // Outcome rows
-                    e("div",{style:{flex:1,display:"flex",flexDirection:"column",gap:"5px"}},
+                    e("div",{style:{display:"flex",flexDirection:"column",gap:"5px"}},
                       ...outcomes.map((o,oi)=>e("div",{key:oi,style:{display:"flex",alignItems:"center",gap:"6px"}},
                         e("span",{style:{fontSize:"11.5px",fontWeight:"500",color:C.text,borderBottom:`2px solid ${OC[oi]||OC[2]}`,paddingBottom:"1px",flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},o.label),
                         o.mult&&e("span",{style:{fontSize:"10px",color:C.muted,flexShrink:0,fontVariantNumeric:"tabular-nums"}},o.mult),
