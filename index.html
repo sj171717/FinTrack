@@ -1558,67 +1558,101 @@
           ),
 
           // ── PREDICTION TAB ──
-          tab==="prediction"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.25rem"}},
-            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-              e("div",null,
-                e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Prediction Markets"),
-                e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"2px"}},"Top trending bets · powered by Kalshi")
-              ),
-              e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"5px",padding:"5px 12px",fontSize:"11px"},
-                onClick:()=>fetchKalshi(true),disabled:kalshiLoading},
-                e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",
-                  style:{animation:kalshiLoading?"spin 1s linear infinite":"none"}},
-                  e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
-                kalshiLoading?"Refreshing…":"Refresh"
+          tab==="prediction"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1rem"}},
+            // Casino-style header banner
+            e("div",{style:{background:"linear-gradient(135deg,#0d1f0d 0%,#0a1a0a 40%,#051205 100%)",border:"1px solid #1a4d1a",borderRadius:"16px",padding:"1.25rem 1.5rem",position:"relative",overflow:"hidden",boxShadow:"0 4px 24px rgba(0,180,0,0.12)"}},
+              e("div",{style:{position:"absolute",top:0,left:0,right:0,bottom:0,backgroundImage:"repeating-linear-gradient(45deg,rgba(255,255,255,0.015) 0px,rgba(255,255,255,0.015) 1px,transparent 1px,transparent 8px)",pointerEvents:"none"}}),
+              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative"}},
+                e("div",null,
+                  e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
+                    e("span",{style:{fontSize:"22px"}},"🎰"),
+                    e("div",null,
+                      e("div",{style:{fontSize:"15px",fontWeight:"700",color:"#00e676",letterSpacing:"0.05em",textShadow:"0 0 12px rgba(0,230,118,0.5)"}},"PREDICTION MARKETS"),
+                      e("div",{style:{fontSize:"10.5px",color:"#4caf50",marginTop:"2px",letterSpacing:"0.04em"}},"Live odds · powered by Kalshi")
+                    )
+                  )
+                ),
+                e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
+                  kalshiData&&e("div",{style:{background:"rgba(0,230,118,0.1)",border:"1px solid rgba(0,230,118,0.25)",borderRadius:"20px",padding:"3px 12px",fontSize:"10px",color:"#00e676",fontWeight:"600",letterSpacing:"0.06em"}},
+                    kalshiData.total+" MARKETS LIVE"),
+                  e("button",{style:{background:"linear-gradient(135deg,#1b5e20,#2e7d32)",border:"1px solid #388e3c",borderRadius:"8px",color:"#a5d6a7",cursor:"pointer",padding:"6px 14px",fontSize:"11px",fontWeight:"600",fontFamily:"inherit",display:"flex",alignItems:"center",gap:"5px",boxShadow:"0 2px 8px rgba(0,100,0,0.4)"},
+                    onClick:()=>fetchKalshi(true),disabled:kalshiLoading},
+                    e("svg",{width:"10",height:"10",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:kalshiLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
+                    kalshiLoading?"Loading…":"Refresh Odds")
+                )
               )
             ),
-            // Helper to render a market row
+            // Casino betting cards
             (()=>{
-              const KalshiRow=(m,i,arr)=>{
+              const seriesOf=et=>{
+                // Extract series by stripping -YYMMM date suffix
+                const m2=et&&et.match(/^([A-Z0-9]+)-\d{2}[A-Z]/);
+                return m2?m2[1].toLowerCase():et?.toLowerCase()||"";
+              };
+              const KalshiCard=(m,i)=>{
                 const rawP=m.yes_ask_dollars??m.last_price_dollars??null;
-                const yesPct=rawP!=null?(parseFloat(rawP)>1?Math.round(parseFloat(rawP)):Math.round(parseFloat(rawP)*100)):null;
+                const yesPct=rawP!=null?Math.round(parseFloat(rawP)*100):null;
+                const noPct=yesPct!=null?100-yesPct:null;
                 const vol=parseFloat(m.volume_fp||m.volume_24h_fp||0);
                 const closeDate=m.close_time?new Date(m.close_time).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):null;
-                const isYes=yesPct!=null&&yesPct>=50;
-                const url=`https://kalshi.com/markets/${(m.event_ticker||m.ticker||"").toLowerCase()}`;
-                return e("a",{key:m.ticker||i,href:url,target:"_blank",rel:"noopener noreferrer",
-                  style:{display:"flex",alignItems:"center",gap:"12px",padding:"0.65rem 1rem",
-                    borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none",
-                    textDecoration:"none",transition:"background 0.1s"},
-                  onMouseEnter:ev=>ev.currentTarget.style.background=C.surfaceAlt,
-                  onMouseLeave:ev=>ev.currentTarget.style.background=""},
-                  e("div",{style:{width:"22px",height:"22px",borderRadius:"50%",background:C.tag,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:C.muted,flexShrink:0}},i+1),
-                  e("div",{style:{flex:1,minWidth:0}},
-                    e("div",{style:{fontSize:"12px",fontWeight:"500",color:C.text,lineHeight:"1.4",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},
-                      m.title||m.ticker),
-                    e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px",display:"flex",gap:"10px"}},
-                      closeDate&&e("span",null,"Closes ",closeDate),
-                      vol>0&&e("span",null,"Vol: "+(vol>=1000?(vol/1000).toFixed(1)+"K":vol)),
-                      e("span",{style:{color:C.accent,opacity:0.6}},"kalshi ↗")
+                const series=seriesOf(m.event_ticker||m.ticker||"");
+                const eventT=(m.event_ticker||m.ticker||"").toLowerCase();
+                const url=series?`https://kalshi.com/markets/${series}/${eventT}`:`https://kalshi.com/markets/${eventT}`;
+                const isHot=yesPct!=null&&yesPct>=70;
+                const isCold=yesPct!=null&&yesPct<=30;
+                const glow=isHot?"0 0 16px rgba(0,230,118,0.2)":isCold?"0 0 16px rgba(255,77,77,0.2)":"none";
+                return e("a",{key:m.ticker||i,href:url,target:"_blank",rel:"noopener noreferrer",style:{textDecoration:"none",display:"block"}},
+                  e("div",{style:{background:"linear-gradient(135deg,#0d1a0d,#111d11)",border:`1px solid ${isHot?"#2e7d32":isCold?"#7f1515":"#1a3a1a"}`,borderRadius:"12px",padding:"0.9rem 1rem",cursor:"pointer",transition:"all 0.15s",boxShadow:glow,position:"relative",overflow:"hidden"},
+                    onMouseEnter:ev=>{ev.currentTarget.style.borderColor=isHot?"#4caf50":isCold?"#ef5350":"#2e7d32";ev.currentTarget.style.transform="translateY(-1px)";},
+                    onMouseLeave:ev=>{ev.currentTarget.style.borderColor=isHot?"#2e7d32":isCold?"#7f1515":"#1a3a1a";ev.currentTarget.style.transform="";}},
+                    // Shimmer stripe
+                    e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"2px",background:isHot?"linear-gradient(90deg,transparent,#00e676,transparent)":isCold?"linear-gradient(90deg,transparent,#ef5350,transparent)":"linear-gradient(90deg,transparent,#388e3c,transparent)",opacity:0.7}}),
+                    e("div",{style:{display:"flex",alignItems:"flex-start",gap:"10px",marginBottom:"8px"}},
+                      e("div",{style:{width:"28px",height:"28px",borderRadius:"6px",background:"rgba(0,230,118,0.08)",border:"1px solid rgba(0,230,118,0.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",flexShrink:0}},
+                        isHot?"🔥":isCold?"❄️":"🎲"),
+                      e("div",{style:{flex:1,minWidth:0}},
+                        e("div",{style:{fontSize:"12px",fontWeight:"600",color:"#c8e6c9",lineHeight:"1.45",overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}},m.title||m.ticker),
+                        closeDate&&e("div",{style:{fontSize:"10px",color:"#558b2f",marginTop:"3px"}},"Closes "+closeDate)
+                      )
+                    ),
+                    // Odds bar
+                    yesPct!=null&&e("div",null,
+                      e("div",{style:{display:"flex",borderRadius:"6px",overflow:"hidden",height:"22px",border:"1px solid rgba(0,230,118,0.12)",marginBottom:"5px"}},
+                        e("div",{style:{width:yesPct+"%",background:"linear-gradient(90deg,#1b5e20,#2e7d32)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#a5d6a7",minWidth:yesPct>15?"30px":"0",transition:"width 0.3s"}},
+                          yesPct>15?"YES":""),
+                        e("div",{style:{flex:1,background:"linear-gradient(90deg,#4a0000,#3b0000)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#ef9a9a",minWidth:noPct>15?"30px":"0"}},
+                          noPct>15?"NO":"")
+                      ),
+                      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
+                        e("div",{style:{display:"flex",gap:"12px"}},
+                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:"#00e676"}},"YES "+yesPct+"%"),
+                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:"#ef5350"}},"NO "+noPct+"%")
+                        ),
+                        e("div",{style:{display:"flex",alignItems:"center",gap:"6px"}},
+                          vol>0&&e("span",{style:{fontSize:"10px",color:"#558b2f",fontVariantNumeric:"tabular-nums"}},
+                            "Vol "+(vol>=1000000?(vol/1000000).toFixed(1)+"M":vol>=1000?(vol/1000).toFixed(1)+"K":vol.toFixed(0))),
+                          e("span",{style:{fontSize:"10px",color:"#2e7d32",fontWeight:"600"}},"↗ bet")
+                        )
+                      )
                     )
-                  ),
-                  yesPct!=null&&e("div",{style:{flexShrink:0,display:"inline-flex",alignItems:"center",gap:"4px",
-                    background:isYes?C.upBg:C.dnBg,border:`1px solid ${isYes?C.upBorder:C.dnBorder}`,
-                    borderRadius:"20px",padding:"3px 10px",fontSize:"11px",fontWeight:"600",color:isYes?C.up:C.dn}},
-                    "YES ",yesPct+"%")
+                  )
                 );
               };
-              const KalshiSection=(title,items)=>e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
-                e("div",{style:{padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:"8px"}},
-                  e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.06em"}},title),
-                  e("div",{style:{flex:1,height:"1px",background:C.border}})
+              const icons={"Finance":"💹","Economics":"📊"};
+              const KalshiSection=(title,items)=>e("div",null,
+                e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}},
+                  e("span",{style:{fontSize:"14px"}},(icons[title]||"🎯")),
+                  e("span",{style:{fontSize:"11px",fontWeight:"700",color:"#4caf50",textTransform:"uppercase",letterSpacing:"0.1em"}},"— "+title+" —"),
+                  e("div",{style:{flex:1,height:"1px",background:"linear-gradient(90deg,#1a4d1a,transparent)"}})
                 ),
-                kalshiLoading&&e("div",{style:{padding:"0.75rem 1rem",display:"flex",flexDirection:"column",gap:"8px"}},
-                  ...[1,2,3,4,5].map(i=>e("div",{key:i,style:{height:"44px",background:C.border,borderRadius:"6px",animation:"pulse 1.2s ease-in-out infinite"}}))
+                kalshiLoading&&e("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}},
+                  ...[1,2,3,4].map(i=>e("div",{key:i,style:{height:"88px",background:"#0d1a0d",border:"1px solid #1a3a1a",borderRadius:"12px",animation:"pulse 1.2s ease-in-out infinite"}}))
                 ),
-                !kalshiLoading&&items.length===0&&e("div",{style:{padding:"1.5rem",textAlign:"center",fontSize:"12px",color:C.muted}},
-                  kalshiFetched
-                    ?(kalshiData?.total>0
-                        ?`No ${title.toLowerCase()} markets matched — ${kalshiData.total} markets fetched total.`
-                        :"Kalshi API unavailable — try refreshing.")
-                    :"Click Refresh to load."
+                !kalshiLoading&&items.length===0&&e("div",{style:{background:"#0a160a",border:"1px dashed #1a3a1a",borderRadius:"10px",padding:"1.5rem",textAlign:"center",fontSize:"12px",color:"#4a7a4a"}},
+                  kalshiFetched?"No markets loaded — try Refresh Odds.":"Click Refresh Odds to load live bets."
                 ),
-                !kalshiLoading&&items.length>0&&e("div",null,...items.map((m,i)=>KalshiRow(m,i,items)))
+                !kalshiLoading&&items.length>0&&e("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:"8px"}},
+                  ...items.map((m,i)=>KalshiCard(m,i)))
               );
               return e(F,null,
                 KalshiSection("Finance",kalshiData?.finance||[]),
