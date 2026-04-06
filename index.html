@@ -1035,31 +1035,34 @@
       const fetchKalshi=async(force=false)=>{
         if(kalshiLoading||(kalshiFetched&&!force))return;
         setKalshiLoading(true);
-        // Query specific financial/economic series (generic endpoint only returns sports markets)
-        const FIN_SERIES=["KXBTCMAXY","KXBTCMINY","KXBTC2026200","KXBTCD","KXINXMINY","KXINXHIGH","KXCREDITRATING","KXSOLNASDAQ"];
+        const FIN_SERIES=["KXBTCMAXY","KXBTCMINY","KXBTCD","KXINXMINY","KXINXHIGH","KXCREDITRATING","KXBTC2026200","KXSOLNASDAQ"];
         const ECON_SERIES=["KXFED","KXRATECUT","KXGDP","KXRECSS","KXLARGETARIFF","KXCHINATARIFF","KXMORTGAGERATE","KXECONPATH","KXAVGTARIFF"];
         const fetchSeries=async(s)=>{
-          const url=`https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=10&series_ticker=${s}`;
+          const url=`https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=20&series_ticker=${s}`;
           try{
             let data=null;
             try{const r=await fetch(url,{headers:{accept:"application/json"}});if(r.ok)data=await r.json();}catch{}
             if(!data?.markets?.length){try{data=JSON.parse(await fetchViaProxy(url));}catch{}}
-            return data?.markets||[];
+            return (data?.markets||[]).map(m=>({...m,_series:s}));
           }catch{return[];}
+        };
+        const groupByEvent=markets=>{
+          const map={};
+          for(const m of markets){
+            const et=m.event_ticker||m.ticker;
+            if(!map[et])map[et]={event_ticker:et,series:m._series,markets:[],totalVol:0};
+            map[et].markets.push(m);
+            map[et].totalVol+=parseFloat(m.volume_fp||0);
+          }
+          return Object.values(map);
         };
         const[finResults,econResults]=await Promise.all([
           Promise.all(FIN_SERIES.map(fetchSeries)),
           Promise.all(ECON_SERIES.map(fetchSeries)),
         ]);
-        const dedup=arr=>{const seen=new Set();return arr.filter(m=>{if(seen.has(m.ticker))return false;seen.add(m.ticker);return true;});};
-        const byVol=(a,b)=>parseFloat(b.volume_fp||b.volume_24h_fp||0)-parseFloat(a.volume_fp||a.volume_24h_fp||0);
-        const finAll=dedup(finResults.flat());
-        const econAll=dedup(econResults.flat());
-        setKalshiData({
-          finance:finAll.sort(byVol).slice(0,5),
-          economics:econAll.sort(byVol).slice(0,5),
-          total:finAll.length+econAll.length,
-        });
+        const finEvents=groupByEvent(finResults.flat()).sort((a,b)=>b.totalVol-a.totalVol).slice(0,6);
+        const econEvents=groupByEvent(econResults.flat()).sort((a,b)=>b.totalVol-a.totalVol).slice(0,6);
+        setKalshiData({finance:finEvents,economics:econEvents,total:finEvents.length+econEvents.length});
         setKalshiFetched(true);
         setKalshiLoading(false);
       };
@@ -1572,7 +1575,7 @@
                 ),
                 e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
                   kalshiData&&e("div",{style:{background:C.accentBg,border:`1px solid ${C.accent}`,borderRadius:"20px",padding:"3px 12px",fontSize:"10px",color:C.accent,fontWeight:"600",letterSpacing:"0.06em"}},
-                    kalshiData.total+" MARKETS LIVE"),
+                    kalshiData.total+" EVENTS LIVE"),
                   e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"5px",padding:"6px 14px",fontSize:"11px"},
                     onClick:()=>fetchKalshi(true),disabled:kalshiLoading},
                     e("svg",{width:"10",height:"10",viewBox:"0 0 11 11",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:kalshiLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
@@ -1580,78 +1583,114 @@
                 )
               )
             ),
-            // Casino betting cards
+            // Event cards
             (()=>{
-              const seriesOf=et=>{
-                const m2=et&&et.match(/^([A-Z0-9]+)-\d{2}[A-Z]/);
-                return m2?m2[1].toLowerCase():et?.toLowerCase()||"";
+              const SMETA={
+                KXBTCMAXY:{label:"CRYPTO",icon:"₿",bg:"#fff7ed",ic:"#ea580c"},
+                KXBTCMINY:{label:"CRYPTO",icon:"₿",bg:"#fff7ed",ic:"#ea580c"},
+                KXBTCD:{label:"CRYPTO",icon:"₿",bg:"#fff7ed",ic:"#ea580c"},
+                KXBTC2026200:{label:"CRYPTO",icon:"₿",bg:"#fff7ed",ic:"#ea580c"},
+                KXSOLNASDAQ:{label:"CRYPTO",icon:"₿",bg:"#fff7ed",ic:"#ea580c"},
+                KXINXMINY:{label:"S&P 500",icon:"📈",bg:"#f0fdf4",ic:"#16a34a"},
+                KXINXHIGH:{label:"S&P 500",icon:"📈",bg:"#f0fdf4",ic:"#16a34a"},
+                KXCREDITRATING:{label:"US CREDIT",icon:"🏦",bg:"#fef2f2",ic:"#dc2626"},
+                KXFED:{label:"US FED",icon:"🏛",bg:"#eff6ff",ic:"#2563eb"},
+                KXRATECUT:{label:"US FED",icon:"🏛",bg:"#eff6ff",ic:"#2563eb"},
+                KXGDP:{label:"ECONOMY",icon:"📊",bg:"#fff7ed",ic:"#ea580c"},
+                KXRECSS:{label:"ECONOMY",icon:"📊",bg:"#fff7ed",ic:"#ea580c"},
+                KXECONPATH:{label:"ECONOMY",icon:"📊",bg:"#fff7ed",ic:"#ea580c"},
+                KXLARGETARIFF:{label:"TARIFFS",icon:"🌐",bg:"#faf5ff",ic:"#7c3aed"},
+                KXCHINATARIFF:{label:"TARIFFS",icon:"🌐",bg:"#faf5ff",ic:"#7c3aed"},
+                KXAVGTARIFF:{label:"TARIFFS",icon:"🌐",bg:"#faf5ff",ic:"#7c3aed"},
+                KXMORTGAGERATE:{label:"HOUSING",icon:"🏠",bg:"#f0fdfa",ic:"#0d9488"},
               };
-              const KalshiCard=(m,i,arr)=>{
-                const rawP=m.yes_ask_dollars??m.last_price_dollars??null;
-                const yesPct=rawP!=null?Math.round(parseFloat(rawP)*100):null;
-                const noPct=yesPct!=null?100-yesPct:null;
-                const vol=parseFloat(m.volume_fp||m.volume_24h_fp||0);
-                const closeDate=m.close_time?new Date(m.close_time).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):null;
-                const series=seriesOf(m.event_ticker||m.ticker||"");
-                const eventT=(m.event_ticker||m.ticker||"").toLowerCase();
-                const url=series?`https://kalshi.com/markets/${series}/${eventT}`:`https://kalshi.com/markets/${eventT}`;
-                const isHot=yesPct!=null&&yesPct>=70;
-                const isCold=yesPct!=null&&yesPct<=30;
+              const OC=["#22c55e","#6366f1","#f97316"];
+              const mo={JAN:"Jan",FEB:"Feb",MAR:"Mar",APR:"Apr",MAY:"May",JUN:"Jun",JUL:"Jul",AUG:"Aug",SEP:"Sep",OCT:"Oct",NOV:"Nov",DEC:"Dec"};
+              const deriveTitle=(series,et,firstTitle)=>{
+                const dm=et.match(/-(\d{2})([A-Z]{3})(\d{2})?$/);
+                const ds=dm?(mo[dm[2]]||dm[2])+" 20"+dm[1]:"";
+                const map={
+                  KXBTCMAXY:"Bitcoin max price"+(ds?" · "+ds:"")+"?",
+                  KXBTCMINY:"Bitcoin min price"+(ds?" · "+ds:"")+"?",
+                  KXBTCD:"Bitcoin daily price?",KXBTC2026200:"Bitcoin hits $200k in 2026?",
+                  KXFED:"Fed funds rate"+(ds?" · "+ds:"")+"?",
+                  KXRATECUT:"Fed rate cut?",
+                  KXINXMINY:"S&P 500 floor"+(ds?" · "+ds:"")+"?",
+                  KXINXHIGH:"S&P 500 all-time high?",
+                  KXCREDITRATING:"US credit rating downgraded?",
+                  KXSOLNASDAQ:"SOL flips Nasdaq?",
+                  KXGDP:"US GDP growth?",KXRECSS:"US recession?",
+                  KXLARGETARIFF:"Trump tariffs?",KXCHINATARIFF:"China tariff rate?",
+                  KXMORTGAGERATE:"30-yr mortgage rate?",KXECONPATH:"State of the economy?",
+                  KXAVGTARIFF:"Average US tariff rate?",
+                };
+                return map[series]||(firstTitle||et);
+              };
+              const fmtV=v=>v>=1e9?"$"+(v/1e9).toFixed(1)+"B":v>=1e6?"$"+(v/1e6).toFixed(1)+"M":v>=1000?"$"+(v/1000).toFixed(0)+"K":v>0?"$"+v.toFixed(0):"—";
+              const KalshiEventCard=(evGroup,i,arr)=>{
+                const {event_ticker,series,markets,totalVol}=evGroup;
+                const meta=SMETA[series]||{label:"MARKETS",icon:"🎲",bg:C.accentBg,ic:C.accent};
+                const seriesKey=(event_ticker.match(/^([A-Z0-9]+)-/)||[])[1]||series||"";
+                const url=`https://kalshi.com/markets/${seriesKey.toLowerCase()}/${event_ticker.toLowerCase()}`;
+                const cardTitle=deriveTitle(series,event_ticker,markets[0]?.title);
+                const closeDate=markets[0]?.close_time?new Date(markets[0].close_time).toLocaleDateString("en-US",{month:"short",day:"numeric"})+" @ "+new Date(markets[0].close_time).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}):"";
+                const outcomes=markets.map(m=>{
+                  const rawP=m.yes_ask_dollars??m.last_price_dollars??null;
+                  const pct=rawP!=null?Math.round(parseFloat(rawP)*100):null;
+                  const mult=pct>0?(1/(pct/100)).toFixed(2)+"x":null;
+                  const sub=m.yes_sub_title&&m.yes_sub_title.trim();
+                  const label=sub||m.title?.replace(/^Will\s+/i,"").replace(/\?$/,"").slice(0,38)||"Yes";
+                  return{label,pct,mult};
+                }).filter(o=>o.pct!=null).sort((a,b)=>b.pct-a.pct).slice(0,3);
                 const isLast=i===arr.length-1&&arr.length%2===1;
-                const accentCol=isHot?C.up:isCold?C.dn:C.accent;
-                const accentBg=isHot?C.upBg:isCold?C.dnBg:C.accentBg;
-                const accentBorder=isHot?C.upBorder:isCold?C.dnBorder:C.borderMid;
-                return e("a",{key:m.ticker||i,href:url,target:"_blank",rel:"noopener noreferrer",
+                return e("a",{key:event_ticker,href:url,target:"_blank",rel:"noopener noreferrer",
                   style:{textDecoration:"none",display:"block",gridColumn:isLast?"1 / -1":""}},
-                  e("div",{style:{background:C.surface,border:`1.5px solid ${C.border}`,borderRadius:"12px",padding:"0.9rem 1rem",cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden",height:"100%"},
-                    onMouseEnter:ev=>{ev.currentTarget.style.borderColor=accentCol;ev.currentTarget.style.transform="translateY(-1px)";ev.currentTarget.style.boxShadow=`0 4px 16px ${accentBg}`;},
-                    onMouseLeave:ev=>{ev.currentTarget.style.borderColor=C.border;ev.currentTarget.style.transform="";ev.currentTarget.style.boxShadow="";}},
-                    e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"2px",background:`linear-gradient(90deg,transparent,${accentCol},transparent)`,opacity:0.8}}),
-                    e("div",{style:{display:"flex",alignItems:"flex-start",gap:"10px",marginBottom:"8px"}},
-                      e("div",{style:{width:"28px",height:"28px",borderRadius:"6px",background:accentBg,border:`1px solid ${accentBorder}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",flexShrink:0}},
-                        isHot?"🔥":isCold?"❄️":"🎲"),
-                      e("div",{style:{flex:1,minWidth:0}},
-                        e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text,lineHeight:"1.45",overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}},m.title||m.ticker),
-                        closeDate&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"3px"}},"Closes "+closeDate)
-                      )
+                  e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"16px",padding:"1rem 1.15rem 0.9rem",cursor:"pointer",transition:"box-shadow 0.15s,border-color 0.15s",height:"100%",display:"flex",flexDirection:"column"},
+                    onMouseEnter:x=>{x.currentTarget.style.borderColor=C.borderMid;x.currentTarget.style.boxShadow="0 4px 20px rgba(0,0,0,0.09)";},
+                    onMouseLeave:x=>{x.currentTarget.style.borderColor=C.border;x.currentTarget.style.boxShadow="";}},
+                    // Category icon + label
+                    e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}},
+                      e("div",{style:{width:"34px",height:"34px",borderRadius:"9px",background:meta.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px",flexShrink:0}},meta.icon),
+                      e("span",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em"}},meta.label)
                     ),
-                    yesPct!=null&&e("div",null,
-                      e("div",{style:{display:"flex",borderRadius:"6px",overflow:"hidden",height:"20px",border:`1px solid ${C.border}`,marginBottom:"5px"}},
-                        e("div",{style:{width:yesPct+"%",background:C.up,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#fff",minWidth:yesPct>15?"34px":"0",transition:"width 0.3s"}},
-                          yesPct>15?"YES":""),
-                        e("div",{style:{flex:1,background:C.dn,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"700",color:"#fff",minWidth:noPct>15?"30px":"0"}},
-                          noPct>15?"NO":"")
-                      ),
-                      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
-                        e("div",{style:{display:"flex",gap:"12px"}},
-                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.up}},"YES "+yesPct+"%"),
-                          e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.dn}},"NO "+noPct+"%")
+                    // Title + close date
+                    e("div",{style:{fontSize:"13px",fontWeight:"700",color:C.text,lineHeight:"1.45",marginBottom:"3px"}},cardTitle),
+                    closeDate&&e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"10px"}},closeDate),
+                    // Divider
+                    e("div",{style:{height:"1px",background:C.border,margin:"8px 0"}}),
+                    // Outcome rows
+                    e("div",{style:{flex:1,display:"flex",flexDirection:"column",gap:"8px"}},
+                      ...outcomes.map((o,oi)=>e("div",{key:oi,style:{display:"flex",alignItems:"center",gap:"10px"}},
+                        e("div",{style:{flex:1,minWidth:0}},
+                          e("span",{style:{fontSize:"12px",fontWeight:"500",color:C.text,borderBottom:`2px solid ${OC[oi]||OC[2]}`,paddingBottom:"1px",display:"inline-block",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},o.label)
                         ),
-                        e("div",{style:{display:"flex",alignItems:"center",gap:"6px"}},
-                          vol>0&&e("span",{style:{fontSize:"10px",color:C.muted,fontVariantNumeric:"tabular-nums"}},
-                            "Vol "+(vol>=1000000?(vol/1000000).toFixed(1)+"M":vol>=1000?(vol/1000).toFixed(1)+"K":vol.toFixed(0))),
-                          e("span",{style:{fontSize:"10px",color:C.accent,fontWeight:"600"}},"↗ bet")
-                        )
-                      )
+                        o.mult&&e("span",{style:{fontSize:"11px",color:C.muted,flexShrink:0,fontVariantNumeric:"tabular-nums",minWidth:"38px",textAlign:"right"}},o.mult),
+                        e("div",{style:{flexShrink:0,border:`1.5px solid ${OC[oi]||OC[2]}`,borderRadius:"20px",padding:"2px 10px",fontSize:"12px",fontWeight:"700",color:OC[oi]||OC[2],minWidth:"52px",textAlign:"center"}},o.pct+"%")
+                      ))
+                    ),
+                    // Footer
+                    e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:"10px",paddingTop:"8px",borderTop:`1px solid ${C.border}`}},
+                      e("span",{style:{fontSize:"10px",color:C.muted}},fmtV(totalVol)+" vol"),
+                      e("span",{style:{fontSize:"10px",color:C.muted}},markets.length+" market"+(markets.length!==1?"s":""))
                     )
                   )
                 );
               };
-              const icons={"Finance":"💹","Economics":"📊"};
+              const secIcons={"Finance":"💹","Economics":"📊"};
               const KalshiSection=(title,items)=>e("div",null,
-                e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}},
-                  e("span",{style:{fontSize:"14px"}},(icons[title]||"🎯")),
+                e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}},
+                  e("span",{style:{fontSize:"14px"}},(secIcons[title]||"🎯")),
                   e("span",{style:{fontSize:"11px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.1em"}},"— "+title+" —"),
                   e("div",{style:{flex:1,height:"1px",background:`linear-gradient(90deg,${C.border},transparent)`}})
                 ),
-                kalshiLoading&&e("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}},
-                  ...[1,2,3,4].map(i=>e("div",{key:i,style:{height:"88px",background:C.surfaceAlt,borderRadius:"12px",animation:"pulse 1.2s ease-in-out infinite"}}))
+                kalshiLoading&&e("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px"}},
+                  ...[1,2,3,4].map(i=>e("div",{key:i,style:{height:"160px",background:C.surfaceAlt,borderRadius:"16px",animation:"pulse 1.2s ease-in-out infinite"}}))
                 ),
                 !kalshiLoading&&items.length===0&&e("div",{style:{background:C.surfaceAlt,border:`1px dashed ${C.border}`,borderRadius:"10px",padding:"1.5rem",textAlign:"center",fontSize:"12px",color:C.muted}},
-                  kalshiFetched?"No markets loaded — try Refresh Odds.":"Click Refresh Odds to load live bets."
+                  kalshiFetched?"No events loaded — try Refresh Odds.":"Click Refresh Odds to load live bets."
                 ),
-                !kalshiLoading&&items.length>0&&e("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}},
-                  ...items.map((m,i,arr)=>KalshiCard(m,i,arr)))
+                !kalshiLoading&&items.length>0&&e("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px"}},
+                  ...items.map((ev,i,arr)=>KalshiEventCard(ev,i,arr)))
               );
               return e(F,null,
                 KalshiSection("Finance",kalshiData?.finance||[]),
