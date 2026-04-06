@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "api/ai.js": { "maxDuration": 60 },
+    "api/proxy.js": { "maxDuration": 15 }
+  }
+}
