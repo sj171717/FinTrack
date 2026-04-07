@@ -1891,11 +1891,16 @@
                 (()=>{
                   const h=resolvedHoldings.find(x=>x.ticker===portfolioModal.ticker);
                   if(!h)return null;
-                  const isUp=h.currentPrice>=h.avgCost;
+                  const series=portfolioModal.series;
+                  const firstPrice=series&&series.length>1?series[0]:null;
+                  const lastPrice=h.currentPrice;
+                  const chg=firstPrice?lastPrice-firstPrice:0;
+                  const chgPct=firstPrice?chg/firstPrice*100:0;
+                  const isUp=chg>=0;
                   return e(F,null,
-                    e("span",{style:{fontSize:"18px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(h.currentPrice)),
-                    e("span",{style:{fontSize:"12px",color:isUp?C.up:C.dn,fontWeight:"600"}},
-                      (isUp?"▲":"▼")+" "+sign(h.currentPrice-h.avgCost)+"$"+$n(Math.abs(h.currentPrice-h.avgCost))+" ("+(isUp?"+":"")+((h.currentPrice-h.avgCost)/h.avgCost*100).toFixed(1)+"%)")
+                    e("span",{style:{fontSize:"18px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(lastPrice)),
+                    firstPrice&&e("span",{style:{fontSize:"12px",color:isUp?C.up:C.dn,fontWeight:"600"}},
+                      (isUp?"▲":"▼")+" "+(isUp?"+":"")+sign(chg)+"$"+$n(Math.abs(chg))+" ("+(isUp?"+":"")+chgPct.toFixed(1)+"%)")
                   );
                 })()
               ),
