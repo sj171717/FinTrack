@@ -876,7 +876,16 @@
             const doc=await fbDb.collection("users").doc(user.uid).get();
             const data=doc.data();
             if(data?.holdings){
-              setHoldings(data.holdings.map(migrateLegacyHolding));
+              const loaded=data.holdings.map(migrateLegacyHolding);
+              setHoldings(loaded);
+              // Auto-refresh prices if any non-cash holding has price = 0
+              const needsPrice=loaded.filter(h=>h.ticker!=="Cash"&&(!h.currentPrice||h.currentPrice===0));
+              if(needsPrice.length>0){
+                const tickers=loaded.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
+                yfQuote(tickers).then(quotes=>{
+                  setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price?{...h,currentPrice:q.price,ytdStartPrice:h.ytdStartPrice||q.price}:h; }));
+                }).catch(()=>{});
+              }
             } else {
               // First login — try to migrate localStorage data
               try{
