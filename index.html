@@ -34,7 +34,7 @@
     const F = React.Fragment;
 
     // ── Network helpers ──
-    const GN_MKT_URL = "https://news.google.com/rss/search?q=stock+market+wall+street+S%26P500&hl=en-US&gl=US&ceid=US:en";
+    const GN_MKT_URL = "https://news.google.com/rss/search?q=stock+market+S%26P500+nasdaq+investing+when%3A1d&hl=en-US&gl=US&ceid=US:en";
     // Our own Netlify serverless proxy — same origin, no CORS, fast
     async function fetchViaProxy(url, timeoutMs=12000) {
       const endpoint = `/api/proxy?url=${encodeURIComponent(url)}`;
@@ -128,25 +128,9 @@
       return {...h, lots: h.qty>0?[{id:h.id+"_l0",type:"buy",date:today,price:h.avgCost||0,qty:h.qty||0}]:[]};
     }
 
-    // ── News fetcher: rss2json.com (no CORS proxy) with proxy fallback ──
+    // ── News fetcher: direct via proxy (fresh, no rss2json caching) ──
     async function fetchNewsItems(rssUrl, max=3) {
-      try {
-        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`);
-        if(r.ok){
-          const data=await r.json();
-          if(data.status==="ok"&&data.items?.length>0){
-            return data.items.slice(0,max).map(item=>{
-              const headline=item.title||"";
-              const raw=item.description||"";
-              const summary=raw.replace(/<[^>]*>/g,"").replace(/&[a-z]+;/g," ").trim().slice(0,120);
-              const time=item.pubDate?new Date(item.pubDate).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-              return{headline,summary,source:"Google News",time,link:item.link||"",sentiment:sentimentOf(headline+" "+summary)};
-            });
-          }
-        }
-      } catch {}
-      // Fallback: CORS proxy + XML
-      try { return parseRSS(await fetchViaProxy(rssUrl,10000),max); } catch {}
+      try { return parseRSS(await fetchViaProxy(rssUrl,12000),max); } catch {}
       return [];
     }
 
@@ -1021,7 +1005,7 @@
         setNewsLoading(true);
         setNews({market:[],watchlist:{}});
         const tickers=holdings?holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker):[];
-        const urls=[GN_MKT_URL,...tickers.map(t=>`https://news.google.com/rss/search?q=${encodeURIComponent(t)}+stock&hl=en-US&gl=US&ceid=US:en`)];
+        const urls=[GN_MKT_URL,...tickers.map(t=>`https://news.google.com/rss/search?q=${encodeURIComponent(t)}+stock+when%3A3d&hl=en-US&gl=US&ceid=US:en`)];
         const results=await Promise.all(urls.map((url,i)=>fetchNewsItems(url,i===0?6:3)));
         const market=results[0]||[];
         const watchlist={};
