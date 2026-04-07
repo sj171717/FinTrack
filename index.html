@@ -1794,16 +1794,29 @@
                   )
                 );
               };
-              const allEvents=[...(kalshiData?.finance||[]),...(kalshiData?.economics||[])];
-              return e("div",null,
-                kalshiLoading&&e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px"}},
-                  ...[1,2,3,4,5,6].map(i=>e("div",{key:i,style:{height:"140px",background:C.surfaceAlt,borderRadius:"10px",animation:"pulse 1.2s ease-in-out infinite"}}))
+              const SectionHeader=(title,icon)=>e("div",{style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"8px"}},
+                e("span",{style:{fontSize:"13px"}},icon),
+                e("span",{style:{fontSize:"10.5px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.1em"}},"— "+title+" —"),
+                e("div",{style:{flex:1,height:"1px",background:`linear-gradient(90deg,${C.border},transparent)`}})
+              );
+              const CardGrid=(items)=>e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px"}},
+                ...items.map((ev,i)=>EventCard(ev,i))
+              );
+              const SkeletonGrid=()=>e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px"}},
+                ...[1,2,3].map(i=>e("div",{key:i,style:{height:"140px",background:C.surfaceAlt,borderRadius:"10px",animation:"pulse 1.2s ease-in-out infinite"}}))
+              );
+              const empty=!kalshiFetched?"Click Refresh Odds to load live bets.":"No events loaded — try Refresh Odds.";
+              return e("div",{style:{display:"flex",flexDirection:"column",gap:"16px"}},
+                e("div",null,
+                  SectionHeader("Finance","💹"),
+                  kalshiLoading?e(SkeletonGrid,null):
+                  (kalshiData?.finance?.length>0?CardGrid(kalshiData.finance):e("div",{style:{fontSize:"12px",color:C.muted,padding:"0.5rem 0"}},empty))
                 ),
-                !kalshiLoading&&allEvents.length===0&&e("div",{style:{background:C.surfaceAlt,border:`1px dashed ${C.border}`,borderRadius:"10px",padding:"1rem",textAlign:"center",fontSize:"12px",color:C.muted}},
-                  kalshiFetched?"No events loaded — try Refresh Odds.":"Click Refresh Odds to load live bets."
-                ),
-                !kalshiLoading&&allEvents.length>0&&e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px"}},
-                  ...allEvents.map((ev,i)=>EventCard(ev,i)))
+                e("div",null,
+                  SectionHeader("Economics","📊"),
+                  kalshiLoading?e(SkeletonGrid,null):
+                  (kalshiData?.economics?.length>0?CardGrid(kalshiData.economics):e("div",{style:{fontSize:"12px",color:C.muted,padding:"0.5rem 0"}},empty))
+                )
               );
             })()
           ),
