@@ -1663,32 +1663,28 @@
                   return{label,pct,mult};
                 }).filter(o=>o.pct!=null).sort((a,b)=>b.pct-a.pct).slice(0,3);
                 return e("a",{key:event_ticker,href:url,target:"_blank",rel:"noopener noreferrer",style:{textDecoration:"none"}},
-                  e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"0.75rem 0.85rem",transition:"box-shadow 0.12s,border-color 0.12s"},
+                  e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"0.65rem 0.75rem",transition:"box-shadow 0.12s,border-color 0.12s",overflow:"hidden"},
                     onMouseEnter:x=>{x.currentTarget.style.borderColor=C.borderMid;x.currentTarget.style.boxShadow="0 3px 12px rgba(0,0,0,0.08)";},
                     onMouseLeave:x=>{x.currentTarget.style.borderColor=C.border;x.currentTarget.style.boxShadow="";}},
                     // Header row
-                    e("div",{style:{display:"flex",alignItems:"center",gap:"7px",marginBottom:"6px"}},
-                      e("div",{style:{width:"26px",height:"26px",borderRadius:"7px",background:meta.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",flexShrink:0}},meta.icon),
+                    e("div",{style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"5px"}},
+                      e("div",{style:{width:"24px",height:"24px",borderRadius:"6px",background:meta.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"12px",flexShrink:0}},meta.icon),
                       e("div",{style:{flex:1,minWidth:0}},
-                        e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",lineHeight:"1"}},(meta.label||"")+(closeDate?" · "+closeDate:"")),
-                        e("div",{style:{fontSize:"12px",fontWeight:"700",color:C.text,lineHeight:"1.35",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:"2px"}},title)
+                        e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",lineHeight:"1"}},(meta.label||"")+(closeDate?" · "+closeDate:"")),
+                        e("div",{style:{fontSize:"11.5px",fontWeight:"700",color:C.text,lineHeight:"1.3",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:"2px"}},title)
                       )
                     ),
-                    // Divider
-                    e("div",{style:{height:"1px",background:C.border,margin:"5px 0"}}),
-                    // Outcomes
-                    e("div",{style:{display:"flex",flexDirection:"column",gap:"4px"}},
-                      ...outcomes.map((o,oi)=>e("div",{key:oi,style:{display:"flex",alignItems:"center",gap:"6px"}},
-                        e("div",{style:{width:"3px",height:"13px",borderRadius:"2px",background:OC[oi]||OC[2],flexShrink:0}}),
-                        e("span",{style:{fontSize:"11.5px",color:C.text,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},o.label),
-                        o.mult&&e("span",{style:{fontSize:"10px",color:C.muted,flexShrink:0,fontVariantNumeric:"tabular-nums"}},o.mult),
-                        e("div",{style:{flexShrink:0,border:`1.5px solid ${OC[oi]||OC[2]}`,borderRadius:"20px",padding:"1px 7px",fontSize:"11px",fontWeight:"700",color:OC[oi]||OC[2],minWidth:"40px",textAlign:"center"}},o.pct+"%")
+                    e("div",{style:{height:"1px",background:C.border,margin:"4px 0"}}),
+                    e("div",{style:{display:"flex",flexDirection:"column",gap:"3px"}},
+                      ...outcomes.map((o,oi)=>e("div",{key:oi,style:{display:"flex",alignItems:"center",gap:"5px"}},
+                        e("div",{style:{width:"3px",height:"12px",borderRadius:"2px",background:OC[oi]||OC[2],flexShrink:0}}),
+                        e("span",{style:{fontSize:"11px",color:C.text,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},o.label),
+                        e("div",{style:{flexShrink:0,border:`1.5px solid ${OC[oi]||OC[2]}`,borderRadius:"20px",padding:"1px 6px",fontSize:"10.5px",fontWeight:"700",color:OC[oi]||OC[2],textAlign:"center"}},o.pct+"%")
                       ))
                     ),
-                    // Footer
-                    e("div",{style:{marginTop:"6px",paddingTop:"5px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between"}},
-                      e("span",{style:{fontSize:"9.5px",color:C.muted}},fmtV(totalVol)+" vol"),
-                      e("span",{style:{fontSize:"9.5px",color:C.accent}},markets.length+" market"+(markets.length!==1?"s":""))
+                    e("div",{style:{marginTop:"5px",paddingTop:"4px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between"}},
+                      e("span",{style:{fontSize:"9px",color:C.muted}},fmtV(totalVol)+" vol"),
+                      e("span",{style:{fontSize:"9px",color:C.accent}},markets.length+" market"+(markets.length!==1?"s":""))
                     )
                   )
                 );
