@@ -1409,14 +1409,19 @@
         );
       };
       const usIdx=["S&P 500","NASDAQ 100","Dow Jones","Russell 2000"];
-      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0.25rem 1.25rem 1.25rem",display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:"0 1.5rem"}},
-        MktCol("US Markets",(marketData.indices||[]).filter(i=>usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
-        MktCol("Global Markets",(marketData.indices||[]).filter(i=>!usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
-        MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4))),
-        MktCol("Commodities & Volatility",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2))),
-        e("div",{style:{display:"flex",flexDirection:"column",minWidth:0}},
-          MktSectionHead("Economic Indicators"),
-          ...ECON_INDICATORS.map(EconRow)
+      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0.25rem 1.25rem 1.25rem",display:"flex",flexDirection:"column",gap:"0"}},
+        e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"0 2rem",paddingBottom:"1rem",borderBottom:`1px solid ${C.border}`,marginBottom:"0.25rem"}},
+          MktCol("US Markets",(marketData.indices||[]).filter(i=>usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
+          MktCol("Global Markets",(marketData.indices||[]).filter(i=>!usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
+          MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4)))
+        ),
+        e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"0 2rem"}},
+          MktCol("Commodities & Volatility",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2))),
+          e("div",{style:{display:"flex",flexDirection:"column",minWidth:0}},
+            MktSectionHead("Economic Indicators"),
+            ...ECON_INDICATORS.map(EconRow)
+          ),
+          e("div",null)
         )
       ):null;
 
