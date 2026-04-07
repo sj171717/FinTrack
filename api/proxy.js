@@ -15,6 +15,7 @@ module.exports = async (req, res) => {
     "stooq.com",
     "cdn.jsdelivr.net",
     "api.elections.kalshi.com",
+    "news.google.com",
   ];
   if (!allowed.includes(hostname)) return res.status(403).send("Host not allowed");
 
