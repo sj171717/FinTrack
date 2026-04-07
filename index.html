@@ -1425,7 +1425,7 @@
             e("div",{style:{fontSize:"11px",color:C.muted,marginRight:"4px"}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})),
             e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Light mode":"Dark mode",
               style:{display:"flex",alignItems:"center",gap:"5px",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:"5px 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"500"}},
-              darkMode?"☀":"☽"
+              darkMode?"Light":"Dark"
             ),
             e("button",{onClick:()=>setHidden(v=>!v),title:hidden?"Show numbers":"Hide numbers",
               style:{display:"flex",alignItems:"center",gap:"6px",background:hidden?C.accentBg:C.surfaceAlt,border:`1px solid ${hidden?C.accentMuted:C.border}`,color:hidden?C.accent:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:hidden?"600":"400"}},
