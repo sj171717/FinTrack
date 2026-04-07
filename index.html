@@ -1121,7 +1121,7 @@
           for(const ev of groupByEvent(markets)){
             if(!bySeries[ev.series]||ev.totalVol>bySeries[ev.series].totalVol)bySeries[ev.series]=ev;
           }
-          return Object.values(bySeries).sort((a,b)=>b.totalVol-a.totalVol).slice(0,3);
+          return Object.values(bySeries).sort((a,b)=>b.totalVol-a.totalVol).slice(0,6);
         };
         const finEvents=bestPerSeries(finResults.flat());
         const econEvents=bestPerSeries(econResults.flat());
@@ -1803,7 +1803,7 @@
                 ...items.map((ev,i)=>EventCard(ev,i))
               );
               const SkeletonGrid=()=>e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px"}},
-                ...[1,2,3].map(i=>e("div",{key:i,style:{height:"140px",background:C.surfaceAlt,borderRadius:"10px",animation:"pulse 1.2s ease-in-out infinite"}}))
+                ...[1,2,3,4,5,6].map(i=>e("div",{key:i,style:{height:"140px",background:C.surfaceAlt,borderRadius:"10px",animation:"pulse 1.2s ease-in-out infinite"}}))
               );
               const empty=!kalshiFetched?"Click Refresh Odds to load live bets.":"No events loaded — try Refresh Odds.";
               return e("div",{style:{display:"flex",flexDirection:"column",gap:"16px"}},
