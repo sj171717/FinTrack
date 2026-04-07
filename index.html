@@ -175,10 +175,16 @@
     ];
     const MACRO_DEF = [
       { name:"Gold",          yf:"GC=F",    stooq:"xauusd", fmp:"GCUSD",  unit:"USD/oz"  },
+      { name:"Silver",        yf:"SI=F",    stooq:"xagusd", fmp:"SIUSD",  unit:"USD/oz"  },
       { name:"Crude Oil WTI", yf:"CL=F",    stooq:"clusd",  fmp:"CLUSD",  unit:"USD/bbl" },
       { name:"Bitcoin",       yf:"BTC-USD", stooq:"btcusd", fmp:"BTCUSD", unit:"USD"     },
-      { name:"US 10Y Yield",  yf:"^TNX",   stooq:"10usb",  fmp:"%5ETNX", unit:"%"       },
       { name:"VIX",           yf:"^VIX",   stooq:"^vix",   fmp:"%5EVIX", unit:""        },
+    ];
+    const YIELD_DEF = [
+      { name:"2Y Yield",  yf:"^IRX", stooq:"2usb",  unit:"%" },
+      { name:"5Y Yield",  yf:"^FVX", stooq:"5usb",  unit:"%" },
+      { name:"10Y Yield", yf:"^TNX", stooq:"10usb", unit:"%" },
+      { name:"30Y Yield", yf:"^TYX", stooq:"30usb", unit:"%" },
     ];
     // ── Monthly economic indicators (static, updated manually or from known releases) ──
     const ECON_INDICATORS = [
@@ -1049,7 +1055,7 @@
         if(marketLoading)return;
         if(marketData&&!marketData.error&&!force)return;
         setMarketLoading(true);
-        setMarketData({indices:INDICES.map(s=>({...s,value:0,change:0,changePct:0})),currencies:CURRENCIES.map(s=>({...s,value:0,changePct:0})),macro:MACRO_DEF.map(s=>({...s,value:0,changePct:0}))});
+        setMarketData({indices:INDICES.map(s=>({...s,value:0,change:0,changePct:0})),currencies:CURRENCIES.map(s=>({...s,value:0,changePct:0})),macro:MACRO_DEF.map(s=>({...s,value:0,changePct:0})),yields:YIELD_DEF.map(s=>({...s,value:0,changePct:0}))});
         const upd=(key,yf,d)=>setMarketData(prev=>prev&&!prev.error?{...prev,[key]:prev[key].map(s=>s.yf===yf?{...s,value:d.price||0,change:d.change||0,changePct:d.changePct||0}:s)}:prev);
 
         // ── Currencies: jsDelivr CDN, always has CORS ──
@@ -1069,7 +1075,7 @@
         }catch{}})();
 
         // ── Indices + Macro: use yfCandles (same path as sparklines — proven to work) ──
-        const allDefsIM=[...INDICES,...MACRO_DEF];
+        const allDefsIM=[...INDICES,...MACRO_DEF,...YIELD_DEF];
         const getQuote=async(yfsym)=>{
           const c=await yfCandles(yfsym,"5D");
           if(!c||c.length<2)throw new Error("no data");
@@ -1078,7 +1084,7 @@
           return{price:last.c,change:ch,changePct:first.c?(ch/first.c)*100:0};
         };
         await Promise.allSettled(allDefsIM.map(async s=>{
-          const key=INDICES.includes(s)?"indices":"macro";
+          const key=INDICES.includes(s)?"indices":YIELD_DEF.includes(s)?"yields":"macro";
           try{upd(key,s.yf,await getQuote(s.yf));}catch{}
         }));
 
@@ -1421,7 +1427,7 @@
             MktSectionHead("Economic Indicators"),
             ...ECON_INDICATORS.map(EconRow)
           ),
-          e("div",null)
+          MktCol("Treasury Yields",(marketData.yields||[]).map(y=>MktRow(y.name,y.value,y.changePct,null,y.unit,2)))
         )
       ):null;
 
