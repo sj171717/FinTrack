@@ -1448,10 +1448,6 @@
             ),
             e("button",{onClick:()=>setHidden(v=>!v),title:hidden?"Show numbers":"Hide numbers",
               style:{display:"flex",alignItems:"center",gap:"6px",background:hidden?C.accentBg:C.surfaceAlt,border:`1px solid ${hidden?C.accentMuted:C.border}`,color:hidden?C.accent:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:hidden?"600":"400"}},
-              e("svg",{width:"14",height:"14",viewBox:"0 0 14 14",fill:"none",stroke:"currentColor",strokeWidth:"1.4",strokeLinecap:"round"},
-                hidden?e(F,null,e("path",{d:"M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"}),e("circle",{cx:"7",cy:"7",r:"1.5"}),e("line",{x1:"2",y1:"2",x2:"12",y2:"12"}))
-                      :e(F,null,e("path",{d:"M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"}),e("circle",{cx:"7",cy:"7",r:"1.5"}))
-              ),
               hidden?"Show":"Hide"
             ),
             e("div",{style:{display:"flex",alignItems:"center",gap:"6px",paddingLeft:"4px",borderLeft:`1px solid ${C.border}`,marginLeft:"2px"}},
@@ -1900,7 +1896,7 @@
                   return e(F,null,
                     e("span",{style:{fontSize:"18px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(lastPrice)),
                     firstPrice&&e("span",{style:{fontSize:"12px",color:isUp?C.up:C.dn,fontWeight:"600"}},
-                      (isUp?"▲":"▼")+" "+(isUp?"+":"")+sign(chg)+"$"+$n(Math.abs(chg))+" ("+(isUp?"+":"")+chgPct.toFixed(1)+"%)")
+                      (isUp?"▲":"▼")+" "+(isUp?"+":"-")+"$"+$n(Math.abs(chg))+" ("+(isUp?"+":"-")+Math.abs(chgPct).toFixed(1)+"%)")
                   );
                 })()
               ),
