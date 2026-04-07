@@ -1646,21 +1646,68 @@
                   )
                 );
               };
+              // Card wrapper for 3-col grid
+              const EventCard=(evGroup,i)=>{
+                const {event_ticker,series,markets,totalVol}=evGroup;
+                const meta=SMETA[series]||{label:"MARKET",icon:"🎲",bg:C.accentBg};
+                const seriesKey=(event_ticker.match(/^([A-Z0-9]+)-/)||[])[1]||series||"";
+                const url=`https://kalshi.com/markets/${seriesKey.toLowerCase()}/${event_ticker.toLowerCase()}`;
+                const title=deriveTitle(series,event_ticker,markets[0]?.title);
+                const closeDate=markets[0]?.close_time?new Date(markets[0].close_time).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
+                const outcomes=markets.map(m=>{
+                  const rawP=m.yes_ask_dollars??m.last_price_dollars??null;
+                  const pct=rawP!=null?Math.round(parseFloat(rawP)*100):null;
+                  const mult=pct>0?(1/(pct/100)).toFixed(2)+"x":null;
+                  const sub=m.yes_sub_title&&m.yes_sub_title.trim();
+                  const label=sub||m.title?.replace(/^Will\s+/i,"").replace(/\?$/,"").trim().slice(0,36)||"Yes";
+                  return{label,pct,mult};
+                }).filter(o=>o.pct!=null).sort((a,b)=>b.pct-a.pct).slice(0,3);
+                return e("a",{key:event_ticker,href:url,target:"_blank",rel:"noopener noreferrer",style:{textDecoration:"none"}},
+                  e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"0.75rem 0.85rem",transition:"box-shadow 0.12s,border-color 0.12s"},
+                    onMouseEnter:x=>{x.currentTarget.style.borderColor=C.borderMid;x.currentTarget.style.boxShadow="0 3px 12px rgba(0,0,0,0.08)";},
+                    onMouseLeave:x=>{x.currentTarget.style.borderColor=C.border;x.currentTarget.style.boxShadow="";}},
+                    // Header row
+                    e("div",{style:{display:"flex",alignItems:"center",gap:"7px",marginBottom:"6px"}},
+                      e("div",{style:{width:"26px",height:"26px",borderRadius:"7px",background:meta.bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",flexShrink:0}},meta.icon),
+                      e("div",{style:{flex:1,minWidth:0}},
+                        e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.1em",lineHeight:"1"}},(meta.label||"")+(closeDate?" · "+closeDate:"")),
+                        e("div",{style:{fontSize:"12px",fontWeight:"700",color:C.text,lineHeight:"1.35",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:"2px"}},title)
+                      )
+                    ),
+                    // Divider
+                    e("div",{style:{height:"1px",background:C.border,margin:"5px 0"}}),
+                    // Outcomes
+                    e("div",{style:{display:"flex",flexDirection:"column",gap:"4px"}},
+                      ...outcomes.map((o,oi)=>e("div",{key:oi,style:{display:"flex",alignItems:"center",gap:"6px"}},
+                        e("div",{style:{width:"3px",height:"13px",borderRadius:"2px",background:OC[oi]||OC[2],flexShrink:0}}),
+                        e("span",{style:{fontSize:"11.5px",color:C.text,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},o.label),
+                        o.mult&&e("span",{style:{fontSize:"10px",color:C.muted,flexShrink:0,fontVariantNumeric:"tabular-nums"}},o.mult),
+                        e("div",{style:{flexShrink:0,border:`1.5px solid ${OC[oi]||OC[2]}`,borderRadius:"20px",padding:"1px 7px",fontSize:"11px",fontWeight:"700",color:OC[oi]||OC[2],minWidth:"40px",textAlign:"center"}},o.pct+"%")
+                      ))
+                    ),
+                    // Footer
+                    e("div",{style:{marginTop:"6px",paddingTop:"5px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between"}},
+                      e("span",{style:{fontSize:"9.5px",color:C.muted}},fmtV(totalVol)+" vol"),
+                      e("span",{style:{fontSize:"9.5px",color:C.accent}},markets.length+" market"+(markets.length!==1?"s":""))
+                    )
+                  )
+                );
+              };
               const secIcons={"Finance":"💹","Economics":"📊"};
               const KalshiSection=(title,items)=>e("div",null,
-                e("div",{style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"6px"}},
+                e("div",{style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"8px"}},
                   e("span",{style:{fontSize:"13px"}},(secIcons[title]||"🎯")),
                   e("span",{style:{fontSize:"10.5px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.1em"}},"— "+title+" —"),
                   e("div",{style:{flex:1,height:"1px",background:`linear-gradient(90deg,${C.border},transparent)`}})
                 ),
-                kalshiLoading&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",overflow:"hidden"}},
-                  ...[1,2,3,4,5,6].map(i=>e("div",{key:i,style:{height:"58px",margin:"0",borderBottom:i<6?`1px solid ${C.border}`:"none",background:C.surfaceAlt,animation:"pulse 1.2s ease-in-out infinite"}}))
+                kalshiLoading&&e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}},
+                  ...[1,2,3,4,5,6].map(i=>e("div",{key:i,style:{height:"110px",background:C.surfaceAlt,borderRadius:"12px",animation:"pulse 1.2s ease-in-out infinite"}}))
                 ),
                 !kalshiLoading&&items.length===0&&e("div",{style:{background:C.surfaceAlt,border:`1px dashed ${C.border}`,borderRadius:"10px",padding:"1rem",textAlign:"center",fontSize:"12px",color:C.muted}},
                   kalshiFetched?"No events loaded — try Refresh Odds.":"Click Refresh Odds to load live bets."
                 ),
-                !kalshiLoading&&items.length>0&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",overflow:"hidden",boxShadow:darkMode?"none":"0 1px 4px rgba(0,0,0,0.06)"}},
-                  ...items.map((ev,i,arr)=>EventRow(ev,i,arr)))
+                !kalshiLoading&&items.length>0&&e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"8px"}},
+                  ...items.map((ev,i)=>EventCard(ev,i)))
               );
               return e(F,null,
                 KalshiSection("Finance",kalshiData?.finance||[]),
