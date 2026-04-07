@@ -981,15 +981,19 @@
       const ytdPct=ytdBase?ytdGL/ytdBase*100:0;
       const breaches  =resolvedHoldings.filter(h=>h.ticker!=="Cash"&&h.currentPrice<=(h.customExit??h.avgCost*DEFAULT_EXIT_PCT)).length;
 
-      const addRow=()=>{
+      const addRow=async()=>{
         const t=newRow.ticker.trim().toUpperCase();
         if(!t)return;
         const id=t+Date.now();
         const avg=newRow.avgCost?+newRow.avgCost:0;
         const qty=newRow.qty?+newRow.qty:0;
-        const cur=newRow.currentPrice?+newRow.currentPrice:0;
+        let cur=newRow.currentPrice?+newRow.currentPrice:0;
         const today=new Date().toISOString().split('T')[0];
-        if(t!=="CASH"&&cur===0) setPriceFetchTrigger({id,ticker:t});
+        if(t!=="CASH"&&cur===0){
+          setAddPriceLoading(true);
+          try{const q=await yfQuote([t]);cur=q[t]?.price||0;}catch{}
+          setAddPriceLoading(false);
+        }
         const lots=avg>0&&qty>0?[{id:id+"_l0",type:"buy",date:today,price:avg,qty}]:[];
         setHoldings(p=>[...(p||[]),{id,ticker:t,currentPrice:cur,ytdStartPrice:newRow.ytdStartPrice?+newRow.ytdStartPrice:cur,targetPrice:newRow.targetPrice?+newRow.targetPrice:null,customExit:avg?avg*DEFAULT_EXIT_PCT:null,notes:newRow.notes,lots}]);
         setNewRow({ticker:"",avgCost:"",qty:"",currentPrice:"",ytdStartPrice:"",targetPrice:"",notes:""});
