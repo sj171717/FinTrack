@@ -216,7 +216,7 @@
           const raw      = item.querySelector("description")?.textContent||"";
           const summary  = raw.replace(/<[^>]*>/g,"").replace(/&[a-z]+;/g," ").trim().slice(0,120);
           const pub      = item.querySelector("pubDate")?.textContent||"";
-          const time     = pub ? new Date(pub).toLocaleDateString("en-US",{month:"short",day:"numeric"}) : "";
+          const time     = pub ? new Date(pub).toLocaleDateString("en-US",{month:"short",day:"numeric"})+" · "+new Date(pub).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}) : "";
           const link     = item.querySelector("link")?.textContent||"";
           return { headline, summary, source:"Google News", time, link, sentiment:sentimentOf(headline+" "+summary) };
         });
