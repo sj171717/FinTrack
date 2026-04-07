@@ -158,12 +158,14 @@
 
     // ── Market symbols ──
     const INDICES = [
-      { name:"S&P 500",    yf:"^GSPC", stooq:"^spx",  fmp:"%5EGSPC"  },
-      { name:"NASDAQ 100", yf:"^NDX",  stooq:"^ndx",  fmp:"%5ENDX"   },
-      { name:"Dow Jones",  yf:"^DJI",  stooq:"^dji",  fmp:"%5EDJI"   },
-      { name:"FTSE 100",   yf:"^FTSE", stooq:"^ftx",  fmp:"%5EFTSE"  },
-      { name:"Nikkei 225", yf:"^N225", stooq:"^nkx",  fmp:"%5EN225"  },
-      { name:"Hang Seng",  yf:"^HSI",  stooq:"^hsi",  fmp:"%5EHSI"   },
+      { name:"S&P 500",        yf:"^GSPC",       stooq:"^spx",  fmp:"%5EGSPC"  },
+      { name:"NASDAQ 100",     yf:"^NDX",        stooq:"^ndx",  fmp:"%5ENDX"   },
+      { name:"Dow Jones",      yf:"^DJI",        stooq:"^dji",  fmp:"%5EDJI"   },
+      { name:"Russell 2000",   yf:"^RUT",        stooq:"^rut",  fmp:"%5ERUT"   },
+      { name:"FTSE 100",       yf:"^FTSE",       stooq:"^ftx",  fmp:"%5EFTSE"  },
+      { name:"Nikkei 225",     yf:"^N225",       stooq:"^nkx",  fmp:"%5EN225"  },
+      { name:"Hang Seng",      yf:"^HSI",        stooq:"^hsi",  fmp:"%5EHSI"   },
+      { name:"Shanghai Comp",  yf:"000001.SS",   stooq:"^shc",  fmp:"000001.SS"},
     ];
     const CURRENCIES = [
       { name:"EUR/USD", yf:"EURUSD=X", stooq:"eurusd" },
@@ -172,10 +174,20 @@
       { name:"USD/TWD", yf:"TWDUSD=X", stooq:"usdtwd" },
     ];
     const MACRO_DEF = [
-      { name:"Gold",         yf:"GC=F",  stooq:"xauusd", fmp:"GCUSD",  unit:"USD/oz"  },
-      { name:"Crude Oil WTI",yf:"CL=F",  stooq:"clusd",  fmp:"CLUSD",  unit:"USD/bbl" },
-      { name:"Bitcoin",      yf:"BTC-USD",stooq:"btcusd", fmp:"BTCUSD", unit:"USD"     },
-      { name:"US 10Y Yield", yf:"^TNX",  stooq:"10usb",  fmp:"%5ETNX", unit:"%"       },
+      { name:"Gold",          yf:"GC=F",    stooq:"xauusd", fmp:"GCUSD",  unit:"USD/oz"  },
+      { name:"Crude Oil WTI", yf:"CL=F",    stooq:"clusd",  fmp:"CLUSD",  unit:"USD/bbl" },
+      { name:"Bitcoin",       yf:"BTC-USD", stooq:"btcusd", fmp:"BTCUSD", unit:"USD"     },
+      { name:"US 10Y Yield",  yf:"^TNX",   stooq:"10usb",  fmp:"%5ETNX", unit:"%"       },
+      { name:"VIX",           yf:"^VIX",   stooq:"^vix",   fmp:"%5EVIX", unit:""        },
+    ];
+    // ── Monthly economic indicators (static, updated manually or from known releases) ──
+    const ECON_INDICATORS = [
+      { name:"US Mfg PMI",      value:49.0, prev:49.8, date:"Mar 2026", note:"ISM Manufacturing — below 50 = contraction" },
+      { name:"US Services PMI", value:54.4, prev:53.5, date:"Mar 2026", note:"ISM Services — expansion" },
+      { name:"Core CPI YoY",    value:3.1,  prev:3.3,  date:"Feb 2026", note:"Excl. food & energy" },
+      { name:"Unemployment",    value:4.1,  prev:4.0,  date:"Mar 2026", note:"US unemployment rate" },
+      { name:"GDP Growth QoQ",  value:2.4,  prev:3.1,  date:"Q4 2025",  note:"Annualized real GDP" },
+      { name:"Consumer Conf.",  value:92.9, prev:98.3, date:"Mar 2026", note:"Conference Board index" },
     ];
 
     const DEFAULT_EXIT_PCT = 0.85;
@@ -1380,10 +1392,30 @@
         MktSectionHead(label),
         ...rows
       );
-      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0.25rem 1.25rem 1.25rem",display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"0 2rem"}},
+      const EconRow=(ind)=>{
+        const chg=ind.value-ind.prev;
+        const up=chg>=0;
+        const col=up?C.up:C.dn;
+        return e("div",{key:ind.name,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`},
+          title:ind.note},
+          e("div",null,
+            e("div",{style:{fontSize:"12px",fontWeight:"500",color:C.text}},ind.name),
+            e("div",{style:{fontSize:"10px",color:C.muted}},ind.date)
+          ),
+          e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
+            e("span",{style:{fontSize:"11px",color:col}},(up?"+":"")+chg.toFixed(1)),
+            e("span",{style:{fontSize:"13px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},(ind.value).toFixed(1))
+          )
+        );
+      };
+      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0.25rem 1.25rem 1.25rem",display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:"0 2rem"}},
         MktCol("Global Indices",(marketData.indices||[]).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
         MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4))),
-        MktCol("Commodities & Key Data",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2)))
+        MktCol("Commodities & Volatility",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2))),
+        e("div",{style:{display:"flex",flexDirection:"column",minWidth:0}},
+          MktSectionHead("Economic Indicators"),
+          ...ECON_INDICATORS.map(EconRow)
+        )
       ):null;
 
       // ── Holdings sparkline strip for news tab ──
