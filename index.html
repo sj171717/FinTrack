@@ -1044,8 +1044,16 @@
           Promise.all(FIN_SERIES.map(fetchSeries)),
           Promise.all(ECON_SERIES.map(fetchSeries)),
         ]);
-        const finEvents=groupByEvent(finResults.flat()).sort((a,b)=>b.totalVol-a.totalVol).slice(0,6);
-        const econEvents=groupByEvent(econResults.flat()).sort((a,b)=>b.totalVol-a.totalVol).slice(0,6);
+        // Pick best event per series first (prevents one series dominating), then top 6
+        const bestPerSeries=markets=>{
+          const bySeries={};
+          for(const ev of groupByEvent(markets)){
+            if(!bySeries[ev.series]||ev.totalVol>bySeries[ev.series].totalVol)bySeries[ev.series]=ev;
+          }
+          return Object.values(bySeries).sort((a,b)=>b.totalVol-a.totalVol).slice(0,6);
+        };
+        const finEvents=bestPerSeries(finResults.flat());
+        const econEvents=bestPerSeries(econResults.flat());
         setKalshiData({finance:finEvents,economics:econEvents,total:finEvents.length+econEvents.length});
         setKalshiFetched(true);
         setKalshiLoading(false);
