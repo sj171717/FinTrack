@@ -75,7 +75,8 @@
       const data=JSON.parse(txt);
       const out={};
       for(const r of data?.quoteResponse?.result||[]){
-        out[r.symbol]={price:r.regularMarketPrice||0,change:r.regularMarketChange||0,changePct:r.regularMarketChangePercent||0};
+        const price=r.regularMarketPrice||r.postMarketPrice||r.preMarketPrice||r.regularMarketPreviousClose||0;
+        out[r.symbol]={price,change:r.regularMarketChange||0,changePct:r.regularMarketChangePercent||0};
       }
       return out;
     }
@@ -883,7 +884,7 @@
               if(needsPrice.length>0){
                 const tickers=loaded.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
                 yfQuote(tickers).then(quotes=>{
-                  setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price?{...h,currentPrice:q.price,ytdStartPrice:h.ytdStartPrice||q.price}:h; }));
+                  setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price,ytdStartPrice:h.ytdStartPrice||q.price}:h; }));
                 }).catch(()=>{});
               }
             } else {
@@ -1020,7 +1021,7 @@
         const tickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
         try{
           const quotes=await yfQuote(tickers);
-          setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price?{...h,currentPrice:q.price}:h; }));
+          setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price}:h; }));
           setPriceUpdatedAt(new Date());
         }catch{}
         setPriceLoading(false);
