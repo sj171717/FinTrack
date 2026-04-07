@@ -6,6 +6,9 @@
   <title>FinTrack</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
@@ -28,6 +31,19 @@
 <body>
   <div id="root"><div style="padding:2rem;color:#64748b;font-family:sans-serif">Loading FinTrack…</div></div>
   <script>
+  // ── Firebase ──
+  firebase.initializeApp({
+    apiKey:"AIzaSyCTYAp9VJkqKDpVdijGD6OSQ8eabJ8VwAg",
+    authDomain:"fintrack-55d23.firebaseapp.com",
+    projectId:"fintrack-55d23",
+    storageBucket:"fintrack-55d23.firebasestorage.app",
+    messagingSenderId:"1090449644325",
+    appId:"1:1090449644325:web:240132e6ada5272b7658cc"
+  });
+  const fbAuth=firebase.auth();
+  const fbDb=firebase.firestore();
+  const googleProvider=new firebase.auth.GoogleAuthProvider();
+
   (function () {
     const { useState, useEffect, useRef } = React;
     const e = React.createElement;
@@ -763,11 +779,43 @@
       );
     }
 
+    function LoginScreen() {
+      const [loading,setLoading]=useState(false);
+      const [err,setErr]=useState("");
+      const signIn=async()=>{
+        setLoading(true); setErr("");
+        try{ await fbAuth.signInWithPopup(googleProvider); }
+        catch(e){ setErr(e.message||"Sign-in failed"); setLoading(false); }
+      };
+      return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%)"}},
+        e("div",{style:{background:"#fff",border:"1px solid #e2e5f0",borderRadius:"20px",padding:"2.5rem 2rem",width:"360px",maxWidth:"94vw",boxShadow:"0 8px 40px rgba(80,90,140,0.12)",textAlign:"center"}},
+          e("div",{style:{width:"48px",height:"48px",borderRadius:"14px",background:"linear-gradient(135deg,#6366f1,#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 1rem",boxShadow:"0 0 20px rgba(99,102,241,0.3)"}},
+            e("svg",{width:"22",height:"22",viewBox:"0 0 14 14",fill:"none"},e("polyline",{points:"1,10 4,6 7,8 10,3 13,5",stroke:"white",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"}))
+          ),
+          e("div",{style:{fontSize:"22px",fontWeight:"700",color:"#1e293b",letterSpacing:"-0.02em",marginBottom:"4px"}},"FinTrack"),
+          e("div",{style:{fontSize:"13px",color:"#64748b",marginBottom:"2rem",lineHeight:"1.5"}},"Your portfolio, predictions & markets\nin one place."),
+          e("button",{onClick:signIn,disabled:loading,style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:"10px",padding:"11px 16px",border:"1.5px solid #e2e5f0",borderRadius:"10px",background:"#fff",cursor:loading?"wait":"pointer",fontSize:"13px",fontWeight:"600",color:"#1e293b",fontFamily:"inherit",transition:"box-shadow 0.15s",boxShadow:"0 1px 4px rgba(0,0,0,0.06)"},
+            onMouseEnter:x=>x.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.1)",
+            onMouseLeave:x=>x.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,0.06)"},
+            e("svg",{width:"18",height:"18",viewBox:"0 0 48 48"},
+              e("path",{fill:"#FFC107",d:"M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.7-.1-4z"}),
+              e("path",{fill:"#FF3D00",d:"M6.3 14.7l6.6 4.8C14.5 16 19 13 24 13c3 0 5.8 1.1 7.9 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4c-7.6 0-14.2 4.3-17.7 10.7z"}),
+              e("path",{fill:"#4CAF50",d:"M24 44c5.2 0 9.9-1.9 13.5-5L31.1 33c-2 1.4-4.5 2-7.1 2-5.3 0-9.7-3-11.3-7.3l-6.6 5.1C9.8 39.5 16.4 44 24 44z"}),
+              e("path",{fill:"#1976D2",d:"M43.6 20H24v8h11.3c-.9 2.6-2.7 4.7-5 6l6.4 5.1C40.7 35.6 44 30.2 44 24c0-1.3-.1-2.7-.4-4z"})
+            ),
+            loading?"Signing in…":"Continue with Google"
+          ),
+          err&&e("div",{style:{marginTop:"12px",fontSize:"11.5px",color:"#ef4444"}},err)
+        )
+      );
+    }
+
     function FinTrack() {
       // Apply dark/light mode to C on every render (option b)
       const [darkMode,setDarkMode]=useState(false);
       Object.assign(C, darkMode ? C_DARK : C_LIGHT);
 
+      const [user,setUser]=useState(undefined); // undefined=loading, null=signed out
       const [holdings,setHoldings]=useState(null);
       const [tab,setTab]=useState("news");
       const [showAdd,setShowAdd]=useState(false);
@@ -812,24 +860,42 @@
         document.body.style.minHeight = "100vh";
       },[darkMode]);
 
+      // Auth state listener
       useEffect(()=>{
-        (async()=>{
-          try {
-            const [s,k,n]=await Promise.all([
-              storage.get("ft-v3"),
-              storage.get("ft-apikey"),
-              storage.get("ft-notes"),
-            ]);
-            setHoldings((s?JSON.parse(s.value):INITIAL_HOLDINGS).map(migrateLegacyHolding));
-            if(k?.value)setApiKey(k.value);
-            if(n?.value)setStrategyNotes(n.value);
-          } catch { setHoldings(INITIAL_HOLDINGS); }
-        })();
+        return fbAuth.onAuthStateChanged(u=>{
+          setUser(u||null);
+          if(!u) setHoldings(null);
+        });
       },[]);
 
+      // Load data from Firestore when user signs in (migrate localStorage if first time)
       useEffect(()=>{
-        if(!holdings)return;
-        storage.set("ft-v3",JSON.stringify(holdings)).catch(()=>{});
+        if(!user)return;
+        (async()=>{
+          try{
+            const doc=await fbDb.collection("users").doc(user.uid).get();
+            const data=doc.data();
+            if(data?.holdings){
+              setHoldings(data.holdings.map(migrateLegacyHolding));
+            } else {
+              // First login — try to migrate localStorage data
+              try{
+                const local=localStorage.getItem("ft-v3");
+                const parsed=local?JSON.parse(local).map(migrateLegacyHolding):[];
+                setHoldings(parsed);
+                if(parsed.length>0) fbDb.collection("users").doc(user.uid).set({holdings:parsed},{merge:true});
+              } catch { setHoldings([]); }
+            }
+            if(data?.notes) setStrategyNotes(data.notes);
+            try{ const k=localStorage.getItem("ft-apikey"); if(k)setApiKey(k); }catch{}
+          } catch { setHoldings([]); }
+        })();
+      },[user]);
+
+      // Save holdings to Firestore on every change
+      useEffect(()=>{
+        if(!holdings||!user)return;
+        fbDb.collection("users").doc(user.uid).set({holdings},{merge:true}).catch(()=>{});
       },[holdings]);
 
 
@@ -1174,6 +1240,8 @@
       const inp={background:C.surface,border:`1px solid ${C.border}`,color:C.text,padding:"7px 10px",borderRadius:"7px",fontSize:"12px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
       const tabB=k=>({padding:"7px 16px",border:`1.5px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",borderRadius:"7px",fontSize:"12px",fontFamily:"inherit",background:tab===k?C.accentBg:"transparent",color:tab===k?C.accent:C.muted,fontWeight:tab===k?"600":"400"});
 
+      if(user===undefined)return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%)",color:"#64748b",fontSize:"13px",fontFamily:"inherit"}},"Loading…");
+      if(!user)return e(LoginScreen,null);
       if(!holdings)return e("div",{style:{background:C.bg,color:C.muted,padding:"2rem",borderRadius:"6px",fontSize:"13px"}},"Loading…");
 
       const QUICK=["Which holding has the most analyst upside?","Latest news on LLY ahead of April 10 FDA decision","Key risks in this portfolio right now?","GRAB bull vs bear case in 2025","Is IONQ worth holding at these levels?"];
@@ -1362,6 +1430,13 @@
                       :e(F,null,e("path",{d:"M1 7s2-4 6-4 6 4 6 4-2 4-6 4-6-4-6-4z"}),e("circle",{cx:"7",cy:"7",r:"1.5"}))
               ),
               hidden?"Show":"Hide"
+            ),
+            e("div",{style:{display:"flex",alignItems:"center",gap:"6px",paddingLeft:"4px",borderLeft:`1px solid ${C.border}`,marginLeft:"2px"}},
+              user?.photoURL&&e("img",{src:user.photoURL,referrerPolicy:"no-referrer",style:{width:"26px",height:"26px",borderRadius:"50%",border:`1.5px solid ${C.border}`}}),
+              !user?.photoURL&&e("div",{style:{width:"26px",height:"26px",borderRadius:"50%",background:C.accentBg,border:`1.5px solid ${C.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"11px",fontWeight:"700",color:C.accent}},
+                (user?.displayName||user?.email||"?")[0].toUpperCase()
+              ),
+              e("button",{onClick:()=>fbAuth.signOut(),style:{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:"11px",fontFamily:"inherit",padding:"2px 4px"}},"Sign out")
             )
           )
         ),
@@ -1440,7 +1515,7 @@
             ),
             e("textarea",{
               value:strategyNotes,
-              onChange:ev=>{setStrategyNotes(ev.target.value);storage.set("ft-notes",ev.target.value).catch(()=>{});},
+              onChange:ev=>{const v=ev.target.value;setStrategyNotes(v);if(user)fbDb.collection("users").doc(user.uid).set({notes:v},{merge:true}).catch(()=>{});},
               placeholder:"Write your market outlook, position thesis, risk notes, upcoming catalysts…\n\ne.g. LLY: Holding through FDA April 10 decision. Risk is delay past Q2.\nGOOG: Patient hold toward $400 target. Valuation still reasonable at 20x fwd.",
               rows:8,
               style:{width:"100%",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,borderRadius:"8px",padding:"12px 14px",fontSize:"12.5px",fontFamily:"'Inter','Helvetica Neue',sans-serif",lineHeight:"1.7",resize:"vertical",outline:"none",boxSizing:"border-box"}
