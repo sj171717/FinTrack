@@ -70,14 +70,19 @@
     }
     // ── Yahoo Finance quotes — always via our Netlify proxy (server-side, no CORS) ──
     async function yfQuote(symbols) {
-      const url=`https://query1.finance.yahoo.com/v8/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}`;
-      const txt=await fetchViaProxy(url,14000);
-      const data=JSON.parse(txt);
+      // Use Stooq candles for price — Yahoo Finance v8 blocks Vercel IPs
       const out={};
-      for(const r of data?.quoteResponse?.result||[]){
-        const price=r.regularMarketPrice||r.postMarketPrice||r.preMarketPrice||r.regularMarketPreviousClose||0;
-        out[r.symbol]={price,change:r.regularMarketChange||0,changePct:r.regularMarketChangePercent||0};
-      }
+      await Promise.allSettled(symbols.map(async sym=>{
+        try{
+          const stooqSym=sym.startsWith("^")?sym.slice(1).toLowerCase()+".us":sym.toLowerCase()+".us";
+          const c=await yfCandles(sym,"5D");
+          if(c&&c.length>0){
+            const last=c[c.length-1],prev=c.length>1?c[c.length-2]:c[0];
+            const ch=last.c-prev.c;
+            out[sym]={price:last.c,change:ch,changePct:prev.c?(ch/prev.c)*100:0};
+          }
+        }catch{}
+      }));
       return out;
     }
     // ── Stooq CSV — free historical OHLCV, no API key, fetched via proxy ──
