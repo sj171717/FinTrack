@@ -995,7 +995,11 @@
           setAddPriceLoading(false);
         }
         const lots=avg>0&&qty>0?[{id:id+"_l0",type:"buy",date:today,price:avg,qty}]:[];
-        setHoldings(p=>[...(p||[]),{id,ticker:t,currentPrice:cur,ytdStartPrice:newRow.ytdStartPrice?+newRow.ytdStartPrice:cur,targetPrice:newRow.targetPrice?+newRow.targetPrice:null,customExit:avg?avg*DEFAULT_EXIT_PCT:null,notes:newRow.notes,lots}]);
+        const newHolding={id,ticker:t,currentPrice:cur,ytdStartPrice:newRow.ytdStartPrice?+newRow.ytdStartPrice:cur||0,targetPrice:newRow.targetPrice?+newRow.targetPrice:null,customExit:avg?avg*DEFAULT_EXIT_PCT:null,notes:newRow.notes,lots};
+        const updated=[...(holdings||[]),newHolding];
+        setHoldings(updated);
+        // Also save directly to Firestore so the price is guaranteed to be included
+        if(user) fbDb.collection("users").doc(user.uid).set({holdings:updated},{merge:true}).catch(()=>{});
         setNewRow({ticker:"",avgCost:"",qty:"",currentPrice:"",ytdStartPrice:"",targetPrice:"",notes:""});
         setShowAdd(false);
       };
