@@ -70,14 +70,34 @@
     }
     // ── Yahoo Finance quotes — always via our Netlify proxy (server-side, no CORS) ──
     async function yfQuote(symbols) {
-      // Use Stooq candles for price — Yahoo Finance v8 blocks Vercel IPs
+      // Try Yahoo Finance v7 quote first (has regularMarketPrice + postMarketPrice)
+      // Falls back to Stooq daily candles if Yahoo is blocked
       const out={};
-      await Promise.allSettled(symbols.map(async sym=>{
+      // Try Yahoo v7 batch quote via proxy
+      try{
+        const url=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.map(s=>encodeURIComponent(s)).join(",")}&fields=regularMarketPrice,regularMarketChangePercent,postMarketPrice,postMarketChangePercent`;
+        const txt=await fetchViaProxy(url,10000);
+        const data=JSON.parse(txt);
+        const results=data?.quoteResponse?.result||[];
+        for(const r of results){
+          // Use post-market price if available (after-hours), else regular market
+          const price=r.postMarketPrice||r.regularMarketPrice;
+          const changePct=r.postMarketPrice
+            ?((r.postMarketPrice-r.regularMarketPrice)/r.regularMarketPrice*100)
+            :(r.regularMarketChangePercent||0);
+          if(price) out[r.symbol]={price,changePct,isPostMarket:!!r.postMarketPrice};
+        }
+      }catch{}
+      // Stooq fallback for any symbols not resolved
+      const missing=symbols.filter(s=>!out[s]);
+      await Promise.allSettled(missing.map(async sym=>{
         try{
-          const stooqSym=sym.startsWith("^")?sym.slice(1).toLowerCase()+".us":sym.toLowerCase()+".us";
-          const c=await yfCandles(sym,"5D");
-          if(c&&c.length>0){
-            const last=c[c.length-1],prev=c.length>1?c[c.length-2]:c[0];
+          const stooqSym=sym.startsWith("^")?sym.slice(1).toLowerCase():sym.toLowerCase()+".us";
+          let c=null;
+          try{c=await stooqCandles(stooqSym,"1W");}catch{}
+          if(!c?.length) try{c=await yfCandles(sym,"1M");}catch{}
+          if(c&&c.length>=2){
+            const last=c[c.length-1],prev=c[c.length-2];
             const ch=last.c-prev.c;
             out[sym]={price:last.c,change:ch,changePct:prev.c?(ch/prev.c)*100:0};
           }
@@ -118,7 +138,7 @@
       if(!result?.timestamp)throw new Error("no data");
       const ts=result.timestamp;
       const q=result.indicators?.quote?.[0]||{};
-      return ts.map((t,i)=>({o:q.open?.[i]||null,h:q.high?.[i]||null,l:q.low?.[i]||null,c:q.close?.[i]||null,v:q.volume?.[i]||0,ts:t*1000})).filter(x=>x.c!=null&&!isNaN(x.c));
+      return ts.map((t,i)=>({o:q.open?.[i]||null,h:q.high?.[i]||null,l:q.low?.[i]||null,c:q.close?.[i]||null,v:q.volume?.[i]||0,ts:t*1000})).filter(x=>x.c!=null&&!isNaN(x.c)&&!(x.o===x.h&&x.h===x.l&&x.l===x.c&&x.v===0));
     }
 
     // ── Lot tracking helpers ──
@@ -907,7 +927,7 @@
               if(needsPrice.length>0){
                 const tickers=loaded.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
                 yfQuote(tickers).then(quotes=>{
-                  setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price,ytdStartPrice:h.ytdStartPrice||q.price}:h; }));
+                  setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price,changePct:q.changePct??0,ytdStartPrice:h.ytdStartPrice||q.price}:h; }));
                 }).catch(()=>{});
               }
             } else {
@@ -939,9 +959,9 @@
         setPriceFetchTrigger(null);
         setAddPriceLoading(true);
         (async()=>{
-          let price=null;
-          try{const q=await yfQuote([ticker]);price=q[ticker]?.price||null;}catch{}
-          if(price!=null) setHoldings(p=>p.map(h=>h.id===id?{...h,currentPrice:price,ytdStartPrice:h.ytdStartPrice||price}:h));
+          let price=null,chgPct=0;
+          try{const q=await yfQuote([ticker]);price=q[ticker]?.price||null;chgPct=q[ticker]?.changePct??0;}catch{}
+          if(price!=null) setHoldings(p=>p.map(h=>h.id===id?{...h,currentPrice:price,changePct:chgPct,ytdStartPrice:h.ytdStartPrice||price}:h));
           setAddPriceLoading(false);
         })();
       },[priceFetchTrigger]);
@@ -1044,7 +1064,7 @@
         const tickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
         try{
           const quotes=await yfQuote(tickers);
-          setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price}:h; }));
+          setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price,changePct:q.changePct??0}:h; }));
           setPriceUpdatedAt(new Date());
         }catch{}
         setPriceLoading(false);
@@ -1077,11 +1097,14 @@
         // ── Indices + Macro: use yfCandles (same path as sparklines — proven to work) ──
         const allDefsIM=[...INDICES,...MACRO_DEF,...YIELD_DEF];
         const getQuote=async(yfsym)=>{
-          const c=await yfCandles(yfsym,"5D");
+          const stooqSym=yfsym.startsWith("^")?yfsym.slice(1).toLowerCase():yfsym.toLowerCase()+".us";
+          let c=null;
+          try{c=await stooqCandles(stooqSym,"1W");}catch{}
+          if(!c?.length) try{c=await yfCandles(yfsym,"1M");}catch{}
           if(!c||c.length<2)throw new Error("no data");
-          const last=c[c.length-1],first=c[0];
-          const ch=last.c-first.c;
-          return{price:last.c,change:ch,changePct:first.c?(ch/first.c)*100:0};
+          const last=c[c.length-1],prev=c[c.length-2];
+          const ch=last.c-prev.c;
+          return{price:last.c,change:ch,changePct:prev.c?(ch/prev.c)*100:0};
         };
         await Promise.allSettled(allDefsIM.map(async s=>{
           const key=INDICES.includes(s)?"indices":YIELD_DEF.includes(s)?"yields":"macro";
@@ -1094,13 +1117,23 @@
 
 
 
-      // ── PORTFOLIO CHART: Yahoo Finance → Stooq ──
+      // ── PORTFOLIO CHART: Stooq first (reliable), Yahoo fallback ──
       const fetchPortfolioChart=async(ticker,period)=>{
         try {
+          const stooqSym=ticker.toLowerCase()+".us";
           let candles=null;
-          try{candles=await yfCandles(ticker,period);}catch{}
-          if(!candles?.length) candles=await stooqCandles(ticker.toLowerCase()+".us",period);
-          setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:candles.map(x=>x.c),timestamps:candles.map(x=>x.ts),ohlc:candles,loading:false}:prev);
+          if(period==="1D"){
+            // For 1D, Yahoo Finance returns intraday (5-min) candles — use it directly for live price
+            try{candles=await yfCandles(ticker,"1D");}catch{}
+            if(!candles?.length) try{candles=await stooqCandles(stooqSym,"1D");}catch{}
+          } else {
+            try{candles=await stooqCandles(stooqSym,period);}catch{}
+            if(!candles?.length) try{candles=await yfCandles(ticker,period);}catch{}
+          }
+          if(!candles?.length)throw new Error("no data");
+          const closes=candles.map(x=>x.c);
+          const modalLastPrice=closes[closes.length-1];
+          setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:closes,timestamps:candles.map(x=>x.ts),ohlc:candles,modalLastPrice,loading:false}:prev);
         } catch {
           setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:[],timestamps:[],ohlc:[],loading:false}:prev);
         }
@@ -1167,25 +1200,28 @@
         setKalshiLoading(false);
       };
 
-      // ── HOLDING SPARKLINES: only fetch tickers not yet loaded, so new additions auto-load ──
+      // ── HOLDING SPARKLINES: always refresh all tickers for up-to-date price/pct ──
       const fetchHoldingSparklines=async()=>{
         if(holdingSparklinesRef.current||!holdings)return;
-        const allTickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
-        const missing=allTickers.filter(t=>!holdingSparklines[t]);
-        if(!missing.length)return;
         holdingSparklinesRef.current=true;
+        const allTickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
+        const missing=allTickers; // always re-fetch all, not just missing
         await Promise.allSettled(missing.map(async t=>{
           try {
+            // Use Stooq (daily candles via &i=d) so dailyPct = last 2 daily candles = 1D change
+            // Yahoo "5D" uses 15-min candles which would give wrong dailyPct
+            const stooqSym = t.startsWith("^") ? t.slice(1).toLowerCase() : t.toLowerCase()+".us";
             let candles=null;
-            try{candles=await yfCandles(t,"1M");}catch{}
-            if(!candles?.length) try{candles=await stooqCandles(t.toLowerCase()+".us","1M");}catch{}
-            if(!candles?.length)return;
-            if(candles.length<2)return;
+            try{candles=await stooqCandles(stooqSym,"1M");}catch{}
+            // fallback: Yahoo with 1M (which uses interval=1d, so daily candles)
+            if(!candles?.length) try{candles=await yfCandles(t,"1M");}catch{}
+            if(!candles?.length||candles.length<2)return;
             const pts=candles.map(x=>x.c);
             const timestamps=candles.map(x=>x.ts);
             const price=pts[pts.length-1];
             const pct=pts[0]?((price-pts[0])/pts[0])*100:0;
-            const dailyPct=pts.length>=2?((pts[pts.length-1]-pts[pts.length-2])/pts[pts.length-2])*100:0;
+            // dailyPct: last two daily candles = yesterday close → today close
+            const dailyPct=((pts[pts.length-1]-pts[pts.length-2])/pts[pts.length-2])*100;
             setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct}}));
           } catch {}
         }));
@@ -1335,7 +1371,7 @@
             :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
           e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
             h.ticker!=="Cash"&&e("div",{
-              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1M",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1M");},
+              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");},
               title:"View chart",style:{cursor:"pointer"}
             },
               holdingSparklines[h.ticker]?.pts?.length>=2
@@ -1439,15 +1475,16 @@
         e("div",{style:{display:"flex",gap:"8px",overflowX:"auto",paddingBottom:"4px"}},
           ...nonCashHoldings.map((h,i)=>{
             const sp=holdingSparklines[h.ticker];
-            const isUp=sp?sp.pct>=0:((h.currentPrice-h.avgCost)>=0);
+            const todayPct=h.changePct??sp?.dailyPct??0;
+            const isUp=todayPct>=0;
             const col=isUp?C.up:C.dn;
             const bg=isUp?C.upBg:C.dnBg;
             const bdr=isUp?C.upBorder:C.dnBorder;
-            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1M",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1M");},
+            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");},
               style:{flex:"0 0 130px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"8px 10px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"border-color 0.12s"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
                 e("span",{style:{background:C.accentBg,color:C.accent,padding:"1px 6px",borderRadius:"4px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`}},h.ticker),
-                sp&&e("span",{style:{fontSize:"10px",color:col,fontWeight:"600",background:bg,border:`1px solid ${bdr}`,padding:"1px 5px",borderRadius:"4px"}},(isUp?"+":"")+sp.pct.toFixed(1)+"%")
+                e("span",{style:{fontSize:"10px",color:col,fontWeight:"600",background:bg,border:`1px solid ${bdr}`,padding:"1px 5px",borderRadius:"4px"}},(isUp?"+":"")+todayPct.toFixed(1)+"%")
               ),
               sp
                 ?e(F,null,
@@ -1934,12 +1971,14 @@
                   if(!h)return null;
                   const series=portfolioModal.series;
                   const firstPrice=series&&series.length>1?series[0]:null;
-                  const lastPrice=h.currentPrice;
+                  const sp=holdingSparklines[portfolioModal.ticker];
+                  const lastPrice=portfolioModal.modalLastPrice||sp?.price||h.currentPrice;
                   const chg=firstPrice?lastPrice-firstPrice:0;
                   const chgPct=firstPrice?chg/firstPrice*100:0;
                   const isUp=chg>=0;
                   return e(F,null,
                     e("span",{style:{fontSize:"18px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(lastPrice)),
+                    portfolioModal.isPostMarket&&e("span",{style:{fontSize:"10px",color:C.muted,background:C.surfaceAlt,border:`1px solid ${C.border}`,padding:"2px 6px",borderRadius:"4px",fontWeight:"600"}},"After Hours"),
                     firstPrice&&e("span",{style:{fontSize:"12px",color:isUp?C.up:C.dn,fontWeight:"600"}},
                       (isUp?"▲":"▼")+" "+(isUp?"+":"-")+"$"+$n(Math.abs(chg))+" ("+(isUp?"+":"-")+Math.abs(chgPct).toFixed(1)+"%)")
                   );
