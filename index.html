@@ -872,6 +872,8 @@
       const [holdings,setHoldings]=useState(null);
       const [tab,setTab]=useState("news");
       const [showAdd,setShowAdd]=useState(false);
+      const [showAddCash,setShowAddCash]=useState(false);
+      const [cashAmount,setCashAmount]=useState("");
       const [newRow,setNewRow]=useState({ticker:"",avgCost:"",qty:"",currentPrice:"",ytdStartPrice:"",targetPrice:"",notes:""});
       const [addPriceLoading,setAddPriceLoading]=useState(false);
       const [priceFetchTrigger,setPriceFetchTrigger]=useState(null);
@@ -1628,19 +1630,52 @@
                   e("svg",{width:"12",height:"12",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:priceLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"8,1 11,1 11,4"})),
                   priceLoading?"Fetching…":"Refresh Prices"
                 ),
-                e("button",{style:BS("p"),onClick:()=>setShowAdd(v=>!v)},"+ Add Position")
+                e("button",{style:BS("p"),onClick:()=>{setShowAdd(v=>!v);setShowAddCash(false);setCashAmount("");}},"+ Add Position")
               )
             ),
 
             showAdd&&e("div",{style:{padding:"1rem",borderBottom:`1px solid ${C.border}`,background:C.surfaceAlt}},
-              e("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:"8px",marginBottom:"10px"}},
-                e("input",{style:inp,placeholder:"Ticker *",value:newRow.ticker,onChange:ev=>setNewRow(p=>({...p,ticker:ev.target.value}))}),
-                [["avgCost","Avg Cost ($)"],["qty","Quantity"],["currentPrice","Current ($)"],["ytdStartPrice","YTD Start ($)"],["targetPrice","Target ($)"]].map(([k,ph])=>
-                  e("input",{key:k,style:inp,placeholder:ph,value:newRow[k],onChange:ev=>setNewRow(p=>({...p,[k]:ev.target.value}))})
-                ),
-                e("input",{style:{...inp,gridColumn:"1 / -1"},placeholder:"Notes",value:newRow.notes,onChange:ev=>setNewRow(p=>({...p,notes:ev.target.value}))})
-              ),
-              e("div",{style:{display:"flex",gap:"8px",alignItems:"center"}},e("button",{style:BS("p"),onClick:addRow},"Add"),e("button",{style:BS(),onClick:()=>setShowAdd(false)},"Cancel"),addPriceLoading&&e("span",{style:{fontSize:"11px",color:C.muted}},"Fetching price…"))
+              showAddCash
+              ? e("div",null,
+                  e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text,marginBottom:"8px"}},"Add Cash"),
+                  e("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}},
+                    e("input",{style:{...inp,width:"160px"},placeholder:"Amount ($)",type:"number",min:"0",value:cashAmount,onChange:ev=>setCashAmount(ev.target.value),autoFocus:true}),
+                    e("button",{style:BS("p"),onClick:()=>{
+                      const amt=parseFloat(cashAmount);
+                      if(!amt||isNaN(amt)||amt<=0)return;
+                      setHoldings(prev=>{
+                        const hasCash=prev.some(h=>h.ticker==="Cash");
+                        let updated;
+                        if(hasCash){
+                          updated=prev.map(h=>h.ticker==="Cash"?{...h,qty:+(h.qty+amt).toFixed(2)}:h);
+                        } else {
+                          updated=[...prev,{id:"Cash"+Date.now(),ticker:"Cash",currentPrice:1,ytdStartPrice:1,targetPrice:null,customExit:null,notes:"",lots:[],qty:amt}];
+                        }
+                        if(user) fbDb.collection("users").doc(user.uid).set({holdings:updated},{merge:true}).catch(()=>{});
+                        return updated;
+                      });
+                      setCashAmount("");
+                      setShowAddCash(false);
+                      setShowAdd(false);
+                    }},"Add Cash"),
+                    e("button",{style:BS(),onClick:()=>{setShowAddCash(false);setCashAmount("");}},"Back")
+                  )
+                )
+              : e("div",null,
+                  e("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:"8px",marginBottom:"10px"}},
+                    e("input",{style:inp,placeholder:"Ticker *",value:newRow.ticker,onChange:ev=>setNewRow(p=>({...p,ticker:ev.target.value}))}),
+                    [["avgCost","Avg Cost ($)"],["qty","Quantity"],["currentPrice","Current ($)"],["ytdStartPrice","YTD Start ($)"],["targetPrice","Target ($)"]].map(([k,ph])=>
+                      e("input",{key:k,style:inp,placeholder:ph,value:newRow[k],onChange:ev=>setNewRow(p=>({...p,[k]:ev.target.value}))})
+                    ),
+                    e("input",{style:{...inp,gridColumn:"1 / -1"},placeholder:"Notes",value:newRow.notes,onChange:ev=>setNewRow(p=>({...p,notes:ev.target.value}))})
+                  ),
+                  e("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}},
+                    e("button",{style:BS("p"),onClick:addRow},"Add"),
+                    e("button",{style:{...BS("p"),background:"#22c55e",borderColor:"#16a34a"},onClick:()=>setShowAddCash(true)},"+ Add Cash"),
+                    e("button",{style:BS(),onClick:()=>setShowAdd(false)},"Cancel"),
+                    addPriceLoading&&e("span",{style:{fontSize:"11px",color:C.muted}},"Fetching price…")
+                  )
+                )
             ),
 
             e("div",{style:{overflowX:"auto"}},
