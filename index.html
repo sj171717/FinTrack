@@ -887,6 +887,7 @@
 
       const [chartType,setChartType]=useState("line");
       const [portfolioModal,setPortfolioModal]=useState(null);
+      const [marketChartModal,setMarketChartModal]=useState(null); // {ticker,name,period,series,timestamps,ohlc,modalLastPrice,loading}
       const [holdingSparklines,setHoldingSparklines]=useState({});
       const [portfolioChartPeriod,setPortfolioChartPeriod]=useState("1M");
       const [portfolioChartData,setPortfolioChartData]=useState(null); // {pts,ts}
@@ -1136,6 +1137,26 @@
           setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:closes,timestamps:candles.map(x=>x.ts),ohlc:candles,modalLastPrice,loading:false}:prev);
         } catch {
           setPortfolioModal(prev=>prev&&prev.ticker===ticker?{...prev,series:[],timestamps:[],ohlc:[],loading:false}:prev);
+        }
+      };
+
+      // ── MARKET CHART MODAL ──
+      const fetchMarketChart=async(ticker,stooqSym,period)=>{
+        try {
+          let candles=null;
+          if(period==="1D"){
+            try{candles=await yfCandles(ticker,"1D");}catch{}
+            if(!candles?.length) try{candles=await stooqCandles(stooqSym,"1D");}catch{}
+          } else {
+            try{candles=await stooqCandles(stooqSym,period);}catch{}
+            if(!candles?.length) try{candles=await yfCandles(ticker,period);}catch{}
+          }
+          if(!candles?.length)throw new Error("no data");
+          const closes=candles.map(x=>x.c);
+          const modalLastPrice=closes[closes.length-1];
+          setMarketChartModal(prev=>prev&&prev.ticker===ticker?{...prev,series:closes,timestamps:candles.map(x=>x.ts),ohlc:candles,modalLastPrice,loading:false}:prev);
+        } catch {
+          setMarketChartModal(prev=>prev&&prev.ticker===ticker?{...prev,series:[],timestamps:[],ohlc:[],modalLastPrice:null,loading:false}:prev);
         }
       };
 
@@ -1404,13 +1425,13 @@
 
       // ── Market list row helper ──
       const pulseSk={borderRadius:"6px",background:C.border,animation:"pulse 1.2s ease-in-out infinite"};
-      const MktRow=(name,value,changePct,change,unit,decimals=2)=>{
+      const MktRow=(name,value,changePct,change,unit,decimals=2,onClick=null)=>{
         const loaded=value>0;
         const up=changePct>=0;
         const col=loaded?(up?C.up:C.dn):C.muted;
         const bg=loaded?(up?C.upBg:C.dnBg):C.surfaceAlt;
         const fmtVal=loaded?value.toLocaleString("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):"—";
-        return e("div",{style:{display:"flex",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`,gap:"8px"}},
+        return e("div",{onClick:onClick||undefined,style:{display:"flex",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`,gap:"8px",cursor:onClick?"pointer":"default",transition:"opacity 0.1s"}},
           // Arrow
           loaded
             ?e("span",{style:{fontSize:"10px",color:col,flexShrink:0,width:"12px",textAlign:"center"}},up?"▲":"▼")
@@ -1453,12 +1474,12 @@
       const usIdx=["S&P 500","NASDAQ 100","Dow Jones","Russell 2000"];
       const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0.25rem 1.25rem 1.25rem",display:"flex",flexDirection:"column",gap:"0"}},
         e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"0 2rem",paddingBottom:"1rem",borderBottom:`1px solid ${C.border}`,marginBottom:"0.25rem"}},
-          MktCol("US Markets",(marketData.indices||[]).filter(i=>usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
-          MktCol("Global Markets",(marketData.indices||[]).filter(i=>!usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2))),
-          MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4)))
+          MktCol("US Markets",(marketData.indices||[]).filter(i=>usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2,()=>{setMarketChartModal({ticker:idx.yf,stooqSym:idx.stooq,name:idx.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(idx.yf,idx.stooq,"1D");}))),
+          MktCol("Global Markets",(marketData.indices||[]).filter(i=>!usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2,()=>{setMarketChartModal({ticker:idx.yf,stooqSym:idx.stooq,name:idx.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(idx.yf,idx.stooq,"1D");}))),
+          MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4,()=>{setMarketChartModal({ticker:c.yf,stooqSym:c.stooq,name:c.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(c.yf,c.stooq,"1D");})))
         ),
         e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"0 2rem"}},
-          MktCol("Commodities & Volatility",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2))),
+          MktCol("Commodities & Volatility",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2,()=>{setMarketChartModal({ticker:m.yf,stooqSym:m.stooq,name:m.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(m.yf,m.stooq,"1D");}))),
           e("div",{style:{display:"flex",flexDirection:"column",minWidth:0}},
             MktSectionHead("Economic Indicators"),
             ...ECON_INDICATORS.map(EconRow)
@@ -2015,6 +2036,60 @@
                   if(chartType==="candle"&&portfolioModal.ohlc&&portfolioModal.ohlc.length>=2)
                     return e(CandlestickChart,{candles:portfolioModal.ohlc,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320});
                   return e(LargeChart,{pts:portfolioModal.series||[],color:modalColor,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320,ohlc:portfolioModal.ohlc});
+                })()
+          )
+        ),
+
+        // ── Market Chart Modal ──
+        marketChartModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setMarketChartModal(null)},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",width:"900px",maxWidth:"96vw",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}},
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
+              e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
+                e("span",{style:{background:C.accentBg,color:C.accent,padding:"3px 10px",borderRadius:"6px",fontWeight:"700",fontSize:"13px",border:`1px solid ${C.accentMuted}`}},marketChartModal.name),
+                (()=>{
+                  const series=marketChartModal.series;
+                  const firstPrice=series&&series.length>1?series[0]:null;
+                  const lastPrice=marketChartModal.modalLastPrice||(series?.length>0?series[series.length-1]:null);
+                  if(!lastPrice)return null;
+                  const chg=firstPrice?lastPrice-firstPrice:0;
+                  const chgPct=firstPrice?chg/firstPrice*100:0;
+                  const isUp=chg>=0;
+                  return e(F,null,
+                    e("span",{style:{fontSize:"18px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(lastPrice)),
+                    firstPrice&&e("span",{style:{fontSize:"12px",color:isUp?C.up:C.dn,fontWeight:"600"}},
+                      (isUp?"▲":"▼")+" "+(isUp?"+":"-")+"$"+$n(Math.abs(chg))+" ("+(isUp?"+":"-")+Math.abs(chgPct).toFixed(1)+"%)")
+                  );
+                })()
+              ),
+              e("button",{onClick:()=>setMarketChartModal(null),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"16px",padding:"2px 6px"}},"✕")
+            ),
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}},
+              e("div",{style:{display:"flex",gap:"2px"}},
+                ["line","candle"].map(ct=>e("button",{key:ct,onClick:()=>setChartType(ct),
+                  style:{padding:"3px 9px",border:`1px solid ${chartType===ct?C.accent:C.border}`,borderRadius:"5px",cursor:"pointer",
+                    background:chartType===ct?C.accentBg:"transparent",color:chartType===ct?C.accent:C.muted,
+                    fontSize:"11px",fontFamily:"inherit",fontWeight:chartType===ct?"600":"400",textTransform:"capitalize"}},ct))
+              ),
+              e("div",{style:{display:"flex",gap:"2px"}},
+                PERIODS.map(p=>e("button",{key:p,
+                  onClick:()=>{
+                    setMarketChartModal(prev=>prev?{...prev,period:p,series:null,timestamps:null,ohlc:null,loading:true}:prev);
+                    fetchMarketChart(marketChartModal.ticker,marketChartModal.stooqSym,p);
+                  },
+                  style:{padding:"3px 9px",border:`1px solid ${marketChartModal.period===p?C.accent:C.border}`,borderRadius:"5px",cursor:"pointer",
+                    background:marketChartModal.period===p?C.accentBg:"transparent",color:marketChartModal.period===p?C.accent:C.muted,
+                    fontSize:"11px",fontFamily:"inherit",fontWeight:marketChartModal.period===p?"600":"400"}},p))
+              )
+            ),
+            marketChartModal.loading
+              ?e("div",{style:{height:320,display:"flex",alignItems:"center",justifyContent:"center"}},
+                 e("div",{style:{width:"14px",height:"14px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}))
+              :(()=>{
+                  const isUp=(marketChartModal.series?.length>1)?(marketChartModal.series[marketChartModal.series.length-1]>=marketChartModal.series[0]):true;
+                  const modalColor=isUp?C.up:C.dn;
+                  if(chartType==="candle"&&marketChartModal.ohlc?.length>=2)
+                    return e(CandlestickChart,{candles:marketChartModal.ohlc,timestamps:marketChartModal.timestamps,period:marketChartModal.period,chartH:320});
+                  return e(LargeChart,{pts:marketChartModal.series||[],color:modalColor,timestamps:marketChartModal.timestamps,period:marketChartModal.period,chartH:320,ohlc:marketChartModal.ohlc});
                 })()
           )
         )
