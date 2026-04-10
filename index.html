@@ -1308,18 +1308,32 @@
         const cash=resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0;
         const alignedTs=valid[0].candles.slice(-minLen).map(c=>c.ts);
 
-        const pts=Array.from({length:minLen},(_,i)=>{
+        // Build raw pts, then trim off leading timestamps where total stock value is near zero
+        const rawPts=Array.from({length:minLen},(_,i)=>{
           const ts=alignedTs[i];
           let val=cash;
           for(const {h,candles,buyMs} of valid){
             const c=candles[candles.length-minLen+i];
-            // Only count this holding if timestamp is on or after its purchase date
             if(!buyMs||ts>=buyMs) val+=h.qty*c.c;
           }
-          return val;
+          return {ts,val};
         });
 
-        setPortfolioChartData({pts,ts:alignedTs});
+        // Find first index where any holding contributes (stock value > 0)
+        let startIdx=0;
+        for(let i=0;i<rawPts.length;i++){
+          let stockVal=0;
+          for(const {h,candles,buyMs} of valid){
+            const c=candles[candles.length-minLen+i];
+            if(!buyMs||rawPts[i].ts>=buyMs) stockVal+=h.qty*c.c;
+          }
+          if(stockVal>0){startIdx=i;break;}
+        }
+        const trimmed=rawPts.slice(startIdx);
+        const pts=trimmed.map(x=>x.val);
+        const trimmedTs=trimmed.map(x=>x.ts);
+
+        setPortfolioChartData({pts,ts:trimmedTs});
         setPortfolioChartLoading(false);
       };
 
