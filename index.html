@@ -713,7 +713,16 @@
         const price=+newSell.price,qty2=+newSell.qty;
         if(!price||!qty2)return;
         const lot={id:rawH.id+"_s"+Date.now(),type:"sell",date:newSell.date,price,qty:qty2};
-        setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h));
+        const proceeds=price*qty2;
+        setHoldings(p=>{
+          const updated=p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h);
+          // Auto-add proceeds to Cash
+          const cashIdx=updated.findIndex(h=>h.ticker==="Cash");
+          if(cashIdx>=0){
+            return updated.map(h=>h.ticker==="Cash"?{...h,qty:+(h.qty+proceeds).toFixed(2)}:h);
+          }
+          return updated;
+        });
         setLotsModal(prev=>({...prev,holding:{...rawH,lots:[...(rawH.lots||[]),lot]}}));
         setNewSell(nsf); setShowAddSell(false);
       };
@@ -1405,10 +1414,10 @@
               style:{background:breach?C.dnBg:C.accentBg,color:breach?C.dn:C.accent,padding:"2px 8px",borderRadius:"5px",fontWeight:"600",fontSize:"11.5px",letterSpacing:"0.03em",border:`1px solid ${breach?C.dnBorder:C.accentMuted}`,cursor:h.ticker!=="Cash"?"pointer":"default"}
             },h.ticker)
           )),
-          e(TD,{right:true},hasMultiLots
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):hasMultiLots
             ?e("div",{style:{fontSize:"12px",color:C.text,fontVariantNumeric:"tabular-nums",cursor:"default",borderBottom:`1px dashed ${C.faint}`},title:"Computed from lots"},"$"+$n(h.avgCost))
             :e(EditCell,{value:h.avgCost,onSave:v=>updAvgCost(h.id,v),hidden})),
-          e(TD,{right:true},hasMultiLots
+          e(TD,{right:true},hasMultiLots&&h.ticker!=="Cash"
             ?e("div",{style:{fontSize:"12px",color:C.text,fontVariantNumeric:"tabular-nums"}},$n(h.qty,4))
             :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
           e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
@@ -1421,7 +1430,7 @@
                 :e("div",{style:{width:"50px",height:"24px",display:"flex",alignItems:"center",justifyContent:"center",color:C.faint,fontSize:"9px",border:`1px dashed ${C.faint}`,borderRadius:"3px",letterSpacing:"0.03em"}},"chart")
             ),
             e("div",{style:{textAlign:"right"}},
-              e(EditCell,{value:h.currentPrice,onSave:v=>upd(h.id,"currentPrice",v),hidden}),
+              h.ticker==="Cash"?e("span",{style:{color:C.muted,fontSize:"12px"}},"$1.00"):e(EditCell,{value:h.currentPrice,onSave:v=>upd(h.id,"currentPrice",v),hidden}),
               h.ticker!=="Cash"&&holdingSparklines[h.ticker]?.dailyPct!=null&&!hidden&&e("div",{style:{fontSize:"10px",color:holdingSparklines[h.ticker].dailyPct>=0?C.up:C.dn,fontWeight:"500",marginTop:"1px"}},
                 (holdingSparklines[h.ticker].dailyPct>=0?"+":"")+holdingSparklines[h.ticker].dailyPct.toFixed(2)+"%  today")
             )
@@ -1430,8 +1439,8 @@
             e("div",{style:{color:C.text,fontWeight:"500"}},$n(holdPct,1)+"%"),
             e("div",{style:{fontSize:"10.5px",color:C.muted}},hidden?MASK:"$"+$n(h.qty*h.currentPrice,0))
           )),
-          e(TD,{right:true},e(PnlCell,{amount:gl,pct:glPct,hidden})),
-          e(TD,{right:true},e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:gl,pct:glPct,hidden})),
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
           e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
             e(EditCell,{value:h.targetPrice,onSave:v=>upd(h.id,"targetPrice",v),hidden}),
             upside!=null&&!hidden&&e("div",{style:{marginTop:"3px"}},
