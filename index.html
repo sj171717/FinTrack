@@ -26,6 +26,11 @@
     tr:hover td { background: rgba(99,102,241,0.04) !important; }
     .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing: -0.01em; }
     .card-anim { animation: fadeIn 0.2s ease; }
+    .hide-tab { display: none !important; }
+    @media (max-width: 640px) {
+      #root { padding: 0.25rem; }
+      .mob-hide { display: none !important; }
+    }
   </style>
 </head>
 <body>
@@ -362,11 +367,11 @@
       );
     }
 
-    const TH=({c,right})=>e("th",{style:{padding:"10px 14px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"600",fontSize:"10px",letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
-    const TD=({children,right,style:s})=>e("td",{style:{padding:"11px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
+    const TH=({c,right,hide})=>e("th",{className:hide?"mob-hide":undefined,style:{padding:"10px 14px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"600",fontSize:"10px",letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
+    const TD=({children,right,style:s,hide})=>e("td",{className:hide?"mob-hide":undefined,style:{padding:"11px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
 
-    function MetCard({label,value,color,sub}) {
-      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
+    function MetCard({label,value,color,sub,style:extraStyle}) {
+      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",...extraStyle}},
         e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},label),
         e("div",{style:{fontSize:"19px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},value),
         sub&&e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},sub)
@@ -867,6 +872,13 @@
       // Apply dark/light mode to C on every render (option b)
       const [darkMode,setDarkMode]=useState(false);
       Object.assign(C, darkMode ? C_DARK : C_LIGHT);
+
+      const [isMobile,setIsMobile]=useState(()=>window.innerWidth<=640);
+      useEffect(()=>{
+        const onResize=()=>setIsMobile(window.innerWidth<=640);
+        window.addEventListener("resize",onResize);
+        return()=>window.removeEventListener("resize",onResize);
+      },[]);
 
       const [user,setUser]=useState(undefined); // undefined=loading, null=signed out
       const [holdings,setHoldings]=useState(null);
@@ -1406,7 +1418,7 @@
         const rawH=holdings.find(x=>x.id===h.id)||h;
         const hasMultiLots=(rawH.lots?.filter(l=>l.type==="buy").length||0)>1;
         return e("tr",{key:h.id,draggable:true,onDragStart:()=>onDragStart(holdings.indexOf(rawH)),onDragOver:ev=>onDragOver(ev,holdings.indexOf(rawH)),onDragEnd:onDragEnd,style:{background:breach?C.dnBg:nearExit?C.warnBg:"transparent",cursor:"grab"}},
-          e(TD,null,e("span",{style:{color:C.faint,fontSize:"14px",cursor:"grab",userSelect:"none",display:"inline-block",lineHeight:1}},"⠿")),
+          e(TD,{hide:true},e("span",{style:{color:C.faint,fontSize:"14px",cursor:"grab",userSelect:"none",display:"inline-block",lineHeight:1}},"⠿")),
           e(TD,null,e("div",{style:{display:"flex",alignItems:"center",gap:"5px",flexWrap:"wrap"}},
             breach&&e("span",{style:{background:C.dn,color:"#fff",padding:"2px 6px",borderRadius:"4px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0,boxShadow:`0 0 0 2px ${C.dnBorder}`}},"⚠ EXIT"),
             nearExit&&e("span",{style:{background:C.warn,color:"#fff",padding:"2px 6px",borderRadius:"4px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0}},"⚠ NEAR EXIT"),
@@ -1442,15 +1454,15 @@
             e("div",{style:{fontSize:"10.5px",color:C.muted}},hidden?MASK:"$"+$n(h.qty*h.currentPrice,0))
           )),
           e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:gl,pct:glPct,hidden})),
-          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
-          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
+          e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
+          e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
             e(EditCell,{value:h.targetPrice,onSave:v=>upd(h.id,"targetPrice",v),hidden}),
             upside!=null&&!hidden&&e("div",{style:{marginTop:"3px"}},
               e("span",{style:{background:pcBg(upside),color:pc(upside),padding:"2px 7px",borderRadius:"5px",fontWeight:"600",fontSize:"11px",border:`1px solid ${upside>=0?C.upBorder:C.dnBorder}`,fontVariantNumeric:"tabular-nums"}},sign(upside)+$n(Math.abs(upside),1)+"%")
             )
           )),
-          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(ExitCell,{value:exitP,current:h.currentPrice,onSave:v=>upd(h.id,"customExit",v),hidden})),
-          e(TD,null,e(NotesCell,{text:h.notes,onSave:v=>upd(h.id,"notes",v)})),
+          e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(ExitCell,{value:exitP,current:h.currentPrice,onSave:v=>upd(h.id,"customExit",v),hidden})),
+          e(TD,{hide:true},e(NotesCell,{text:h.notes,onSave:v=>upd(h.id,"notes",v)})),
           e(TD,null,e("button",{onClick:()=>del(h.id),style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"5px",padding:"3px 8px",fontSize:"11px",fontFamily:"inherit"}},"✕"))
         );
       });
@@ -1483,7 +1495,7 @@
       };
       const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.accent,letterSpacing:"0.08em",textTransform:"uppercase",padding:"14px 0 6px"}},label);
 
-      const MktCol=(label,rows)=>e("div",{style:{display:"flex",flexDirection:"column",minWidth:0}},
+      const MktCol=(label,rows)=>e("div",{style:{display:"flex",flexDirection:"column",minWidth:0,borderBottom:isMobile?`1px solid ${C.border}`:"none",paddingBottom:isMobile?"0.5rem":"0"}},
         MktSectionHead(label),
         ...rows
       );
@@ -1504,13 +1516,13 @@
         );
       };
       const usIdx=["S&P 500","NASDAQ 100","Dow Jones","Russell 2000"];
-      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:"0.25rem 1.25rem 1.25rem",display:"flex",flexDirection:"column",gap:"0"}},
-        e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"0 2rem",paddingBottom:"1rem",borderBottom:`1px solid ${C.border}`,marginBottom:"0.25rem"}},
+      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:isMobile?"0.25rem 0.75rem 1rem":"0.25rem 1.25rem 1.25rem",display:"flex",flexDirection:"column",gap:"0"}},
+        e("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))",gap:isMobile?"0":"0 2rem",paddingBottom:"1rem",borderBottom:`1px solid ${C.border}`,marginBottom:"0.25rem"}},
           MktCol("US Markets",(marketData.indices||[]).filter(i=>usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2,()=>{setMarketChartModal({ticker:idx.yf,stooqSym:idx.stooq,name:idx.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(idx.yf,idx.stooq,"1D");}))),
           MktCol("Global Markets",(marketData.indices||[]).filter(i=>!usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2,()=>{setMarketChartModal({ticker:idx.yf,stooqSym:idx.stooq,name:idx.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(idx.yf,idx.stooq,"1D");}))),
           MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4,()=>{setMarketChartModal({ticker:c.yf,stooqSym:c.stooq,name:c.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(c.yf,c.stooq,"1D");})))
         ),
-        e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"0 2rem"}},
+        e("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))",gap:isMobile?"0":"0 2rem"}},
           MktCol("Commodities & Volatility",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2,()=>{setMarketChartModal({ticker:m.yf,stooqSym:m.stooq,name:m.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(m.yf,m.stooq,"1D");}))),
           e("div",{style:{display:"flex",flexDirection:"column",minWidth:0}},
             MktSectionHead("Economic Indicators"),
@@ -1553,55 +1565,72 @@
       return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'Inter','Helvetica Neue',sans-serif",borderRadius:"16px",overflow:"hidden",boxShadow:darkMode?"0 0 0 1px rgba(255,255,255,0.05)":"0 4px 24px rgba(80,90,140,0.10), 0 1px 3px rgba(80,90,140,0.08)"}},
 
         // ── Header ──
-        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 1.25rem",borderBottom:`1px solid ${C.border}`,background:C.panel,height:"52px",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}},
-          e("div",{style:{display:"flex",alignItems:"center",gap:"20px"}},
-            e("div",{style:{display:"flex",alignItems:"center",gap:"9px",flexShrink:0}},
-              e("div",{style:{width:"28px",height:"28px",borderRadius:"8px",background:`linear-gradient(135deg,${C.accent},${C.accentMuted})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 12px ${C.accentBg}`}},
-                e("svg",{width:"13",height:"13",viewBox:"0 0 14 14",fill:"none"},e("polyline",{points:"1,10 4,6 7,8 10,3 13,5",stroke:"white",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"}))
+        e("div",{style:{borderBottom:`1px solid ${C.border}`,background:C.panel,position:"sticky",top:0,zIndex:100,backdropFilter:"blur(12px)"}},
+          // Main row: logo + (desktop: tabs) + right actions
+          e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:isMobile?"0 0.75rem":"0 1.25rem",height:"52px"}},
+            e("div",{style:{display:"flex",alignItems:"center",gap:isMobile?"8px":"20px",minWidth:0}},
+              e("div",{style:{display:"flex",alignItems:"center",gap:"9px",flexShrink:0}},
+                e("div",{style:{width:"28px",height:"28px",borderRadius:"8px",background:`linear-gradient(135deg,${C.accent},${C.accentMuted})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 12px ${C.accentBg}`}},
+                  e("svg",{width:"13",height:"13",viewBox:"0 0 14 14",fill:"none"},e("polyline",{points:"1,10 4,6 7,8 10,3 13,5",stroke:"white",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"}))
+                ),
+                e("span",{style:{fontSize:"14px",fontWeight:"700",color:C.text,letterSpacing:"-0.02em",whiteSpace:"nowrap"}},"FinTrack")
               ),
-              e("span",{style:{fontSize:"14px",fontWeight:"700",color:C.text,letterSpacing:"-0.02em",whiteSpace:"nowrap"}},"FinTrack")
+              // Tabs — desktop only (mobile shows below)
+              !isMobile&&e("div",{style:{display:"flex",alignItems:"center",gap:"2px",background:C.surfaceAlt,borderRadius:"10px",padding:"3px",border:`1px solid ${C.border}`}},
+                [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
+                  e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
+                    style:{padding:"5px 14px",border:"none",borderRadius:"7px",cursor:"pointer",
+                      background:tab===k?C.surface:"transparent",
+                      color:tab===k?C.text:C.muted,
+                      fontWeight:tab===k?"600":"400",fontSize:"12px",fontFamily:"inherit",
+                      transition:"all 0.15s",
+                      boxShadow:tab===k?`0 1px 3px rgba(0,0,0,0.15)`:"none"}},l)
+                )
+              ),
+              breaches>0&&e("span",{style:{fontSize:"10px",background:C.dnBg,border:`1px solid ${C.dnBorder}`,color:C.dn,padding:"3px 8px",borderRadius:"20px",fontWeight:"600",whiteSpace:"nowrap"}},"⚠ "+(isMobile?breaches:breaches+" EXIT BREACH"+(breaches>1?"ES":"")))
             ),
-            // Tabs inline in header
-            e("div",{style:{display:"flex",alignItems:"center",gap:"2px",background:C.surfaceAlt,borderRadius:"10px",padding:"3px",border:`1px solid ${C.border}`}},
+            e("div",{style:{display:"flex",alignItems:"center",gap:isMobile?"4px":"6px",flexShrink:0}},
+              !isMobile&&e("div",{style:{fontSize:"11px",color:C.muted,marginRight:"4px"}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})),
+              e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Light mode":"Dark mode",
+                style:{display:"flex",alignItems:"center",gap:"5px",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:isMobile?"5px 8px":"5px 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"500"}},
+                darkMode?"Light":"Dark"
+              ),
+              tab==="portfolio"&&e("button",{onClick:()=>setHidden(v=>!v),title:hidden?"Show numbers":"Hide numbers",
+                style:{display:"flex",alignItems:"center",gap:"6px",background:hidden?C.accentBg:C.surfaceAlt,border:`1px solid ${hidden?C.accentMuted:C.border}`,color:hidden?C.accent:C.muted,cursor:"pointer",borderRadius:"7px",padding:isMobile?"5px 8px":"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:hidden?"600":"400"}},
+                hidden?"Show":"Hide"
+              ),
+              e("div",{style:{display:"flex",alignItems:"center",gap:isMobile?"4px":"6px",paddingLeft:"4px",borderLeft:`1px solid ${C.border}`,marginLeft:"2px"}},
+                user?.photoURL&&e("img",{src:user.photoURL,referrerPolicy:"no-referrer",style:{width:"26px",height:"26px",borderRadius:"50%",border:`1.5px solid ${C.border}`}}),
+                !user?.photoURL&&e("div",{style:{width:"26px",height:"26px",borderRadius:"50%",background:C.accentBg,border:`1.5px solid ${C.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"11px",fontWeight:"700",color:C.accent}},
+                  (user?.displayName||user?.email||"?")[0].toUpperCase()
+                ),
+                !isMobile&&e("button",{onClick:()=>fbAuth.signOut(),style:{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:"11px",fontFamily:"inherit",padding:"2px 4px"}},"Sign out")
+              )
+            )
+          ),
+          // Mobile tab row
+          isMobile&&e("div",{style:{padding:"0 0.75rem 0.5rem",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}},
+            e("div",{style:{display:"flex",gap:"2px",background:C.surfaceAlt,borderRadius:"10px",padding:"3px",border:`1px solid ${C.border}`}},
               [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
                 e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
-                  style:{padding:"5px 14px",border:"none",borderRadius:"7px",cursor:"pointer",
+                  style:{flex:"1",padding:"6px 10px",border:"none",borderRadius:"7px",cursor:"pointer",
                     background:tab===k?C.surface:"transparent",
                     color:tab===k?C.text:C.muted,
                     fontWeight:tab===k?"600":"400",fontSize:"12px",fontFamily:"inherit",
-                    transition:"all 0.15s",
+                    transition:"all 0.15s",whiteSpace:"nowrap",
                     boxShadow:tab===k?`0 1px 3px rgba(0,0,0,0.15)`:"none"}},l)
               )
-            ),
-            breaches>0&&e("span",{style:{fontSize:"10px",background:C.dnBg,border:`1px solid ${C.dnBorder}`,color:C.dn,padding:"3px 10px",borderRadius:"20px",fontWeight:"600",whiteSpace:"nowrap"}},"⚠ "+breaches+" EXIT BREACH"+(breaches>1?"ES":""))
-          ),
-          e("div",{style:{display:"flex",alignItems:"center",gap:"6px"}},
-            e("div",{style:{fontSize:"11px",color:C.muted,marginRight:"4px"}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})),
-            e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Light mode":"Dark mode",
-              style:{display:"flex",alignItems:"center",gap:"5px",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:"5px 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"500"}},
-              darkMode?"Light":"Dark"
-            ),
-            tab==="portfolio"&&e("button",{onClick:()=>setHidden(v=>!v),title:hidden?"Show numbers":"Hide numbers",
-              style:{display:"flex",alignItems:"center",gap:"6px",background:hidden?C.accentBg:C.surfaceAlt,border:`1px solid ${hidden?C.accentMuted:C.border}`,color:hidden?C.accent:C.muted,cursor:"pointer",borderRadius:"7px",padding:"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:hidden?"600":"400"}},
-              hidden?"Show":"Hide"
-            ),
-            e("div",{style:{display:"flex",alignItems:"center",gap:"6px",paddingLeft:"4px",borderLeft:`1px solid ${C.border}`,marginLeft:"2px"}},
-              user?.photoURL&&e("img",{src:user.photoURL,referrerPolicy:"no-referrer",style:{width:"26px",height:"26px",borderRadius:"50%",border:`1.5px solid ${C.border}`}}),
-              !user?.photoURL&&e("div",{style:{width:"26px",height:"26px",borderRadius:"50%",background:C.accentBg,border:`1.5px solid ${C.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"11px",fontWeight:"700",color:C.accent}},
-                (user?.displayName||user?.email||"?")[0].toUpperCase()
-              ),
-              e("button",{onClick:()=>fbAuth.signOut(),style:{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:"11px",fontFamily:"inherit",padding:"2px 4px"}},"Sign out")
             )
           )
         ),
 
         // ── Body ──
-        e("div",{style:{padding:"1rem 1rem"}},
-          tab==="portfolio"&&e("div",{style:{display:"flex",gap:"10px",marginBottom:"1.25rem",flexWrap:"wrap"}},
-            e(MetCard,{label:"Portfolio Value",value:hidden?MASK:"$"+$n(totalVal,0)}),
-            e(MetCard,{label:"Total Return",value:hidden?MASK:sign(totalGL)+"$"+$n(Math.abs(totalGL),0),color:hidden?C.muted:pc(totalGL),sub:hidden?MASK:sign(totalGLPct)+$n(Math.abs(totalGLPct),1)+"% · incl. realized"}),
-            e(MetCard,{label:"YTD Gain / Loss",value:hidden?MASK:sign(ytdGL)+"$"+$n(Math.abs(ytdGL),0),color:hidden?C.muted:pc(ytdGL),sub:hidden?MASK:sign(ytdPct)+$n(Math.abs(ytdPct),1)+"% this year"}),
-            e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash"})
+        e("div",{style:{padding:isMobile?"0.5rem":"1rem 1rem"}},
+          tab==="portfolio"&&e("div",{style:{display:"flex",gap:"8px",marginBottom:"1rem",flexWrap:"wrap"}},
+            e(MetCard,{label:"Portfolio Value",value:hidden?MASK:"$"+$n(totalVal,0),style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
+            e(MetCard,{label:"Total Return",value:hidden?MASK:sign(totalGL)+"$"+$n(Math.abs(totalGL),0),color:hidden?C.muted:pc(totalGL),sub:hidden?MASK:sign(totalGLPct)+$n(Math.abs(totalGLPct),1)+"% · incl. realized",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
+            e(MetCard,{label:"YTD Gain / Loss",value:hidden?MASK:sign(ytdGL)+"$"+$n(Math.abs(ytdGL),0),color:hidden?C.muted:pc(ytdGL),sub:hidden?MASK:sign(ytdPct)+$n(Math.abs(ytdPct),1)+"% this year",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
+            e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}})
           ),
 
 
@@ -1617,20 +1646,24 @@
 
           // ── PORTFOLIO TAB ──
           tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
-            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.875rem 1rem",borderBottom:`1px solid ${C.border}`}},
-              e("div",{style:{display:"flex",alignItems:"center",gap:"12px"}},
+            e("div",{style:{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",padding:"0.75rem 1rem",gap:isMobile?"8px":"0",borderBottom:`1px solid ${C.border}`}},
+              !isMobile&&e("div",{style:{display:"flex",alignItems:"center",gap:"12px"}},
                 e("span",{style:{fontSize:"11px",color:C.muted}},"Click any value to edit · Force Exit default = avg cost × 85%"),
                 priceUpdatedAt&&e("span",{style:{fontSize:"10.5px",color:C.up,display:"flex",alignItems:"center",gap:"4px"}},
                   e("svg",{width:"10",height:"10",viewBox:"0 0 10 10",fill:"none"},e("circle",{cx:"5",cy:"5",r:"4",stroke:"currentColor",strokeWidth:"1.2"}),e("path",{d:"M5 3v2l1.2 1.2",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"})),
                   "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})+" · Yahoo Finance"
                 )
               ),
-              e("div",{style:{display:"flex",gap:"8px"}},
-                e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"6px",opacity:priceLoading?0.7:1},onClick:fetchPrices,disabled:priceLoading},
+              isMobile&&priceUpdatedAt&&e("span",{style:{fontSize:"10.5px",color:C.up,display:"flex",alignItems:"center",gap:"4px"}},
+                e("svg",{width:"10",height:"10",viewBox:"0 0 10 10",fill:"none"},e("circle",{cx:"5",cy:"5",r:"4",stroke:"currentColor",strokeWidth:"1.2"}),e("path",{d:"M5 3v2l1.2 1.2",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"})),
+                "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})
+              ),
+              e("div",{style:{display:"flex",gap:"8px",width:isMobile?"100%":"auto"}},
+                e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"6px",flex:isMobile?"1":"none",justifyContent:"center",opacity:priceLoading?0.7:1},onClick:fetchPrices,disabled:priceLoading},
                   e("svg",{width:"12",height:"12",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:priceLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"8,1 11,1 11,4"})),
-                  priceLoading?"Fetching…":"Refresh Prices"
+                  priceLoading?"Fetching…":"Refresh"
                 ),
-                e("button",{style:BS("p"),onClick:()=>{setShowAdd(v=>!v);setShowAddCash(false);setCashAmount("");}},"+ Add Position")
+                e("button",{style:{...BS("p"),flex:isMobile?"1":"none",textAlign:"center"},onClick:()=>{setShowAdd(v=>!v);setShowAddCash(false);setCashAmount("");}},"+ Add Position")
               )
             ),
 
@@ -1681,11 +1714,11 @@
             e("div",{style:{overflowX:"auto"}},
               e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:"12px"}},
                 e("thead",null,e("tr",null,
-                  e(TH,{c:""}),e(TH,{c:"Ticker"}),e(TH,{c:"Avg Cost",right:true}),e(TH,{c:"Quantity",right:true}),
-                  e(TH,{c:"Current Price",right:true}),e(TH,{c:"Holding %",right:true}),
-                  e(TH,{c:"Gain / Loss",right:true}),e(TH,{c:"YTD Gain / Loss",right:true}),
-                  e(TH,{c:"Target / Upside",right:true}),
-                  e(TH,{c:"Force Exit",right:true}),e(TH,{c:"Notes"}),e(TH,{c:""})
+                  e(TH,{c:"",hide:true}),e(TH,{c:"Ticker"}),e(TH,{c:"Avg Cost",right:true}),e(TH,{c:"Qty",right:true}),
+                  e(TH,{c:"Price",right:true}),e(TH,{c:"Hold %",right:true}),
+                  e(TH,{c:"G / L",right:true}),e(TH,{c:"YTD G/L",right:true,hide:true}),
+                  e(TH,{c:"Target",right:true,hide:true}),
+                  e(TH,{c:"Exit",right:true,hide:true}),e(TH,{c:"Notes",hide:true}),e(TH,{c:""})
                 )),
                 e("tbody",null,...tableRows)
               )
@@ -2047,7 +2080,7 @@
 
         // ── Portfolio Chart Modal ──
         portfolioModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setPortfolioModal(null)},
-          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",width:"900px",maxWidth:"96vw",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",width:"900px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}},
             // Modal header
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
               e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
@@ -2107,7 +2140,7 @@
 
         // ── Market Chart Modal ──
         marketChartModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setMarketChartModal(null)},
-          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",width:"900px",maxWidth:"96vw",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.25rem",width:"900px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.2)"}},
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
               e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
                 e("span",{style:{background:C.accentBg,color:C.accent,padding:"3px 10px",borderRadius:"6px",fontWeight:"700",fontSize:"13px",border:`1px solid ${C.accentMuted}`}},marketChartModal.name),
