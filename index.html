@@ -840,9 +840,21 @@
     function LoginScreen() {
       const [loading,setLoading]=useState(false);
       const [err,setErr]=useState("");
+      const isMob=window.innerWidth<=640||/Mobi|Android/i.test(navigator.userAgent);
+      // Handle redirect result on mobile after returning from Google
+      useEffect(()=>{
+        if(!isMob)return;
+        setLoading(true);
+        fbAuth.getRedirectResult().then(r=>{
+          if(!r?.user) setLoading(false);
+        }).catch(e=>{setErr(e.message||"Sign-in failed");setLoading(false);});
+      },[]);
       const signIn=async()=>{
         setLoading(true); setErr("");
-        try{ await fbAuth.signInWithPopup(googleProvider); }
+        try{
+          if(isMob){ await fbAuth.signInWithRedirect(googleProvider); }
+          else{ await fbAuth.signInWithPopup(googleProvider); }
+        }
         catch(e){ setErr(e.message||"Sign-in failed"); setLoading(false); }
       };
       return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%)"}},
