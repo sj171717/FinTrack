@@ -112,7 +112,7 @@
     }
     // ── Stooq CSV — free historical OHLCV, no API key, fetched via proxy ──
     async function stooqCandles(stooqSym, period) {
-      const daysMap = {"1D":3,"1W":10,"1M":35,"6M":185,"YTD":370,"1Y":370,"2Y":740,"5Y":1830,"MAX":3660};
+      const daysMap = {"1D":3,"5D":10,"1W":10,"1M":35,"6M":185,"YTD":370,"1Y":370,"2Y":740,"5Y":1830,"MAX":3660};
       const days = daysMap[period] || 35;
       const end = new Date(), start = new Date(+end - days*86400000);
       const fmt = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
@@ -130,8 +130,8 @@
 
     // ── Yahoo Finance v8 chart — tries direct then CORS proxy ──
     async function yfCandles(ticker, period) {
-      const rangeMap={"1D":"1d","5D":"5d","1M":"1mo","6M":"6mo","YTD":"ytd","1Y":"1y","2Y":"2y","5Y":"5y","MAX":"max"};
-      const intMap={"1D":"5m","5D":"15m","1M":"1d","6M":"1d","YTD":"1d","1Y":"1d","2Y":"1wk","5Y":"1wk","MAX":"1mo"};
+      const rangeMap={"1D":"1d","5D":"5d","1W":"5d","1M":"1mo","6M":"6mo","YTD":"ytd","1Y":"1y","2Y":"2y","5Y":"5y","MAX":"max"};
+      const intMap={"1D":"5m","5D":"1d","1W":"1d","1M":"1d","6M":"1d","YTD":"1d","1Y":"1d","2Y":"1wk","5Y":"1wk","MAX":"1mo"};
       const range=rangeMap[period]||"1mo";
       const interval=intMap[period]||"1d";
       const url1=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
