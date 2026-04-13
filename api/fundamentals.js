@@ -46,6 +46,8 @@ async function fetchFromFD(ticker, apiKey) {
     operatingIncome: inc?.operating_income ?? null,
     debtToEquity: equity && equity > 0 ? totalDebt / equity : null,
     roe: equity && equity > 0 && netIncome != null ? netIncome / equity * 100 : null,
+    marketCap: null,
+    beta: null,
     sector: facts?.sector ?? null,
     industry: facts?.industry ?? null,
     location: facts?.location ?? null,
@@ -53,26 +55,29 @@ async function fetchFromFD(ticker, apiKey) {
 }
 
 async function fetchFromFMP(ticker, apiKey) {
+  const BASE = "https://financialmodelingprep.com/stable";
   const [profR, incR, balR] = await Promise.allSettled([
-    fetchDirect(`https://financialmodelingprep.com/api/v3/profile/${ticker}?apikey=${apiKey}`, {}),
-    fetchDirect(`https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=annual&limit=1&apikey=${apiKey}`, {}),
-    fetchDirect(`https://financialmodelingprep.com/api/v3/balance-sheet-statement/${ticker}?period=annual&limit=1&apikey=${apiKey}`, {}),
+    fetchDirect(`${BASE}/profile?symbol=${ticker}&apikey=${apiKey}`, {}),
+    fetchDirect(`${BASE}/income-statement?symbol=${ticker}&period=annual&limit=1&apikey=${apiKey}`, {}),
+    fetchDirect(`${BASE}/balance-sheet-statement?symbol=${ticker}&period=annual&limit=1&apikey=${apiKey}`, {}),
   ]);
-  const prof = profR.status === "fulfilled" ? profR.value?.[0] : null;
-  const inc = incR.status === "fulfilled" ? incR.value?.[0] : null;
-  const bal = balR.status === "fulfilled" ? balR.value?.[0] : null;
+  const prof = profR.status === "fulfilled" && Array.isArray(profR.value) ? profR.value[0] : null;
+  const inc = incR.status === "fulfilled" && Array.isArray(incR.value) ? incR.value[0] : null;
+  const bal = balR.status === "fulfilled" && Array.isArray(balR.value) ? balR.value[0] : null;
   if (!prof && !inc) return null;
   const equity = bal?.totalStockholdersEquity ?? null;
-  const totalDebt = (bal?.longTermDebt ?? 0) + (bal?.shortTermDebt ?? 0);
+  const totalDebt = bal?.totalDebt ?? 0;
   const netIncome = inc?.netIncome ?? null;
   return {
-    eps: prof?.eps ?? null,
+    eps: inc?.eps ?? prof?.eps ?? null,
     revenue: inc?.revenue ?? null,
     netIncome,
     grossProfit: inc?.grossProfit ?? null,
     operatingIncome: inc?.operatingIncome ?? null,
     debtToEquity: equity && equity > 0 ? totalDebt / equity : null,
     roe: equity && equity > 0 && netIncome != null ? netIncome / equity * 100 : null,
+    marketCap: prof?.marketCap ?? null,
+    beta: prof?.beta ?? null,
     sector: prof?.sector ?? null,
     industry: prof?.industry ?? null,
     location: prof?.country ?? null,
@@ -95,13 +100,12 @@ module.exports = async (req, res) => {
       result = await fetchFromFD(ticker, fdKey);
     }
 
-    // Fall back to FMP if FD has no income data
-    const hasFDData = result?.revenue != null || result?.eps != null;
-    if (!hasFDData && fmpKey) {
+    // Always try FMP to fill in gaps (market cap, beta, and financials for stocks FD doesn't cover)
+    if (fmpKey) {
       const fmp = await fetchFromFMP(ticker, fmpKey);
       if (fmp) {
         result = result
-          ? Object.fromEntries(Object.entries(result).map(([k,v]) => [k, v ?? fmp[k]]))
+          ? Object.fromEntries(Object.entries(result).map(([k, v]) => [k, v ?? fmp[k]]))
           : fmp;
       }
     }
