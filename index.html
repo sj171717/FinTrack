@@ -599,9 +599,9 @@
       // Chart path
       const chartContent=(()=>{
         if(!pts||pts.length<2)return null;
-        // Goal line only shown on 1Y chart
-        const goalBaseVal=(chartPeriod==="1Y"&&ytdStartVal)?ytdStartVal:pts[0];
-        const goalVal=(chartPeriod==="1Y"&&yearGoal!=null&&goalBaseVal)?goalBaseVal*(1+yearGoal/100):null;
+        // Goal line only shown on YTD chart
+        const goalBaseVal=(chartPeriod==="YTD"&&ytdStartVal)?ytdStartVal:pts[0];
+        const goalVal=(chartPeriod==="YTD"&&yearGoal!=null&&goalBaseVal)?goalBaseVal*(1+yearGoal/100):null;
         const rawMn=Math.min(...pts),rawMx=Math.max(...pts);
         const mn=goalVal!=null?Math.min(rawMn,goalVal*0.995):rawMn;
         const mx=goalVal!=null?Math.max(rawMx,goalVal*1.005):rawMx;
@@ -648,14 +648,17 @@
             e("defs",null,e("linearGradient",{id:"pcg",x1:"0",y1:"0",x2:"0",y2:"1"},
               e("stop",{offset:"0%",stopColor:color,stopOpacity:"0.12"}),
               e("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
+            // Goal line (drawn before area so it stays behind the chart fill)
+            goalY!=null&&goalY>=PT&&goalY<=PT+ch&&e("line",{x1:PL,y1:goalY,x2:W-PR,y2:goalY,stroke:goalColor,strokeWidth:"1.5",strokeDasharray:"6 4",opacity:"0.9"}),
             e("path",{d:areaPath,fill:"url(#pcg)"}),
             e("path",{d:linePath,fill:"none",stroke:color,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"}),
-            // Goal line
+            // Goal line labels (drawn on top)
             goalY!=null&&goalY>=PT&&goalY<=PT+ch&&e(F,null,
-              e("line",{x1:PL,y1:goalY,x2:W-PR,y2:goalY,stroke:goalColor,strokeWidth:"1.5",strokeDasharray:"5 4",opacity:"0.85"}),
-              e("text",{x:W-PR+6,y:Math.max(PT+8,Math.min(PT+ch-2,goalY+4)),fontSize:"9",fill:goalColor,fontFamily:"inherit",fontWeight:"600"},
+              e("rect",{x:W-PR+4,y:Math.max(PT+2,goalY-8),width:PR-6,height:13,rx:"3",fill:goalColor,opacity:"0.15"}),
+              e("text",{x:W-PR+6,y:Math.max(PT+11,goalY+3),fontSize:"8.5",fill:goalColor,fontFamily:"inherit",fontWeight:"700"},
                 "$"+goalVal.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})),
-              e("text",{x:PL+4,y:Math.max(PT+8,goalY-4),fontSize:"8",fill:goalColor,fontFamily:"inherit",fontWeight:"600"},"GOAL")
+              e("rect",{x:PL,y:Math.max(PT,goalY-11),width:28,height:11,rx:"3",fill:goalColor,opacity:"0.9"}),
+              e("text",{x:PL+4,y:Math.max(PT+8,goalY-3),fontSize:"8",fill:"#fff",fontFamily:"inherit",fontWeight:"700"},"GOAL")
             ),
             // Y axis labels (3: min, mid, max)
             ...yLbls.map((l,i)=>e("text",{key:"y"+i,x:W-PR+6,y:Math.max(PT+8,Math.min(PT+ch-2,l.y+4)),fontSize:"9",fill:axisColor,fontFamily:"inherit"},
@@ -715,7 +718,7 @@
                     e("div",{style:{fontSize:"10px",color:"#f59e0b",fontWeight:"600",letterSpacing:"0.06em",textTransform:"uppercase"}},"1Y Goal: +"+yearGoal+"%"),
                     e("div",{style:{width:"200px",height:"6px",background:C.border,borderRadius:"3px",overflow:"hidden"}},
                       (()=>{
-                        const base=(ytdStartVal&&chartPeriod==="1Y")?ytdStartVal:pts?.[0];
+                        const base=(ytdStartVal&&chartPeriod==="YTD")?ytdStartVal:pts?.[0];
                         const current=totalVal,target=base?(base*(1+yearGoal/100)):null;
                         const prog=base&&target?(current-base)/(target-base)*100:0;
                         const clampedProg=Math.max(0,Math.min(120,prog));
@@ -724,7 +727,7 @@
                       })()
                     ),
                     (()=>{
-                      const base=(ytdStartVal&&chartPeriod==="1Y")?ytdStartVal:pts?.[0];
+                      const base=(ytdStartVal&&chartPeriod==="YTD")?ytdStartVal:pts?.[0];
                       const current=totalVal,target=base?(base*(1+yearGoal/100)):null;
                       const prog=base&&target?(current-base)/(target-base)*100:0;
                       return e("div",{style:{fontSize:"10px",color:C.muted}},
