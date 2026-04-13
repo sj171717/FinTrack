@@ -105,7 +105,7 @@ module.exports = async (req, res) => {
     // Prefer FD eps if available
     if (fdData?.eps != null) result.eps = fdData.eps;
 
-    res.status(200).json(result);
+    res.status(200).json({...result, _yqRaw: yq});
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
