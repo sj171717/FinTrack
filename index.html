@@ -1258,26 +1258,48 @@
         holdingSparklinesRef.current=true;
         const allTickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
         const missing=allTickers; // always re-fetch all, not just missing
+
+        // Fetch S&P 500 for beta calculation
+        let spxCandles=null;
+        try{spxCandles=await stooqCandles("^spx","1M");}catch{}
+        if(!spxCandles?.length) try{spxCandles=await yfCandles("^GSPC","1M");}catch{}
+        const spxRets=spxCandles&&spxCandles.length>=2?spxCandles.map(x=>x.c).slice(1).map((c,i)=>(c-spxCandles[i].c)/spxCandles[i].c):null;
+
         await Promise.allSettled(missing.map(async t=>{
           try {
-            // Use Stooq (daily candles via &i=d) so dailyPct = last 2 daily candles = 1D change
-            // Yahoo "5D" uses 15-min candles which would give wrong dailyPct
             const stooqSym = t.startsWith("^") ? t.slice(1).toLowerCase() : t.toLowerCase()+".us";
             let candles=null;
             try{candles=await stooqCandles(stooqSym,"1M");}catch{}
-            // fallback: Yahoo with 1M (which uses interval=1d, so daily candles)
             if(!candles?.length) try{candles=await yfCandles(t,"1M");}catch{}
             if(!candles?.length||candles.length<2)return;
             const pts=candles.map(x=>x.c);
             const timestamps=candles.map(x=>x.ts);
             const price=pts[pts.length-1];
             const pct=pts[0]?((price-pts[0])/pts[0])*100:0;
-            // dailyPct: last two daily candles = yesterday close → today close
             const dailyPct=((pts[pts.length-1]-pts[pts.length-2])/pts[pts.length-2])*100;
-            setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct}}));
+
+            // Per-stock risk metrics (1M daily)
+            const rets=pts.slice(1).map((c,i)=>(c-pts[i])/pts[i]);
+            let sharpe=null,beta=null;
+            if(rets.length>=5){
+              const mean=rets.reduce((a,b)=>a+b,0)/rets.length;
+              const variance=rets.reduce((a,b)=>a+(b-mean)**2,0)/rets.length;
+              const rfDaily=4.3/100/252;
+              sharpe=Math.sqrt(variance)>0?((mean-rfDaily)/Math.sqrt(variance))*Math.sqrt(252):null;
+              if(spxRets&&spxRets.length>=rets.length){
+                const mr=spxRets.slice(-rets.length);
+                const n=Math.min(rets.length,mr.length);
+                const pr=rets.slice(-n),mrt=mr.slice(-n);
+                const mMean=mrt.reduce((a,b)=>a+b,0)/n,pMean=pr.reduce((a,b)=>a+b,0)/n;
+                let cov=0,mVar=0;
+                for(let i=0;i<n;i++){cov+=(pr[i]-pMean)*(mrt[i]-mMean);mVar+=(mrt[i]-mMean)**2;}
+                if(mVar>0) beta=cov/mVar;
+              }
+            }
+            setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct,sharpe,beta}}));
           } catch {}
         }));
-        holdingSparklinesRef.current=false; // reset so next addition triggers fetch
+        holdingSparklinesRef.current=false;
       };
 
       // ── PORTFOLIO VALUE CHART ──
@@ -1496,6 +1518,28 @@
           )),
           e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:gl,pct:glPct,hidden})),
           e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
+          e(TD,{right:true,hide:true},(()=>{
+            if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
+            const sp=holdingSparklines[h.ticker];
+            if(!sp?.sharpe==null||sp?.sharpe==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
+            const s=sp.sharpe;
+            const col=s>=1?C.up:s>=0?C.text:C.dn;
+            return e("div",{style:{textAlign:"right"}},
+              e("span",{style:{fontWeight:"600",color:col,fontVariantNumeric:"tabular-nums",fontSize:"12px"}},s.toFixed(2)),
+              e("div",{style:{fontSize:"10px",color:C.muted}},"1M ann.")
+            );
+          })()),
+          e(TD,{right:true,hide:true},(()=>{
+            if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
+            const sp=holdingSparklines[h.ticker];
+            if(!sp?.beta==null||sp?.beta==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
+            const b=sp.beta;
+            const col=Math.abs(b)>1.5?C.dn:Math.abs(b)>1?C.warn:C.up;
+            return e("div",{style:{textAlign:"right"}},
+              e("span",{style:{fontWeight:"600",color:col,fontVariantNumeric:"tabular-nums",fontSize:"12px"}},b.toFixed(2)),
+              e("div",{style:{fontSize:"10px",color:C.muted}},b>1.5?"High risk":b>1?"Aggressive":b>0.5?"Moderate":"Defensive")
+            );
+          })()),
           e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
             e(EditCell,{value:h.targetPrice,onSave:v=>upd(h.id,"targetPrice",v),hidden}),
             upside!=null&&!hidden&&e("div",{style:{marginTop:"3px"}},
@@ -1788,6 +1832,7 @@
                   e(TH,{c:"",hide:true}),e(TH,{c:"Ticker"}),e(TH,{c:"Avg Cost",right:true}),e(TH,{c:"Qty",right:true}),
                   e(TH,{c:"Price",right:true}),e(TH,{c:"Hold %",right:true}),
                   e(TH,{c:"G / L",right:true}),e(TH,{c:"YTD G/L",right:true,hide:true}),
+                  e(TH,{c:"Sharpe",right:true,hide:true}),e(TH,{c:"Beta",right:true,hide:true}),
                   e(TH,{c:"Target",right:true,hide:true}),
                   e(TH,{c:"Exit",right:true,hide:true}),e(TH,{c:"Notes",hide:true}),e(TH,{c:""})
                 )),
