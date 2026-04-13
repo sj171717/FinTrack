@@ -32,9 +32,36 @@ async function fetchYahooQuote(ticker) {
     "Referer": "https://finance.yahoo.com/",
     "Origin": "https://finance.yahoo.com",
   };
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=regularMarketPrice,trailingPE,epsTrailingTwelveMonths,beta,marketCap,dividendRate,dividendYield,exDividendDate,earningsTimestamp,targetMeanPrice,fullExchangeName,sector,industry,region,returnOnEquity,debtToEquity`;
+  // quoteSummary has full fundamentals — no crumb needed on query2
+  const modules = "financialData,defaultKeyStatistics,summaryDetail,assetProfile,calendarEvents";
+  const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${modules}&corsDomain=finance.yahoo.com`;
   const data = await fetchJson(url, yh);
-  return data?.quoteResponse?.result?.[0] ?? null;
+  const r = data?.quoteSummary?.result?.[0];
+  if (!r) return null;
+  const fin = r.financialData || {};
+  const stats = r.defaultKeyStatistics || {};
+  const detail = r.summaryDetail || {};
+  const profile = r.assetProfile || {};
+  const cal = r.calendarEvents || {};
+  const earningsTs = cal.earnings?.earningsDate?.[0]?.raw ?? null;
+  const exDivTs = detail.exDividendDate?.raw ?? null;
+  return {
+    marketCap: detail.marketCap?.raw ?? null,
+    pe: detail.trailingPE?.raw ?? null,
+    eps: stats.trailingEps?.raw ?? null,
+    beta: stats.beta?.raw ?? detail.beta?.raw ?? null,
+    dividendRate: detail.dividendRate?.raw ?? null,
+    dividendYield: detail.dividendYield?.raw ?? null,
+    exDivDate: exDivTs ? new Date(exDivTs * 1000).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"}) : null,
+    earningsDate: earningsTs ? new Date(earningsTs * 1000).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"}) : null,
+    targetPrice: fin.targetMeanPrice?.raw ?? null,
+    sector: profile.sector ?? null,
+    industry: profile.industry ?? null,
+    exchange: null,
+    location: profile.country ?? null,
+    roe: fin.returnOnEquity?.raw != null ? fin.returnOnEquity.raw * 100 : null,
+    debtToEquity: fin.debtToEquity?.raw != null ? fin.debtToEquity.raw / 100 : null,
+  };
 }
 
 async function fetchFD(ticker, apiKey) {
