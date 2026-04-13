@@ -1129,45 +1129,14 @@
         setShowAdd(false);
       };
 
-      // ── FUNDAMENTALS: FD server-side + Yahoo quote client-side via proxy ──
+      // ── FUNDAMENTALS: financialdatasets.ai via /api/fundamentals ──
       const fetchFundamentals=async(ticker)=>{
         if(!ticker||ticker==="Cash")return;
         setFundamentals(prev=>({...prev,[ticker]:{...prev[ticker],loading:true,error:null}}));
         try{
-          // Same proxy pattern as yfQuote — explicitly list fields Yahoo v7 supports
-          const yhFields="regularMarketPrice,trailingPE,epsTrailingTwelveMonths,marketCap,beta,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,earningsTimestamp,earningsTimestampStart,targetMeanPrice,sector,industry,country,returnOnEquity,debtToEquity,fiftyTwoWeekHigh,fiftyTwoWeekLow";
-          const yhUrl=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=${yhFields}`;
-          const [fdRes,yhTxt]=await Promise.allSettled([
-            fetch(`/api/fundamentals?ticker=${encodeURIComponent(ticker)}`).then(r=>r.json()),
-            fetchViaProxy(yhUrl,8000),
-          ]);
-          const fd=fdRes.status==="fulfilled"&&!fdRes.value?.error?fdRes.value:{};
-          let yq=null;
-          if(yhTxt.status==="fulfilled"){
-            try{const d=JSON.parse(yhTxt.value);yq=d?.quoteResponse?.result?.[0]||null;}catch{}
-          }
-          const fmtDate=ts=>ts?new Date(ts*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):null;
-          setFundamentals(prev=>({...prev,[ticker]:{
-            marketCap:yq?.marketCap??null,
-            pe:yq?.trailingPE??null,
-            eps:fd?.eps??yq?.epsTrailingTwelveMonths??null,
-            beta:yq?.beta??null,
-            dividendRate:yq?.trailingAnnualDividendRate??null,
-            dividendYield:yq?.trailingAnnualDividendYield??null,
-            exDivDate:fmtDate(yq?.exDividendDate),
-            earningsDate:fmtDate(yq?.earningsTimestamp??yq?.earningsTimestampStart),
-            targetPrice:yq?.targetMeanPrice??null,
-            week52High:yq?.fiftyTwoWeekHigh??null,
-            week52Low:yq?.fiftyTwoWeekLow??null,
-            sector:yq?.sector??fd?.sector??null,
-            industry:yq?.industry??fd?.industry??null,
-            revenue:fd?.revenue??null,
-            netIncome:fd?.netIncome??null,
-            grossProfit:fd?.grossProfit??null,
-            debtToEquity:fd?.debtToEquity??(yq?.debtToEquity!=null?yq.debtToEquity/100:null),
-            roe:fd?.roe??(yq?.returnOnEquity!=null?yq.returnOnEquity*100:null),
-            loading:false,error:null,
-          }}));
+          const data=await fetch(`/api/fundamentals?ticker=${encodeURIComponent(ticker)}`).then(r=>r.json());
+          if(data.error) setFundamentals(prev=>({...prev,[ticker]:{loading:false,error:data.error}}));
+          else setFundamentals(prev=>({...prev,[ticker]:{...data,loading:false,error:null}}));
         }catch(err){
           setFundamentals(prev=>({...prev,[ticker]:{loading:false,error:"Failed to load"}}));
         }
@@ -2413,27 +2382,18 @@
                 fd?.error&&e("div",{style:{fontSize:"11px",color:C.dn}},fd.error),
                 fd&&!fd.loading&&!fd.error&&e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"8px",overflow:"hidden"}},
                   e(Row,{items:[
-                    {label:"Market Cap",value:fmtB(fd.marketCap)},
-                    {label:"P/E (TTM)",value:fd.pe!=null?fmt(fd.pe,1):"—"},
                     {label:"EPS (TTM)",value:fd.eps!=null?"$"+fmt(fd.eps):"—",color:fd.eps>0?C.up:fd.eps<0?C.dn:null},
-                    {label:"Beta",value:fd.beta!=null?fmt(fd.beta):"—",color:fd.beta>1.5?C.dn:fd.beta>1?C.warn:fd.beta!=null?C.up:null},
-                    {label:"52W High",value:fd.week52High!=null?"$"+fmt(fd.week52High):"—"},
-                    {label:"52W Low",value:fd.week52Low!=null?"$"+fmt(fd.week52Low):"—"},
-                    fd.targetPrice!=null&&{label:"1Y Target",value:"$"+fmt(fd.targetPrice,0)},
-                    fd.earningsDate!=null&&{label:"Earnings",value:fd.earningsDate},
-                  ]}),
-                  e(Row,{items:[
                     {label:"Revenue",value:fmtB(fd.revenue)},
-                    {label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome>0?C.up:fd.netIncome<0?C.dn:null},
                     {label:"Gross Profit",value:fmtB(fd.grossProfit)},
+                    {label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome>0?C.up:fd.netIncome<0?C.dn:null},
+                    {label:"Op. Income",value:fmtB(fd.operatingIncome)},
                     {label:"Debt/Equity",value:fd.debtToEquity!=null?fmt(fd.debtToEquity):"—",color:fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:fd.debtToEquity!=null?C.up:null},
                     {label:"ROE",value:fd.roe!=null?fmt(fd.roe,1)+"%":"—",color:fd.roe>15?C.up:fd.roe>0?C.text:fd.roe!=null?C.dn:null},
-                    fd.dividendRate!=null&&{label:"Dividend",value:"$"+fmt(fd.dividendRate)+(fd.dividendYield!=null?" ("+(fd.dividendYield*100).toFixed(1)+"%)":"")},
-                    fd.exDivDate!=null&&{label:"Ex-Div",value:fd.exDivDate},
                   ]}),
-                  (fd.sector||fd.industry)&&e("div",{style:{background:C.surface,padding:"7px 10px",fontSize:"11px",color:C.muted,display:"flex",gap:"16px",borderTop:`1px solid ${C.border}`}},
+                  (fd.sector||fd.industry)&&e("div",{style:{background:C.surface,padding:"7px 10px",fontSize:"11px",color:C.muted,display:"flex",gap:"16px",flexWrap:"wrap",borderTop:`1px solid ${C.border}`}},
                     fd.sector&&e("span",null,e("span",{style:{color:C.faint}},"Sector · "),fd.sector),
-                    fd.industry&&e("span",null,e("span",{style:{color:C.faint}},"Industry · "),fd.industry)
+                    fd.industry&&e("span",null,e("span",{style:{color:C.faint}},"Industry · "),fd.industry),
+                    fd.location&&e("span",null,e("span",{style:{color:C.faint}},"HQ · "),fd.location)
                   )
                 )
               );
