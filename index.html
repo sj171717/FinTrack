@@ -1129,14 +1129,43 @@
         setShowAdd(false);
       };
 
-      // ── FUNDAMENTALS: financialdatasets.ai (server-side key via /api/fundamentals) ──
+      // ── FUNDAMENTALS: FD server-side + Yahoo quote client-side via proxy ──
       const fetchFundamentals=async(ticker)=>{
         if(!ticker||ticker==="Cash")return;
         setFundamentals(prev=>({...prev,[ticker]:{...prev[ticker],loading:true,error:null}}));
         try{
-          const data=await fetch(`/api/fundamentals?ticker=${encodeURIComponent(ticker)}`).then(r=>r.json());
-          if(data.error) setFundamentals(prev=>({...prev,[ticker]:{loading:false,error:data.error}}));
-          else setFundamentals(prev=>({...prev,[ticker]:{...data,loading:false,error:null}}));
+          const yhUrl=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}`;
+          const [fdRes,yhTxt]=await Promise.allSettled([
+            fetch(`/api/fundamentals?ticker=${encodeURIComponent(ticker)}`).then(r=>r.json()),
+            fetchViaProxy(yhUrl,8000),
+          ]);
+          const fd=fdRes.status==="fulfilled"&&!fdRes.value?.error?fdRes.value:{};
+          let yq=null;
+          if(yhTxt.status==="fulfilled"){
+            try{const d=JSON.parse(yhTxt.value);yq=d?.quoteResponse?.result?.[0]||null;}catch{}
+          }
+          const fmtDate=ts=>ts?new Date(ts*1000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):null;
+          setFundamentals(prev=>({...prev,[ticker]:{
+            marketCap:yq?.marketCap??null,
+            pe:yq?.trailingPE??null,
+            eps:fd?.eps??yq?.epsTrailingTwelveMonths??null,
+            beta:yq?.beta??null,
+            dividendRate:yq?.trailingAnnualDividendRate??null,
+            dividendYield:yq?.trailingAnnualDividendYield??null,
+            exDivDate:fmtDate(yq?.exDividendDate),
+            earningsDate:fmtDate(yq?.earningsTimestamp??yq?.earningsTimestampStart),
+            targetPrice:yq?.targetMeanPrice??null,
+            sector:yq?.sector??fd?.sector??null,
+            industry:yq?.industry??fd?.industry??null,
+            location:yq?.region??fd?.location??null,
+            revenue:fd?.revenue??null,
+            netIncome:fd?.netIncome??null,
+            grossProfit:fd?.grossProfit??null,
+            operatingIncome:fd?.operatingIncome??null,
+            debtToEquity:fd?.debtToEquity??null,
+            roe:fd?.roe??null,
+            loading:false,error:null,
+          }}));
         }catch(err){
           setFundamentals(prev=>({...prev,[ticker]:{loading:false,error:"Failed to load"}}));
         }
