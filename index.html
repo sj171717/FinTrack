@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinTrack</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#6366f1" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="FinTrack" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -1550,7 +1557,7 @@
             :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
           e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
             h.ticker!=="Cash"&&e("div",{
-              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker])fetchFundamentals(h.ticker);},
+              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.marketCap&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
               title:"View chart",style:{cursor:"pointer"}
             },
               holdingSparklines[h.ticker]?.pts?.length>=2
@@ -1683,7 +1690,7 @@
             const col=isUp?C.up:C.dn;
             const bg=isUp?C.upBg:C.dnBg;
             const bdr=isUp?C.upBorder:C.dnBorder;
-            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker])fetchFundamentals(h.ticker);},
+            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.marketCap&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
               style:{flex:"0 0 130px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"8px 10px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"border-color 0.12s"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
                 e("span",{style:{background:C.accentBg,color:C.accent,padding:"1px 6px",borderRadius:"4px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`}},h.ticker),
@@ -2373,22 +2380,26 @@
                 ),
                 fd?.error&&e("div",{style:{fontSize:"11px",color:C.dn}},fd.error),
                 fd&&!fd.loading&&!fd.error&&e(F,null,
-                  e("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"10px"}},
+                  e("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"8px"}},
+                    e(FundStat,{label:"Market Cap",value:fmtB(fd.marketCap)}),
+                    e(FundStat,{label:"P/E (TTM)",value:fd.pe!=null?fmt(fd.pe,1):"—"}),
                     e(FundStat,{label:"EPS (TTM)",value:fd.eps!=null?"$"+fmt(fd.eps):"—",color:fd.eps>0?C.up:fd.eps<0?C.dn:C.text}),
+                    e(FundStat,{label:"Beta",value:fd.beta!=null?fmt(fd.beta):"—",color:fd.beta!=null?(fd.beta>1.5?C.dn:fd.beta>1?C.warn:C.up):C.muted}),
                     e(FundStat,{label:"Revenue (TTM)",value:fmtB(fd.revenue)}),
-                    e(FundStat,{label:"Gross Profit",value:fmtB(fd.grossProfit),color:fd.grossProfit>0?C.up:fd.grossProfit<0?C.dn:C.text}),
-                    e(FundStat,{label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome>0?C.up:fd.netIncome<0?C.dn:C.text}),
-                    e(FundStat,{label:"Op. Income",value:fmtB(fd.operatingIncome),color:fd.operatingIncome>0?C.up:fd.operatingIncome<0?C.dn:C.text}),
-                    e(FundStat,{label:"Debt / Equity",value:fd.debtToEquity!=null?fmt(fd.debtToEquity):"—",color:fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:C.up}),
-                    e(FundStat,{label:"ROE",value:fd.roe!=null?fmt(fd.roe,1)+"%":"—",color:fd.roe>15?C.up:fd.roe>0?C.text:C.dn})
+                    e(FundStat,{label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome!=null?(fd.netIncome>0?C.up:C.dn):C.muted}),
+                    e(FundStat,{label:"Gross Profit",value:fmtB(fd.grossProfit)}),
+                    e(FundStat,{label:"Debt / Equity",value:fd.debtToEquity!=null?fmt(fd.debtToEquity):"—",color:fd.debtToEquity!=null?(fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:C.up):C.muted}),
+                    e(FundStat,{label:"ROE",value:fd.roe!=null?fmt(fd.roe,1)+"%":"—",color:fd.roe!=null?(fd.roe>15?C.up:fd.roe>0?C.text:C.dn):C.muted}),
+                    fd.dividendRate!=null&&e(FundStat,{label:"Dividend",value:"$"+fmt(fd.dividendRate)+(fd.dividendYield!=null?" ("+(fd.dividendYield*100).toFixed(2)+"%)":"")}),
+                    fd.targetPrice!=null&&e(FundStat,{label:"1Y Target",value:"$"+fmt(fd.targetPrice,0)}),
+                    fd.earningsDate!=null&&e(FundStat,{label:"Earnings Date",value:fd.earningsDate}),
+                    fd.exDivDate!=null&&e(FundStat,{label:"Ex-Div Date",value:fd.exDivDate})
                   ),
-                  (fd.sector||fd.industry||fd.exchange||fd.location)&&e("div",{style:{display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"11px",color:C.muted,marginBottom:fd.description?"8px":"0"}},
+                  (fd.sector||fd.industry||fd.exchange)&&e("div",{style:{display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"11px",color:C.muted,marginTop:"2px"}},
                     fd.sector&&e("span",null,e("span",{style:{color:C.faint}},"Sector: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.sector)),
                     fd.industry&&e("span",null,e("span",{style:{color:C.faint}},"Industry: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.industry)),
-                    fd.exchange&&e("span",null,e("span",{style:{color:C.faint}},"Exchange: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.exchange)),
-                    fd.location&&e("span",null,e("span",{style:{color:C.faint}},"HQ: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.location))
-                  ),
-                  fd.description&&e("div",{style:{fontSize:"11px",color:C.muted,lineHeight:"1.6",marginTop:"6px",maxHeight:"80px",overflowY:"auto"}},fd.description)
+                    fd.exchange&&e("span",null,e("span",{style:{color:C.faint}},"Exchange: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.exchange))
+                  )
                 )
               );
             })()
@@ -2453,6 +2464,13 @@
 
     ReactDOM.createRoot(document.getElementById("root")).render(e(FinTrack));
   })();
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      });
+    }
   </script>
 </body>
 </html>
