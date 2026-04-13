@@ -2382,6 +2382,8 @@
                 fd?.error&&e("div",{style:{fontSize:"11px",color:C.dn}},fd.error),
                 fd&&!fd.loading&&!fd.error&&e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"8px",overflow:"hidden"}},
                   e(Row,{items:[
+                    {label:"Market Cap",value:fmtB(fd.marketCap)},
+                    {label:"Beta",value:fd.beta!=null?fmt(fd.beta,2):"—",color:fd.beta>1.5?C.dn:fd.beta>1?C.warn:fd.beta!=null?C.up:null},
                     {label:"EPS (TTM)",value:fd.eps!=null?"$"+fmt(fd.eps):"—",color:fd.eps>0?C.up:fd.eps<0?C.dn:null},
                     {label:"Revenue",value:fmtB(fd.revenue)},
                     {label:"Gross Profit",value:fmtB(fd.grossProfit)},
