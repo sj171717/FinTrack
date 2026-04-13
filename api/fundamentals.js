@@ -102,17 +102,24 @@ module.exports = async (req, res) => {
     const needsYahoo = !result || result.eps == null || result.revenue == null;
     if (needsYahoo) {
       const yf = await fetchFromYahoo(ticker);
-      if (!result) {
-        result = yf;
-      } else {
-        // Merge: use Yahoo values where FD returned null
-        for (const k of Object.keys(result)) {
-          if (result[k] == null && yf[k] != null) result[k] = yf[k];
+      if (yf) {
+        if (!result) {
+          result = yf;
+        } else {
+          // Merge: use Yahoo values where FD returned null
+          for (const k of Object.keys(result)) {
+            if (result[k] == null && yf[k] != null) result[k] = yf[k];
+          }
         }
       }
     }
 
-    res.status(200).json(result || { error: "No data found" });
+    if (!result) {
+      // Debug: try Yahoo directly and return raw
+      const raw = await fetchJson(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}`, {"User-Agent":"Mozilla/5.0","Accept":"application/json","Referer":"https://finance.yahoo.com/"});
+      return res.status(200).json({ error: "No data", _yahooRaw: raw?.quoteResponse?.result?.[0] });
+    }
+    res.status(200).json(result);
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
