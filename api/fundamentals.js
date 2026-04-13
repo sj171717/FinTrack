@@ -57,9 +57,9 @@ async function fetchYahooSummary(ticker, host) {
   const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}`;
   const data = await fetchViaProxy(host, url);
   const q = data?.quoteResponse?.result?.[0];
-  if (!q) return null;
+  if (!q) return { _debug: data };
   const fmtDate = ts => ts ? new Date(ts * 1000).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"}) : null;
-  return {
+  return { _qKeys: Object.keys(q),
     marketCap: q.marketCap ?? null,
     pe: q.trailingPE ?? null,
     eps: q.epsTrailingTwelveMonths ?? null,
