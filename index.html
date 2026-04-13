@@ -930,6 +930,9 @@
       const [apiKey,setApiKey]=useState("");
       const [showKeyModal,setShowKeyModal]=useState(false);
       const [keyInput,setKeyInput]=useState("");
+      const [fdApiKey,setFdApiKey]=useState("");
+      const [fdKeyInput,setFdKeyInput]=useState("");
+      const [fundamentals,setFundamentals]=useState({}); // {[ticker]: {pe,eps,revenue,netIncome,marketCap,debtToEquity,roe,loading,error}}
 
       const [chartType,setChartType]=useState("line");
       const [portfolioModal,setPortfolioModal]=useState(null);
@@ -993,6 +996,7 @@
             if(data?.notes) setStrategyNotes(data.notes);
             if(data?.yearGoal!=null) setYearGoal(data.yearGoal);
             try{ const k=localStorage.getItem("ft-apikey"); if(k)setApiKey(k); }catch{}
+            try{ const k=localStorage.getItem("ft-fdkey"); if(k){setFdApiKey(k);setFdKeyInput(k);} }catch{}
           } catch { setHoldings([]); }
         })();
       },[user]);
@@ -1119,6 +1123,40 @@
         if(user) fbDb.collection("users").doc(user.uid).set({holdings:updated},{merge:true}).catch(()=>{});
         setNewRow({ticker:"",avgCost:"",qty:"",currentPrice:"",ytdStartPrice:"",targetPrice:"",notes:""});
         setShowAdd(false);
+      };
+
+      // ── FUNDAMENTALS: financialdatasets.ai ──
+      const fetchFundamentals=async(ticker)=>{
+        if(!fdApiKey||!ticker||ticker==="Cash")return;
+        setFundamentals(prev=>({...prev,[ticker]:{...prev[ticker],loading:true,error:null}}));
+        const FD="https://api.financialdatasets.ai";
+        const hdrs={"x-api-key":fdApiKey};
+        try{
+          const [incR,balR,factR]=await Promise.allSettled([
+            fetch(`/api/proxy?url=${encodeURIComponent(`${FD}/financials/income-statements/?ticker=${ticker}&period=ttm&limit=1`)}`,{headers:hdrs}).then(r=>r.json()),
+            fetch(`/api/proxy?url=${encodeURIComponent(`${FD}/financials/balance-sheets/?ticker=${ticker}&period=ttm&limit=1`)}`,{headers:hdrs}).then(r=>r.json()),
+            fetch(`/api/proxy?url=${encodeURIComponent(`${FD}/company/facts/?ticker=${ticker}`)}`,{headers:hdrs}).then(r=>r.json()),
+          ]);
+          const inc=incR.status==="fulfilled"?incR.value?.income_statements?.[0]:null;
+          const bal=balR.status==="fulfilled"?balR.value?.balance_sheets?.[0]:null;
+          const facts=factR.status==="fulfilled"?factR.value?.company_facts:null;
+          const revenue=inc?.revenue??null;
+          const netIncome=inc?.net_income??null;
+          const eps=inc?.earnings_per_share_basic??null;
+          const totalDebt=(bal?.long_term_debt??0)+(bal?.short_term_debt??0);
+          const equity=bal?.shareholders_equity??null;
+          const debtToEquity=(equity&&equity>0)?totalDebt/equity:null;
+          const roe=(equity&&equity>0&&netIncome!=null)?netIncome/equity*100:null;
+          const marketCap=facts?.market_cap??null;
+          const pe=facts?.pe_ratio??null;
+          const description=facts?.description??null;
+          const sector=facts?.sector??null;
+          const industry=facts?.industry??null;
+          const employees=facts?.employees??null;
+          setFundamentals(prev=>({...prev,[ticker]:{pe,eps,revenue,netIncome,marketCap,debtToEquity,roe,description,sector,industry,employees,loading:false,error:null}}));
+        }catch(err){
+          setFundamentals(prev=>({...prev,[ticker]:{loading:false,error:"Failed to load"}}));
+        }
       };
 
       // ── PRICES: Yahoo Finance (no API key needed) ──
@@ -1536,7 +1574,7 @@
             :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
           e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
             h.ticker!=="Cash"&&e("div",{
-              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");},
+              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(fdApiKey&&!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
               title:"View chart",style:{cursor:"pointer"}
             },
               holdingSparklines[h.ticker]?.pts?.length>=2
@@ -1669,7 +1707,7 @@
             const col=isUp?C.up:C.dn;
             const bg=isUp?C.upBg:C.dnBg;
             const bdr=isUp?C.upBorder:C.dnBorder;
-            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");},
+            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(fdApiKey&&!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
               style:{flex:"0 0 130px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"8px 10px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"border-color 0.12s"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
                 e("span",{style:{background:C.accentBg,color:C.accent,padding:"1px 6px",borderRadius:"4px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`}},h.ticker),
@@ -2265,13 +2303,24 @@
         showKeyModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.45)"},onClick:()=>setShowKeyModal(false)},
           e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"6px",padding:"1.5rem",width:"440px",maxWidth:"92vw",boxShadow:"0 20px 60px rgba(0,0,0,0.15)"}},
             e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,marginBottom:"4px"}},"Anthropic API Key"),
-            e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"14px",lineHeight:"1.55"}},"Required only for the AI Analysis tab. Prices and news work without a key. Saved to ",e("code",{style:{background:C.tag,padding:"1px 5px",borderRadius:"3px"}},"localStorage"),"."),
+            e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"10px",lineHeight:"1.55"}},"Required only for the AI Analysis tab. Prices and news work without a key. Saved to ",e("code",{style:{background:C.tag,padding:"1px 5px",borderRadius:"3px"}},"localStorage"),"."),
             e("input",{type:"password",placeholder:"sk-ant-...",value:keyInput,onChange:ev=>setKeyInput(ev.target.value),
               onKeyDown:ev=>{ if(ev.key==="Enter"){setApiKey(keyInput);storage.set("ft-apikey",keyInput);setShowKeyModal(false);} },
               style:{background:C.surfaceAlt,border:`1.5px solid ${C.accent}`,color:C.text,borderRadius:"8px",padding:"9px 12px",fontSize:"13px",width:"100%",outline:"none",fontFamily:"monospace",boxSizing:"border-box",boxShadow:`0 0 0 3px ${C.accentBg}`},autoFocus:true}),
-            e("div",{style:{display:"flex",gap:"8px",marginTop:"12px"}},
+            e("div",{style:{display:"flex",gap:"8px",marginTop:"10px",marginBottom:"18px"}},
               e("button",{onClick:()=>{setApiKey(keyInput);storage.set("ft-apikey",keyInput);setShowKeyModal(false);},style:BS("p")},"Save"),
               apiKey&&e("button",{onClick:()=>{setApiKey("");setKeyInput("");storage.set("ft-apikey","");setShowKeyModal(false);},style:{...BS(),color:C.dn,borderColor:C.dnBorder}},"Remove"),
+              e("button",{onClick:()=>setShowKeyModal(false),style:BS()},"Cancel")
+            ),
+            e("div",{style:{borderTop:`1px solid ${C.border}`,paddingTop:"16px"}}),
+            e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,marginBottom:"4px"}},"financialdatasets.ai API Key"),
+            e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"10px",lineHeight:"1.55"}},"Optional. Enables fundamentals (P/E, EPS, revenue, etc.) in each stock's detail view. Free tier at ",e("span",{style:{color:C.accent}},"financialdatasets.ai"),"."),
+            e("input",{type:"password",placeholder:"fd_live_...",value:fdKeyInput,onChange:ev=>setFdKeyInput(ev.target.value),
+              onKeyDown:ev=>{ if(ev.key==="Enter"){setFdApiKey(fdKeyInput);try{localStorage.setItem("ft-fdkey",fdKeyInput);}catch{}setShowKeyModal(false);} },
+              style:{background:C.surfaceAlt,border:`1.5px solid ${C.border}`,color:C.text,borderRadius:"8px",padding:"9px 12px",fontSize:"13px",width:"100%",outline:"none",fontFamily:"monospace",boxSizing:"border-box"}}),
+            e("div",{style:{display:"flex",gap:"8px",marginTop:"10px"}},
+              e("button",{onClick:()=>{setFdApiKey(fdKeyInput);try{localStorage.setItem("ft-fdkey",fdKeyInput);}catch{}setShowKeyModal(false);},style:BS("p")},"Save"),
+              fdApiKey&&e("button",{onClick:()=>{setFdApiKey("");setFdKeyInput("");try{localStorage.removeItem("ft-fdkey");}catch{}setShowKeyModal(false);},style:{...BS(),color:C.dn,borderColor:C.dnBorder}},"Remove"),
               e("button",{onClick:()=>setShowKeyModal(false),style:BS()},"Cancel")
             )
           )
@@ -2337,7 +2386,42 @@
                   if(chartType==="candle"&&portfolioModal.ohlc&&portfolioModal.ohlc.length>=2)
                     return e(CandlestickChart,{candles:portfolioModal.ohlc,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320});
                   return e(LargeChart,{pts:portfolioModal.series||[],color:modalColor,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320,ohlc:portfolioModal.ohlc});
-                })()
+                })(),
+            // ── Fundamentals panel ──
+            fdApiKey&&(()=>{
+              const fd=fundamentals[portfolioModal.ticker];
+              const fmt=(v,decimals=2)=>v==null?"—":typeof v==="number"?$n(v,decimals):v;
+              const fmtB=(v)=>v==null?"—":"$"+$n(v/1e9,2)+"B";
+              const FundStat=({label,value,color})=>e("div",{style:{background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"10px 14px",flex:"1 1 100px",minWidth:"90px"}},
+                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",fontWeight:"600",marginBottom:"4px"}},label),
+                e("div",{style:{fontSize:"16px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:1}},value)
+              );
+              return e("div",{style:{marginTop:"16px",borderTop:`1px solid ${C.border}`,paddingTop:"14px"}},
+                e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}},
+                  e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase"}},"Fundamentals · financialdatasets.ai"),
+                  fd?.loading&&e("div",{style:{width:"12px",height:"12px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),
+                  !fd&&!fd?.loading&&e("button",{onClick:()=>fetchFundamentals(portfolioModal.ticker),style:{...BS(),fontSize:"10px",padding:"3px 10px"}},"Load")
+                ),
+                fd?.error&&e("div",{style:{fontSize:"11px",color:C.dn}},fd.error),
+                fd&&!fd.loading&&!fd.error&&e(F,null,
+                  e("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"10px"}},
+                    e(FundStat,{label:"P/E Ratio",value:fd.pe!=null?fmt(fd.pe,1):"—"}),
+                    e(FundStat,{label:"EPS (TTM)",value:fd.eps!=null?"$"+fmt(fd.eps):"—",color:fd.eps>0?C.up:fd.eps<0?C.dn:C.text}),
+                    e(FundStat,{label:"Revenue (TTM)",value:fmtB(fd.revenue)}),
+                    e(FundStat,{label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome>0?C.up:fd.netIncome<0?C.dn:C.text}),
+                    e(FundStat,{label:"Market Cap",value:fmtB(fd.marketCap)}),
+                    e(FundStat,{label:"Debt / Equity",value:fd.debtToEquity!=null?fmt(fd.debtToEquity):"—",color:fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:C.up}),
+                    e(FundStat,{label:"ROE",value:fd.roe!=null?fmt(fd.roe,1)+"%":"—",color:fd.roe>15?C.up:fd.roe>0?C.text:C.dn})
+                  ),
+                  (fd.sector||fd.industry||fd.employees)&&e("div",{style:{display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"11px",color:C.muted,marginBottom:fd.description?"8px":"0"}},
+                    fd.sector&&e("span",null,e("span",{style:{color:C.faint}},"Sector: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.sector)),
+                    fd.industry&&e("span",null,e("span",{style:{color:C.faint}},"Industry: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.industry)),
+                    fd.employees&&e("span",null,e("span",{style:{color:C.faint}},"Employees: "),e("span",{style:{color:C.text,fontWeight:"500"}},$n(fd.employees,0)))
+                  ),
+                  fd.description&&e("div",{style:{fontSize:"11px",color:C.muted,lineHeight:"1.6",marginTop:"6px",maxHeight:"80px",overflowY:"auto"}},fd.description)
+                )
+              );
+            })()
           )
         ),
 
