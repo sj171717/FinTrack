@@ -1550,7 +1550,7 @@
             :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
           e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
             h.ticker!=="Cash"&&e("div",{
-              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
+              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker])fetchFundamentals(h.ticker);},
               title:"View chart",style:{cursor:"pointer"}
             },
               holdingSparklines[h.ticker]?.pts?.length>=2
@@ -1683,7 +1683,7 @@
             const col=isUp?C.up:C.dn;
             const bg=isUp?C.upBg:C.dnBg;
             const bdr=isUp?C.upBorder:C.dnBorder;
-            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
+            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker])fetchFundamentals(h.ticker);},
               style:{flex:"0 0 130px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"8px 10px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"border-color 0.12s"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
                 e("span",{style:{background:C.accentBg,color:C.accent,padding:"1px 6px",borderRadius:"4px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`}},h.ticker),
