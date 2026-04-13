@@ -367,12 +367,10 @@
       );
     }
 
-    const TH=({c,right,hide,adv,tableView})=>{
-      if(adv&&tableView!=="advanced") return null;
+    const TH=({c,right,hide})=>{
       return e("th",{className:hide?"mob-hide":undefined,style:{padding:"10px 14px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"600",fontSize:"10px",letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
     };
-    const TD=({children,right,style:s,hide,adv,tableView})=>{
-      if(adv&&tableView!=="advanced") return null;
+    const TD=({children,right,style:s,hide})=>{
       return e("td",{className:hide?"mob-hide":undefined,style:{padding:"11px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
     };
 
@@ -916,7 +914,6 @@
       const [priceFetchTrigger,setPriceFetchTrigger]=useState(null);
       const dragIdx=useRef(null);
       const [hidden,setHidden]=useState(false);
-      const [tableView,setTableView]=useState("overview"); // "overview" | "advanced"
       const [aiQ,setAiQ]=useState("");
       const [aiResp,setAiResp]=useState(null);
       const [aiLoading,setAiLoading]=useState(false);
@@ -1863,12 +1860,6 @@
                 "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})
               ),
               e("div",{style:{display:"flex",gap:"6px",width:isMobile?"100%":"auto",alignItems:"center",flexWrap:"wrap"}},
-                e("div",{style:{display:"flex",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"2px",gap:"2px"}},
-                  ["overview","advanced"].map(v=>e("button",{key:v,onClick:()=>setTableView(v),
-                    style:{padding:"4px 10px",border:"none",borderRadius:"6px",cursor:"pointer",fontSize:"11px",fontFamily:"inherit",fontWeight:tableView===v?"600":"400",
-                      background:tableView===v?C.surface:"transparent",color:tableView===v?C.text:C.muted,
-                      boxShadow:tableView===v?"0 1px 3px rgba(0,0,0,0.12)":"none",transition:"all 0.15s",textTransform:"capitalize"}},v))
-                ),
                 e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"6px",flex:isMobile?"1":"none",justifyContent:"center",opacity:priceLoading?0.7:1},onClick:fetchPrices,disabled:priceLoading},
                   e("svg",{width:"12",height:"12",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:priceLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"8,1 11,1 11,4"})),
                   priceLoading?"Fetching…":"Refresh"
