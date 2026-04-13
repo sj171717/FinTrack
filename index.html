@@ -583,8 +583,10 @@
       );
     }
 
-    function PortfolioChart({pts,timestamps,period,change,totalVal,hidden,loading,chartPeriod,setChartPeriod}){
+    function PortfolioChart({pts,timestamps,period,change,totalVal,hidden,loading,chartPeriod,setChartPeriod,yearGoal,onGoalChange,ytdStartVal}){
       const [hoverIdx,setHoverIdx]=useState(null);
+      const [editingGoal,setEditingGoal]=useState(false);
+      const [goalInput,setGoalInput]=useState("");
       const color=change>=0?C.up:C.dn;
       const PERIODS_PC=["1W","1M","YTD","1Y","ALL"];
       const W=800,H=320,PL=4,PR=60,PT=12,PB=24,cw=W-PL-PR,ch=H-PT-PB;
@@ -597,7 +599,13 @@
       // Chart path
       const chartContent=(()=>{
         if(!pts||pts.length<2)return null;
-        const mn=Math.min(...pts),mx=Math.max(...pts),rng=mx-mn||mn*0.01||1;
+        // Goal value: based on Jan 1 portfolio value (ytdStartVal) for YTD/1Y, else pts[0]
+        const goalBaseVal=((chartPeriod==="YTD"||chartPeriod==="1Y")&&ytdStartVal)?ytdStartVal:pts[0];
+        const goalVal=(yearGoal!=null&&goalBaseVal)?goalBaseVal*(1+yearGoal/100):null;
+        const rawMn=Math.min(...pts),rawMx=Math.max(...pts);
+        const mn=goalVal!=null?Math.min(rawMn,goalVal*0.995):rawMn;
+        const mx=goalVal!=null?Math.max(rawMx,goalVal*1.005):rawMx;
+        const rng=mx-mn||mn*0.01||1;
         const cx=(v,i)=>PL+(i/(pts.length-1))*cw;
         const cy=v=>PT+ch-((v-mn)/rng)*ch;
         const coords=pts.map((v,i)=>({x:cx(v,i),y:cy(v)}));
@@ -605,6 +613,8 @@
         const areaPath=linePath+" L"+coords[coords.length-1].x+","+(PT+ch)+" L"+coords[0].x+","+(PT+ch)+" Z";
         const yLbls=[mn,(mn+mx)/2,mx].map(v=>({v,y:cy(v)}));
         const axisColor="#94a3b8";
+        const goalY=goalVal!=null?cy(goalVal):null;
+        const goalColor="#f59e0b";
 
         // X-axis labels: 5 evenly spaced
         const xLblCount=5;
@@ -640,6 +650,13 @@
               e("stop",{offset:"100%",stopColor:color,stopOpacity:"0"}))),
             e("path",{d:areaPath,fill:"url(#pcg)"}),
             e("path",{d:linePath,fill:"none",stroke:color,strokeWidth:"2",strokeLinecap:"round",strokeLinejoin:"round"}),
+            // Goal line
+            goalY!=null&&goalY>=PT&&goalY<=PT+ch&&e(F,null,
+              e("line",{x1:PL,y1:goalY,x2:W-PR,y2:goalY,stroke:goalColor,strokeWidth:"1.5",strokeDasharray:"5 4",opacity:"0.85"}),
+              e("text",{x:W-PR+6,y:Math.max(PT+8,Math.min(PT+ch-2,goalY+4)),fontSize:"9",fill:goalColor,fontFamily:"inherit",fontWeight:"600"},
+                "$"+goalVal.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})),
+              e("text",{x:PL+4,y:Math.max(PT+8,goalY-4),fontSize:"8",fill:goalColor,fontFamily:"inherit",fontWeight:"600"},"GOAL")
+            ),
             // Y axis labels (3: min, mid, max)
             ...yLbls.map((l,i)=>e("text",{key:"y"+i,x:W-PR+6,y:Math.max(PT+8,Math.min(PT+ch-2,l.y+4)),fontSize:"9",fill:axisColor,fontFamily:"inherit"},
               "$"+l.v.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0}))),
@@ -675,7 +692,49 @@
               change>=0?"↗ +":"↘ ",(change>=0?change:-Math.abs(change)).toFixed(2)+"%"
             )
           ),
-          hDate&&e("div",{style:{fontSize:"11px",color:C.muted,marginTop:"8px",fontWeight:"500",letterSpacing:"0.04em"}},hDate)
+          hDate&&e("div",{style:{fontSize:"11px",color:C.muted,marginTop:"8px",fontWeight:"500",letterSpacing:"0.04em"}},hDate),
+          // Goal progress
+          e("div",{style:{marginTop:"14px",display:"flex",flexDirection:"column",alignItems:"center",gap:"6px"}},
+            editingGoal
+              ? e("div",{style:{display:"flex",gap:"6px",alignItems:"center"}},
+                  e("input",{autoFocus:true,type:"number",min:"0",max:"1000",step:"0.1",value:goalInput,
+                    onChange:ev=>setGoalInput(ev.target.value),
+                    onKeyDown:ev=>{
+                      if(ev.key==="Enter"){const v=parseFloat(goalInput);onGoalChange(isNaN(v)?null:v);setEditingGoal(false);}
+                      if(ev.key==="Escape"){setEditingGoal(false);}
+                    },
+                    style:{width:"80px",padding:"4px 8px",border:`1.5px solid ${C.accent}`,borderRadius:"6px",fontSize:"12px",fontFamily:"inherit",textAlign:"center",background:C.surface,color:C.text}}),
+                  e("span",{style:{fontSize:"12px",color:C.muted}},"%"),
+                  e("button",{onClick:()=>{const v=parseFloat(goalInput);onGoalChange(isNaN(v)?null:v);setEditingGoal(false);},
+                    style:{padding:"4px 10px",border:"none",borderRadius:"6px",background:C.accent,color:"#fff",cursor:"pointer",fontSize:"11px",fontFamily:"inherit",fontWeight:"600"}},"Set"),
+                  yearGoal!=null&&e("button",{onClick:()=>{onGoalChange(null);setEditingGoal(false);},
+                    style:{padding:"4px 10px",border:`1px solid ${C.border}`,borderRadius:"6px",background:"transparent",color:C.muted,cursor:"pointer",fontSize:"11px",fontFamily:"inherit"}},"Clear")
+                )
+              : yearGoal!=null
+                ? e("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:"4px",cursor:"pointer"},onClick:()=>{setGoalInput(yearGoal.toString());setEditingGoal(true);}},
+                    e("div",{style:{fontSize:"10px",color:"#f59e0b",fontWeight:"600",letterSpacing:"0.06em",textTransform:"uppercase"}},"1Y Goal: +"+yearGoal+"%"),
+                    e("div",{style:{width:"200px",height:"6px",background:C.border,borderRadius:"3px",overflow:"hidden"}},
+                      (()=>{
+                        const base=(ytdStartVal&&(chartPeriod==="YTD"||chartPeriod==="1Y"))?ytdStartVal:pts?.[0];
+                        const current=totalVal,target=base?(base*(1+yearGoal/100)):null;
+                        const prog=base&&target?(current-base)/(target-base)*100:0;
+                        const clampedProg=Math.max(0,Math.min(120,prog));
+                        const barColor=prog>=100?C.up:prog>=50?"#f59e0b":C.muted;
+                        return e("div",{style:{height:"100%",width:clampedProg+"%",background:barColor,borderRadius:"3px",transition:"width 0.4s ease"}});
+                      })()
+                    ),
+                    (()=>{
+                      const base=(ytdStartVal&&(chartPeriod==="YTD"||chartPeriod==="1Y"))?ytdStartVal:pts?.[0];
+                      const current=totalVal,target=base?(base*(1+yearGoal/100)):null;
+                      const prog=base&&target?(current-base)/(target-base)*100:0;
+                      return e("div",{style:{fontSize:"10px",color:C.muted}},
+                        prog>=100?"Goal reached! 🎯":prog.toFixed(0)+"% of way to goal"
+                      );
+                    })()
+                  )
+                : e("button",{onClick:()=>{setGoalInput("");setEditingGoal(true);},
+                    style:{fontSize:"11px",color:C.muted,background:"transparent",border:`1px dashed ${C.border}`,borderRadius:"6px",padding:"3px 12px",cursor:"pointer",fontFamily:"inherit"}},"+ Set 1Y return goal")
+          )
         ),
         // Chart
         pts&&pts.length>=2
@@ -929,6 +988,7 @@
       const [riskPeriod,setRiskPeriod]=useState("1M");
       const [holdingRiskMetrics,setHoldingRiskMetrics]=useState({}); // {[ticker]:{sharpe,beta}}
       const [strategyNotes,setStrategyNotes]=useState("");
+      const [yearGoal,setYearGoal]=useState(null); // % e.g. 15 means 15%
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
       const [lotsModal,setLotsModal]=useState(null); // {holding, newBuy:{date,price,qty}, newSell:{date,price,qty}}
@@ -977,6 +1037,7 @@
               } catch { setHoldings([]); }
             }
             if(data?.notes) setStrategyNotes(data.notes);
+            if(data?.yearGoal!=null) setYearGoal(data.yearGoal);
             try{ const k=localStorage.getItem("ft-apikey"); if(k)setApiKey(k); }catch{}
           } catch { setHoldings([]); }
         })();
@@ -1749,7 +1810,10 @@
             period:portfolioChartPeriod,change:portfolioChange,
             totalVal,hidden,loading:portfolioChartLoading,
             chartPeriod:portfolioChartPeriod,
-            setChartPeriod:(p)=>{setPortfolioChartPeriod(p);}
+            setChartPeriod:(p)=>{setPortfolioChartPeriod(p);},
+            yearGoal,
+            ytdStartVal:ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0),
+            onGoalChange:(v)=>{setYearGoal(v);if(user)fbDb.collection("users").doc(user.uid).set({yearGoal:v},{merge:true}).catch(()=>{});}
           }),
 
           // ── Risk Metrics ──
