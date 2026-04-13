@@ -54,31 +54,32 @@ async function fetchFromFD(ticker, apiKey) {
 }
 
 async function fetchFromYahoo(ticker) {
-  const yh = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36", "Accept": "application/json", "Referer": "https://finance.yahoo.com/" };
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=financialData,defaultKeyStatistics,summaryProfile,incomeStatementHistory`;
+  const yh = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+    "Origin": "https://finance.yahoo.com",
+  };
+  // v7 quote endpoint — no crumb needed
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=trailingEps,epsTrailingTwelveMonths,totalRevenue,netIncomeToCommon,grossProfits,operatingCashflow,debtToEquity,returnOnEquity,revenuePerShare,sector,industry,country,financialCurrency`;
   const data = await fetchJson(url, yh);
-  const fin = data?.quoteSummary?.result?.[0]?.financialData;
-  const stats = data?.quoteSummary?.result?.[0]?.defaultKeyStatistics;
-  const profile = data?.quoteSummary?.result?.[0]?.summaryProfile;
-  const inc = data?.quoteSummary?.result?.[0]?.incomeStatementHistory?.incomeStatementHistory?.[0];
-  const revenue = fin?.totalRevenue?.raw ?? null;
-  const netIncome = fin?.netIncomeToCommon?.raw ?? null;
-  const equity = fin?.returnOnEquity?.raw != null && fin?.returnOnEquity?.raw !== 0
-    ? (netIncome != null ? netIncome / fin.returnOnEquity.raw : null)
-    : null;
-  const totalDebt = fin?.totalDebt?.raw ?? null;
+  const q = data?.quoteResponse?.result?.[0];
+  if (!q) return null;
+  const roe = q.returnOnEquity != null ? q.returnOnEquity * 100 : null;
+  const d2e = q.debtToEquity != null ? q.debtToEquity / 100 : null;
   return {
-    eps: stats?.trailingEps?.raw ?? null,
-    revenue,
-    netIncome,
-    grossProfit: inc?.grossProfit?.raw ?? null,
-    operatingIncome: fin?.operatingCashflow?.raw ?? inc?.totalOperatingExpenses?.raw ?? null,
-    debtToEquity: fin?.debtToEquity?.raw != null ? fin.debtToEquity.raw / 100 : null,
-    roe: fin?.returnOnEquity?.raw != null ? fin.returnOnEquity.raw * 100 : null,
-    sector: profile?.sector ?? null,
-    industry: profile?.industry ?? null,
+    eps: q.epsTrailingTwelveMonths ?? q.trailingEps ?? null,
+    revenue: q.totalRevenue ?? null,
+    netIncome: q.netIncomeToCommon ?? null,
+    grossProfit: q.grossProfits ?? null,
+    operatingIncome: q.operatingCashflow ?? null,
+    debtToEquity: d2e,
+    roe,
+    sector: q.sector ?? null,
+    industry: q.industry ?? null,
     exchange: null,
-    location: profile?.country ?? null,
+    location: q.country ?? null,
   };
 }
 
