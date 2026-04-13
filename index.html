@@ -1806,7 +1806,40 @@
             e(MetCard,{label:"Portfolio Value",value:hidden?MASK:"$"+$n(totalVal,0),style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             e(MetCard,{label:"Total Return",value:hidden?MASK:sign(totalGL)+"$"+$n(Math.abs(totalGL),0),color:hidden?C.muted:pc(totalGL),sub:hidden?MASK:sign(totalGLPct)+$n(Math.abs(totalGLPct),1)+"% · incl. realized",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             e(MetCard,{label:"YTD Gain / Loss",value:hidden?MASK:sign(ytdGL)+"$"+$n(Math.abs(ytdGL),0),color:hidden?C.muted:pc(ytdGL),sub:hidden?MASK:sign(ytdPct)+$n(Math.abs(ytdPct),1)+"% this year",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
-            e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}})
+            e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
+            (()=>{
+              const base=ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0);
+              const goalTargetVal=yearGoal!=null&&base?base*(1+yearGoal/100):null;
+              const ytdPctNow=base?((totalVal-base)/base*100):0;
+              const prog=yearGoal?Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100)):0;
+              const retColor=yearGoal!=null&&ytdPctNow>=yearGoal?C.up:ytdPctNow>=0?C.text:C.dn;
+              return e("div",{
+                style:{background:C.surface,border:`1px solid ${yearGoal!=null?"#f59e0b":C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",cursor:"pointer",position:"relative",overflow:"hidden"},
+                onClick:()=>{
+                  const g=window.prompt("Set YTD return goal (%)",yearGoal??15);
+                  if(g===null)return;
+                  const v=parseFloat(g);
+                  const val=isNaN(v)?null:v;
+                  setYearGoal(val);
+                  if(user)fbDb.collection("users").doc(user.uid).set({yearGoal:val},{merge:true}).catch(()=>{});
+                }
+              },
+                e("div",{style:{fontSize:"9px",color:"#f59e0b",letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"YTD Goal"+(yearGoal!=null?" · +"+yearGoal+"%":"")),
+                yearGoal!=null
+                  ? e("div",null,
+                      e("div",{style:{display:"flex",alignItems:"baseline",gap:"8px"}},
+                        e("div",{style:{fontSize:"19px",fontWeight:"700",color:retColor,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},hidden?MASK:"$"+$n(goalTargetVal,0)),
+                        e("span",{style:{fontSize:"11px",color:retColor,fontWeight:"600"}},(ytdPctNow>=0?"+":"")+ytdPctNow.toFixed(1)+"% now")
+                      ),
+                      e("div",{style:{marginTop:"6px",height:"4px",background:C.border,borderRadius:"2px",overflow:"hidden"}},
+                        e("div",{style:{height:"100%",width:prog+"%",background:ytdPctNow>=yearGoal?C.up:"#f59e0b",borderRadius:"2px",transition:"width 0.4s ease"}})
+                      ),
+                      e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
+                        ytdPctNow>=yearGoal?"Goal reached! 🎯":"Need +"+(yearGoal-ytdPctNow).toFixed(1)+"% more")
+                    )
+                  : e("div",{style:{fontSize:"13px",color:C.muted,marginTop:"4px"}},"Click to set goal")
+              );
+            })()
           ),
 
 
