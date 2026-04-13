@@ -930,8 +930,6 @@
       const [apiKey,setApiKey]=useState("");
       const [showKeyModal,setShowKeyModal]=useState(false);
       const [keyInput,setKeyInput]=useState("");
-      const [fdApiKey,setFdApiKey]=useState("");
-      const [fdKeyInput,setFdKeyInput]=useState("");
       const [fundamentals,setFundamentals]=useState({}); // {[ticker]: {pe,eps,revenue,netIncome,marketCap,debtToEquity,roe,loading,error}}
 
       const [chartType,setChartType]=useState("line");
@@ -996,7 +994,6 @@
             if(data?.notes) setStrategyNotes(data.notes);
             if(data?.yearGoal!=null) setYearGoal(data.yearGoal);
             try{ const k=localStorage.getItem("ft-apikey"); if(k)setApiKey(k); }catch{}
-            try{ const k=localStorage.getItem("ft-fdkey"); if(k){setFdApiKey(k);setFdKeyInput(k);} }catch{}
           } catch { setHoldings([]); }
         })();
       },[user]);
@@ -1125,35 +1122,14 @@
         setShowAdd(false);
       };
 
-      // ── FUNDAMENTALS: financialdatasets.ai ──
+      // ── FUNDAMENTALS: financialdatasets.ai (server-side key via /api/fundamentals) ──
       const fetchFundamentals=async(ticker)=>{
-        if(!fdApiKey||!ticker||ticker==="Cash")return;
+        if(!ticker||ticker==="Cash")return;
         setFundamentals(prev=>({...prev,[ticker]:{...prev[ticker],loading:true,error:null}}));
-        const FD="https://api.financialdatasets.ai";
-        const hdrs={"x-api-key":fdApiKey};
         try{
-          const [incR,balR,factR]=await Promise.allSettled([
-            fetch(`/api/proxy?url=${encodeURIComponent(`${FD}/financials/income-statements/?ticker=${ticker}&period=ttm&limit=1`)}`,{headers:hdrs}).then(r=>r.json()),
-            fetch(`/api/proxy?url=${encodeURIComponent(`${FD}/financials/balance-sheets/?ticker=${ticker}&period=ttm&limit=1`)}`,{headers:hdrs}).then(r=>r.json()),
-            fetch(`/api/proxy?url=${encodeURIComponent(`${FD}/company/facts/?ticker=${ticker}`)}`,{headers:hdrs}).then(r=>r.json()),
-          ]);
-          const inc=incR.status==="fulfilled"?incR.value?.income_statements?.[0]:null;
-          const bal=balR.status==="fulfilled"?balR.value?.balance_sheets?.[0]:null;
-          const facts=factR.status==="fulfilled"?factR.value?.company_facts:null;
-          const revenue=inc?.revenue??null;
-          const netIncome=inc?.net_income??null;
-          const eps=inc?.earnings_per_share_basic??null;
-          const totalDebt=(bal?.long_term_debt??0)+(bal?.short_term_debt??0);
-          const equity=bal?.shareholders_equity??null;
-          const debtToEquity=(equity&&equity>0)?totalDebt/equity:null;
-          const roe=(equity&&equity>0&&netIncome!=null)?netIncome/equity*100:null;
-          const marketCap=facts?.market_cap??null;
-          const pe=facts?.pe_ratio??null;
-          const description=facts?.description??null;
-          const sector=facts?.sector??null;
-          const industry=facts?.industry??null;
-          const employees=facts?.employees??null;
-          setFundamentals(prev=>({...prev,[ticker]:{pe,eps,revenue,netIncome,marketCap,debtToEquity,roe,description,sector,industry,employees,loading:false,error:null}}));
+          const data=await fetch(`/api/fundamentals?ticker=${encodeURIComponent(ticker)}`).then(r=>r.json());
+          if(data.error) setFundamentals(prev=>({...prev,[ticker]:{loading:false,error:data.error}}));
+          else setFundamentals(prev=>({...prev,[ticker]:{...data,loading:false,error:null}}));
         }catch(err){
           setFundamentals(prev=>({...prev,[ticker]:{loading:false,error:"Failed to load"}}));
         }
@@ -1574,7 +1550,7 @@
             :e(EditCell,{value:h.qty,onSave:v=>upd(h.id,"qty",v),prefix:"",hidden})),
           e(TD,{right:true},e("div",{style:{display:"flex",alignItems:"center",gap:"8px",justifyContent:"flex-end"}},
             h.ticker!=="Cash"&&e("div",{
-              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(fdApiKey&&!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
+              onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
               title:"View chart",style:{cursor:"pointer"}
             },
               holdingSparklines[h.ticker]?.pts?.length>=2
@@ -1707,7 +1683,7 @@
             const col=isUp?C.up:C.dn;
             const bg=isUp?C.upBg:C.dnBg;
             const bdr=isUp?C.upBorder:C.dnBorder;
-            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(fdApiKey&&!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
+            return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.pe&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
               style:{flex:"0 0 130px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"8px 10px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"border-color 0.12s"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
                 e("span",{style:{background:C.accentBg,color:C.accent,padding:"1px 6px",borderRadius:"4px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`}},h.ticker),
@@ -1757,7 +1733,7 @@
                 style:{display:"flex",alignItems:"center",gap:"5px",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:isMobile?"5px 8px":"5px 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"500"}},
                 darkMode?"Light":"Dark"
               ),
-              e("button",{onClick:()=>{setKeyInput(apiKey);setFdKeyInput(fdApiKey);setShowKeyModal(true);},title:"API Keys",
+              e("button",{onClick:()=>{setKeyInput(apiKey);setShowKeyModal(true);},title:"API Keys",
                 style:{display:"flex",alignItems:"center",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:"5px 8px",fontSize:"13px",fontFamily:"inherit"}},
                 "⚙"
               ),
@@ -2316,17 +2292,6 @@
               apiKey&&e("button",{onClick:()=>{setApiKey("");setKeyInput("");storage.set("ft-apikey","");setShowKeyModal(false);},style:{...BS(),color:C.dn,borderColor:C.dnBorder}},"Remove"),
               e("button",{onClick:()=>setShowKeyModal(false),style:BS()},"Cancel")
             ),
-            e("div",{style:{borderTop:`1px solid ${C.border}`,paddingTop:"16px"}}),
-            e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,marginBottom:"4px"}},"financialdatasets.ai API Key"),
-            e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"10px",lineHeight:"1.55"}},"Optional. Enables fundamentals (P/E, EPS, revenue, etc.) in each stock's detail view. Free tier at ",e("span",{style:{color:C.accent}},"financialdatasets.ai"),"."),
-            e("input",{type:"password",placeholder:"fd_live_...",value:fdKeyInput,onChange:ev=>setFdKeyInput(ev.target.value),
-              onKeyDown:ev=>{ if(ev.key==="Enter"){setFdApiKey(fdKeyInput);try{localStorage.setItem("ft-fdkey",fdKeyInput);}catch{}setShowKeyModal(false);} },
-              style:{background:C.surfaceAlt,border:`1.5px solid ${C.border}`,color:C.text,borderRadius:"8px",padding:"9px 12px",fontSize:"13px",width:"100%",outline:"none",fontFamily:"monospace",boxSizing:"border-box"}}),
-            e("div",{style:{display:"flex",gap:"8px",marginTop:"10px"}},
-              e("button",{onClick:()=>{setFdApiKey(fdKeyInput);try{localStorage.setItem("ft-fdkey",fdKeyInput);}catch{}setShowKeyModal(false);},style:BS("p")},"Save"),
-              fdApiKey&&e("button",{onClick:()=>{setFdApiKey("");setFdKeyInput("");try{localStorage.removeItem("ft-fdkey");}catch{}setShowKeyModal(false);},style:{...BS(),color:C.dn,borderColor:C.dnBorder}},"Remove"),
-              e("button",{onClick:()=>setShowKeyModal(false),style:BS()},"Cancel")
-            )
           )
         ),
 
@@ -2392,7 +2357,7 @@
                   return e(LargeChart,{pts:portfolioModal.series||[],color:modalColor,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320,ohlc:portfolioModal.ohlc});
                 })(),
             // ── Fundamentals panel ──
-            fdApiKey&&(()=>{
+            (()=>{
               const fd=fundamentals[portfolioModal.ticker];
               const fmt=(v,decimals=2)=>v==null?"—":typeof v==="number"?$n(v,decimals):v;
               const fmtB=(v)=>v==null?"—":"$"+$n(v/1e9,2)+"B";
