@@ -45,12 +45,29 @@ module.exports = async (req, res) => {
       fetchJson(`${BASE}/company/facts/?ticker=${ticker}`, apiKey),
     ]);
 
-    const incRaw = incR.status === "fulfilled" ? incR.value : null;
-    const balRaw = balR.status === "fulfilled" ? balR.value : null;
-    const factsRaw = factR.status === "fulfilled" ? factR.value : null;
+    const inc = incR.status === "fulfilled" ? incR.value?.income_statements?.[0] : null;
+    const bal = balR.status === "fulfilled" ? balR.value?.balance_sheets?.[0] : null;
+    const facts = factR.status === "fulfilled" ? factR.value?.company_facts : null;
 
-    // Return raw for debugging
-    res.status(200).json({ _debug: { incRaw, balRaw, factsRaw } });
+    const equity = bal?.shareholders_equity ?? null;
+    const totalDebt = bal?.total_debt ?? 0;
+    const netIncome = inc?.net_income ?? null;
+    const eps = inc?.earnings_per_share ?? null;
+    const shares = inc?.weighted_average_shares ?? null;
+
+    res.status(200).json({
+      eps,
+      revenue: inc?.revenue ?? null,
+      netIncome,
+      grossProfit: inc?.gross_profit ?? null,
+      operatingIncome: inc?.operating_income ?? null,
+      debtToEquity: equity && equity > 0 ? totalDebt / equity : null,
+      roe: equity && equity > 0 && netIncome != null ? netIncome / equity * 100 : null,
+      sector: facts?.sector ?? null,
+      industry: facts?.industry ?? null,
+      exchange: facts?.exchange ?? null,
+      location: facts?.location ?? null,
+    });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

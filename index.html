@@ -2374,18 +2374,19 @@
                 fd?.error&&e("div",{style:{fontSize:"11px",color:C.dn}},fd.error),
                 fd&&!fd.loading&&!fd.error&&e(F,null,
                   e("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"10px"}},
-                    e(FundStat,{label:"P/E Ratio",value:fd.pe!=null?fmt(fd.pe,1):"—"}),
                     e(FundStat,{label:"EPS (TTM)",value:fd.eps!=null?"$"+fmt(fd.eps):"—",color:fd.eps>0?C.up:fd.eps<0?C.dn:C.text}),
                     e(FundStat,{label:"Revenue (TTM)",value:fmtB(fd.revenue)}),
+                    e(FundStat,{label:"Gross Profit",value:fmtB(fd.grossProfit),color:fd.grossProfit>0?C.up:fd.grossProfit<0?C.dn:C.text}),
                     e(FundStat,{label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome>0?C.up:fd.netIncome<0?C.dn:C.text}),
-                    e(FundStat,{label:"Market Cap",value:fmtB(fd.marketCap)}),
+                    e(FundStat,{label:"Op. Income",value:fmtB(fd.operatingIncome),color:fd.operatingIncome>0?C.up:fd.operatingIncome<0?C.dn:C.text}),
                     e(FundStat,{label:"Debt / Equity",value:fd.debtToEquity!=null?fmt(fd.debtToEquity):"—",color:fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:C.up}),
                     e(FundStat,{label:"ROE",value:fd.roe!=null?fmt(fd.roe,1)+"%":"—",color:fd.roe>15?C.up:fd.roe>0?C.text:C.dn})
                   ),
-                  (fd.sector||fd.industry||fd.employees)&&e("div",{style:{display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"11px",color:C.muted,marginBottom:fd.description?"8px":"0"}},
+                  (fd.sector||fd.industry||fd.exchange||fd.location)&&e("div",{style:{display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"11px",color:C.muted,marginBottom:fd.description?"8px":"0"}},
                     fd.sector&&e("span",null,e("span",{style:{color:C.faint}},"Sector: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.sector)),
                     fd.industry&&e("span",null,e("span",{style:{color:C.faint}},"Industry: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.industry)),
-                    fd.employees&&e("span",null,e("span",{style:{color:C.faint}},"Employees: "),e("span",{style:{color:C.text,fontWeight:"500"}},$n(fd.employees,0)))
+                    fd.exchange&&e("span",null,e("span",{style:{color:C.faint}},"Exchange: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.exchange)),
+                    fd.location&&e("span",null,e("span",{style:{color:C.faint}},"HQ: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.location))
                   ),
                   fd.description&&e("div",{style:{fontSize:"11px",color:C.muted,lineHeight:"1.6",marginTop:"6px",maxHeight:"80px",overflowY:"auto"}},fd.description)
                 )
