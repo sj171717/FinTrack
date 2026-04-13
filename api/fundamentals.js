@@ -138,7 +138,7 @@ module.exports = async (req, res) => {
       roe: fd?.roe ?? yq?.roe ?? null,
     };
 
-    res.status(200).json(result);
+    res.status(200).json({...result, _yq: yq});
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
