@@ -1757,6 +1757,10 @@
                 style:{display:"flex",alignItems:"center",gap:"5px",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:isMobile?"5px 8px":"5px 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"500"}},
                 darkMode?"Light":"Dark"
               ),
+              e("button",{onClick:()=>{setKeyInput(apiKey);setFdKeyInput(fdApiKey);setShowKeyModal(true);},title:"API Keys",
+                style:{display:"flex",alignItems:"center",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"8px",padding:"5px 8px",fontSize:"13px",fontFamily:"inherit"}},
+                "⚙"
+              ),
               tab==="portfolio"&&e("button",{onClick:()=>setHidden(v=>!v),title:hidden?"Show numbers":"Hide numbers",
                 style:{display:"flex",alignItems:"center",gap:"6px",background:hidden?C.accentBg:C.surfaceAlt,border:`1px solid ${hidden?C.accentMuted:C.border}`,color:hidden?C.accent:C.muted,cursor:"pointer",borderRadius:"7px",padding:isMobile?"5px 8px":"5px 11px",fontSize:"12px",fontFamily:"inherit",fontWeight:hidden?"600":"400"}},
                 hidden?"Show":"Hide"
