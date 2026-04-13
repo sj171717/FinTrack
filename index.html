@@ -12,7 +12,7 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
     body { background: linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%); font-family: 'Inter','Helvetica Neue',sans-serif; min-height: 100vh; }
     #root { max-width: 1500px; margin: 0 auto; padding: 1rem; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
@@ -377,7 +377,7 @@
     };
 
     function MetCard({label,value,color,sub,style:extraStyle}) {
-      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",...extraStyle}},
+      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",outline:"none",...extraStyle}},
         e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},label),
         e("div",{style:{fontSize:"19px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},value),
         sub&&e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},sub)
@@ -685,13 +685,16 @@
                 ?e(F,null,e("div",{style:{width:"13px",height:"13px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),e("span",{style:{fontSize:"11px",color:C.muted}},"Loading portfolio chart…"))
                 :e("span",{style:{fontSize:"11px",color:C.muted}},"No chart data — check your internet connection")),
         // Period pills at bottom
-        e("div",{style:{display:"flex",justifyContent:"center",gap:"4px",padding:"0.75rem 1rem"}},
-          PERIODS_PC.map(p=>e("button",{key:p,onClick:()=>setChartPeriod(p),
-            style:{padding:"4px 14px",border:"none",borderRadius:"20px",cursor:"pointer",fontFamily:"inherit",
-              fontSize:"11px",fontWeight:chartPeriod===p?"600":"400",
-              background:chartPeriod===p?C.text:"transparent",
-              color:chartPeriod===p?(C.bg||"#fff"):C.muted,
-              transition:"all 0.1s"}},p))
+        e("div",{style:{display:"flex",justifyContent:"center",padding:"0.75rem 1rem"}},
+          e("div",{style:{display:"flex",gap:"2px",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"3px"}},
+            PERIODS_PC.map(p=>e("button",{key:p,onClick:()=>setChartPeriod(p),
+              style:{padding:"6px 16px",border:"none",borderRadius:"8px",cursor:"pointer",fontFamily:"inherit",
+                fontSize:"12px",fontWeight:chartPeriod===p?"600":"500",
+                background:chartPeriod===p?C.text:"transparent",
+                color:chartPeriod===p?C.bg:C.muted,
+                boxShadow:chartPeriod===p?"0 1px 4px rgba(0,0,0,0.15)":"none",
+                transition:"all 0.15s"}},p))
+          )
         )
       );
     }
