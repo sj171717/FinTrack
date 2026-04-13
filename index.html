@@ -915,6 +915,7 @@
       const [portfolioChartPeriod,setPortfolioChartPeriod]=useState("1M");
       const [portfolioChartData,setPortfolioChartData]=useState(null); // {pts,ts}
       const [portfolioChartLoading,setPortfolioChartLoading]=useState(false);
+      const [riskMetrics,setRiskMetrics]=useState(null); // {sharpe,beta,volatility}
       const [strategyNotes,setStrategyNotes]=useState("");
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
@@ -1000,7 +1001,7 @@
       },[tab,holdings]);
 
       useEffect(()=>{
-        if(tab==="portfolio"&&holdings) fetchPortfolioSeries(portfolioChartPeriod);
+        if(tab==="portfolio"&&holdings){setRiskMetrics(null);fetchPortfolioSeries(portfolioChartPeriod);}
       },[portfolioChartPeriod]);
 
 
@@ -1358,6 +1359,46 @@
 
         setPortfolioChartData({pts,ts:trimmedTs});
         setPortfolioChartLoading(false);
+
+        // ── Risk Metrics: Sharpe Ratio & Beta ──
+        (async()=>{
+          try{
+            if(pts.length<10){setRiskMetrics(null);return;}
+            // Daily portfolio returns
+            const portRet=[];
+            for(let i=1;i<pts.length;i++) portRet.push((pts[i]-pts[i-1])/pts[i-1]);
+            // Annualized volatility
+            const mean=portRet.reduce((a,b)=>a+b,0)/portRet.length;
+            const variance=portRet.reduce((a,b)=>a+(b-mean)**2,0)/portRet.length;
+            const vol=Math.sqrt(variance)*Math.sqrt(252)*100; // annualized %
+            // Risk-free rate: use 10-yr treasury from marketData, fallback 4.3%
+            const rf10y=(marketData?.yields||[]).find(y=>y.name==="10Y Treasury");
+            const rfDaily=(rf10y?.value??4.3)/100/252;
+            // Annualized Sharpe
+            const excessMean=mean-rfDaily;
+            const sharpe=Math.sqrt(variance)>0?(excessMean/Math.sqrt(variance))*Math.sqrt(252):null;
+            // Beta: fetch S&P 500 candles for same period
+            let beta=null;
+            try{
+              let mktCandles=null;
+              try{mktCandles=await stooqCandles("^spx",fetchPeriod);}catch{}
+              if(!mktCandles?.length) try{mktCandles=await yfCandles("^GSPC",fetchPeriod);}catch{}
+              if(mktCandles&&mktCandles.length>=pts.length){
+                const mktTrimmed=mktCandles.slice(-pts.length);
+                const mktRet=[];
+                for(let i=1;i<mktTrimmed.length;i++) mktRet.push((mktTrimmed[i].c-mktTrimmed[i-1].c)/mktTrimmed[i-1].c);
+                const n=Math.min(portRet.length,mktRet.length);
+                const pr=portRet.slice(-n), mr=mktRet.slice(-n);
+                const mMean=mr.reduce((a,b)=>a+b,0)/n;
+                const pMean=pr.reduce((a,b)=>a+b,0)/n;
+                let cov=0,mVar=0;
+                for(let i=0;i<n;i++){cov+=(pr[i]-pMean)*(mr[i]-mMean);mVar+=(mr[i]-mMean)**2;}
+                if(mVar>0) beta=cov/mVar;
+              }
+            }catch{}
+            setRiskMetrics({sharpe,beta,volatility:vol});
+          }catch{setRiskMetrics(null);}
+        })();
       };
 
       // ── AI ANALYSIS: calls /api/ai serverless function (key stored server-side) ──
@@ -1643,6 +1684,36 @@
             setChartPeriod:(p)=>{setPortfolioChartPeriod(p);}
           }),
 
+          // ── Risk Metrics ──
+          tab==="portfolio"&&e("div",{style:{display:"flex",gap:"8px",marginBottom:"1rem",flexWrap:"wrap"}},
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
+              e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Sharpe Ratio"),
+              e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=1?C.up:riskMetrics.sharpe>=0?C.text:C.dn):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
+                riskMetrics?.sharpe!=null?riskMetrics.sharpe.toFixed(2):(portfolioChartLoading?"…":"—")
+              ),
+              e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
+                riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=2?"Excellent":riskMetrics.sharpe>=1?"Good":riskMetrics.sharpe>=0?"Acceptable":"Below average"):"annualized · "+portfolioChartPeriod
+              )
+            ),
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
+              e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Beta (vs S&P 500)"),
+              e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.beta!=null?(Math.abs(riskMetrics.beta)>1.5?C.dn:Math.abs(riskMetrics.beta)>1?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
+                riskMetrics?.beta!=null?riskMetrics.beta.toFixed(2):(portfolioChartLoading?"…":"—")
+              ),
+              e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
+                riskMetrics?.beta!=null?(riskMetrics.beta>1.5?"High risk":riskMetrics.beta>1?"Aggressive":riskMetrics.beta>0.5?"Moderate":"Defensive"):"vs market · "+portfolioChartPeriod
+              )
+            ),
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
+              e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Volatility"),
+              e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.volatility!=null?(riskMetrics.volatility>30?C.dn:riskMetrics.volatility>20?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
+                riskMetrics?.volatility!=null?riskMetrics.volatility.toFixed(1)+"%":(portfolioChartLoading?"…":"—")
+              ),
+              e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
+                riskMetrics?.volatility!=null?(riskMetrics.volatility>30?"High":riskMetrics.volatility>20?"Elevated":riskMetrics.volatility>10?"Moderate":"Low"):"annualized std dev"
+              )
+            )
+          ),
 
           // ── PORTFOLIO TAB ──
           tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
