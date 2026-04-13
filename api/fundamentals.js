@@ -25,9 +25,15 @@ function fetchJson(url, headers) {
 }
 
 async function fetchYahooQuote(ticker) {
-  // Yahoo v7 quote — same endpoint used by the app for prices, works without crumb
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}`;
-  const data = await fetchJson(url, {});
+  const yh = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+    "Origin": "https://finance.yahoo.com",
+  };
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=regularMarketPrice,trailingPE,epsTrailingTwelveMonths,beta,marketCap,dividendRate,dividendYield,exDividendDate,earningsTimestamp,targetMeanPrice,fullExchangeName,sector,industry,region,returnOnEquity,debtToEquity`;
+  const data = await fetchJson(url, yh);
   return data?.quoteResponse?.result?.[0] ?? null;
 }
 
