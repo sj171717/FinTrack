@@ -1134,7 +1134,9 @@
         if(!ticker||ticker==="Cash")return;
         setFundamentals(prev=>({...prev,[ticker]:{...prev[ticker],loading:true,error:null}}));
         try{
-          const yhUrl=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}`;
+          // Same proxy pattern as yfQuote — explicitly list fields Yahoo v7 supports
+          const yhFields="regularMarketPrice,trailingPE,epsTrailingTwelveMonths,marketCap,beta,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,earningsTimestamp,earningsTimestampStart,targetMeanPrice,sector,industry,country,returnOnEquity,debtToEquity,fiftyTwoWeekHigh,fiftyTwoWeekLow";
+          const yhUrl=`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=${yhFields}`;
           const [fdRes,yhTxt]=await Promise.allSettled([
             fetch(`/api/fundamentals?ticker=${encodeURIComponent(ticker)}`).then(r=>r.json()),
             fetchViaProxy(yhUrl,8000),
@@ -1155,15 +1157,15 @@
             exDivDate:fmtDate(yq?.exDividendDate),
             earningsDate:fmtDate(yq?.earningsTimestamp??yq?.earningsTimestampStart),
             targetPrice:yq?.targetMeanPrice??null,
+            week52High:yq?.fiftyTwoWeekHigh??null,
+            week52Low:yq?.fiftyTwoWeekLow??null,
             sector:yq?.sector??fd?.sector??null,
             industry:yq?.industry??fd?.industry??null,
-            location:yq?.region??fd?.location??null,
             revenue:fd?.revenue??null,
             netIncome:fd?.netIncome??null,
             grossProfit:fd?.grossProfit??null,
-            operatingIncome:fd?.operatingIncome??null,
-            debtToEquity:fd?.debtToEquity??null,
-            roe:fd?.roe??null,
+            debtToEquity:fd?.debtToEquity??(yq?.debtToEquity!=null?yq.debtToEquity/100:null),
+            roe:fd?.roe??(yq?.returnOnEquity!=null?yq.returnOnEquity*100:null),
             loading:false,error:null,
           }}));
         }catch(err){
@@ -2395,39 +2397,43 @@
             // ── Fundamentals panel ──
             (()=>{
               const fd=fundamentals[portfolioModal.ticker];
-              const fmt=(v,decimals=2)=>v==null?"—":typeof v==="number"?$n(v,decimals):v;
-              const fmtB=(v)=>v==null?"—":"$"+$n(v/1e9,2)+"B";
-              const FundStat=({label,value,color})=>e("div",{style:{background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"10px 14px",flex:"1 1 100px",minWidth:"90px"}},
-                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",fontWeight:"600",marginBottom:"4px"}},label),
-                e("div",{style:{fontSize:"16px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:1}},value)
+              const fmt=(v,d=2)=>v==null?"—":$n(v,d);
+              const fmtB=(v)=>v==null?"—":"$"+(Math.abs(v)>=1e9?$n(v/1e9,2)+"B":Math.abs(v)>=1e6?$n(v/1e6,1)+"M":$n(v,0));
+              const Row=({items})=>e("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:"1px",background:C.border}},
+                items.filter(Boolean).map(({label,value,color},i)=>e("div",{key:i,style:{background:C.surface,padding:"8px 10px"}},
+                  e("div",{style:{fontSize:"9px",color:C.faint,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:"2px"}},label),
+                  e("div",{style:{fontSize:"13px",fontWeight:"600",color:color||C.text,fontVariantNumeric:"tabular-nums"}},value)
+                ))
               );
-              return e("div",{style:{marginTop:"16px",borderTop:`1px solid ${C.border}`,paddingTop:"14px"}},
-                e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"10px"}},
-                  e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase"}},"Fundamentals · financialdatasets.ai"),
-                  fd?.loading&&e("div",{style:{width:"12px",height:"12px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),
-                  !fd&&!fd?.loading&&e("button",{onClick:()=>fetchFundamentals(portfolioModal.ticker),style:{...BS(),fontSize:"10px",padding:"3px 10px"}},"Load")
+              return e("div",{style:{marginTop:"14px",borderTop:`1px solid ${C.border}`,paddingTop:"12px"}},
+                e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}},
+                  e("div",{style:{fontSize:"9px",fontWeight:"600",color:C.faint,letterSpacing:"0.08em",textTransform:"uppercase"}},"Fundamentals"),
+                  fd?.loading&&e("div",{style:{width:"11px",height:"11px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}})
                 ),
                 fd?.error&&e("div",{style:{fontSize:"11px",color:C.dn}},fd.error),
-                fd&&!fd.loading&&!fd.error&&e(F,null,
-                  e("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"8px"}},
-                    e(FundStat,{label:"Market Cap",value:fmtB(fd.marketCap)}),
-                    e(FundStat,{label:"P/E (TTM)",value:fd.pe!=null?fmt(fd.pe,1):"—"}),
-                    e(FundStat,{label:"EPS (TTM)",value:fd.eps!=null?"$"+fmt(fd.eps):"—",color:fd.eps>0?C.up:fd.eps<0?C.dn:C.text}),
-                    e(FundStat,{label:"Beta",value:fd.beta!=null?fmt(fd.beta):"—",color:fd.beta!=null?(fd.beta>1.5?C.dn:fd.beta>1?C.warn:C.up):C.muted}),
-                    e(FundStat,{label:"Revenue (TTM)",value:fmtB(fd.revenue)}),
-                    e(FundStat,{label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome!=null?(fd.netIncome>0?C.up:C.dn):C.muted}),
-                    e(FundStat,{label:"Gross Profit",value:fmtB(fd.grossProfit)}),
-                    e(FundStat,{label:"Debt / Equity",value:fd.debtToEquity!=null?fmt(fd.debtToEquity):"—",color:fd.debtToEquity!=null?(fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:C.up):C.muted}),
-                    e(FundStat,{label:"ROE",value:fd.roe!=null?fmt(fd.roe,1)+"%":"—",color:fd.roe!=null?(fd.roe>15?C.up:fd.roe>0?C.text:C.dn):C.muted}),
-                    fd.dividendRate!=null&&e(FundStat,{label:"Dividend",value:"$"+fmt(fd.dividendRate)+(fd.dividendYield!=null?" ("+(fd.dividendYield*100).toFixed(2)+"%)":"")}),
-                    fd.targetPrice!=null&&e(FundStat,{label:"1Y Target",value:"$"+fmt(fd.targetPrice,0)}),
-                    fd.earningsDate!=null&&e(FundStat,{label:"Earnings Date",value:fd.earningsDate}),
-                    fd.exDivDate!=null&&e(FundStat,{label:"Ex-Div Date",value:fd.exDivDate})
-                  ),
-                  (fd.sector||fd.industry||fd.exchange)&&e("div",{style:{display:"flex",gap:"12px",flexWrap:"wrap",fontSize:"11px",color:C.muted,marginTop:"2px"}},
-                    fd.sector&&e("span",null,e("span",{style:{color:C.faint}},"Sector: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.sector)),
-                    fd.industry&&e("span",null,e("span",{style:{color:C.faint}},"Industry: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.industry)),
-                    fd.exchange&&e("span",null,e("span",{style:{color:C.faint}},"Exchange: "),e("span",{style:{color:C.text,fontWeight:"500"}},fd.exchange))
+                fd&&!fd.loading&&!fd.error&&e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"8px",overflow:"hidden"}},
+                  e(Row,{items:[
+                    {label:"Market Cap",value:fmtB(fd.marketCap)},
+                    {label:"P/E (TTM)",value:fd.pe!=null?fmt(fd.pe,1):"—"},
+                    {label:"EPS (TTM)",value:fd.eps!=null?"$"+fmt(fd.eps):"—",color:fd.eps>0?C.up:fd.eps<0?C.dn:null},
+                    {label:"Beta",value:fd.beta!=null?fmt(fd.beta):"—",color:fd.beta>1.5?C.dn:fd.beta>1?C.warn:fd.beta!=null?C.up:null},
+                    {label:"52W High",value:fd.week52High!=null?"$"+fmt(fd.week52High):"—"},
+                    {label:"52W Low",value:fd.week52Low!=null?"$"+fmt(fd.week52Low):"—"},
+                    fd.targetPrice!=null&&{label:"1Y Target",value:"$"+fmt(fd.targetPrice,0)},
+                    fd.earningsDate!=null&&{label:"Earnings",value:fd.earningsDate},
+                  ]}),
+                  e(Row,{items:[
+                    {label:"Revenue",value:fmtB(fd.revenue)},
+                    {label:"Net Income",value:fmtB(fd.netIncome),color:fd.netIncome>0?C.up:fd.netIncome<0?C.dn:null},
+                    {label:"Gross Profit",value:fmtB(fd.grossProfit)},
+                    {label:"Debt/Equity",value:fd.debtToEquity!=null?fmt(fd.debtToEquity):"—",color:fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:fd.debtToEquity!=null?C.up:null},
+                    {label:"ROE",value:fd.roe!=null?fmt(fd.roe,1)+"%":"—",color:fd.roe>15?C.up:fd.roe>0?C.text:fd.roe!=null?C.dn:null},
+                    fd.dividendRate!=null&&{label:"Dividend",value:"$"+fmt(fd.dividendRate)+(fd.dividendYield!=null?" ("+(fd.dividendYield*100).toFixed(1)+"%)":"")},
+                    fd.exDivDate!=null&&{label:"Ex-Div",value:fd.exDivDate},
+                  ]}),
+                  (fd.sector||fd.industry)&&e("div",{style:{background:C.surface,padding:"7px 10px",fontSize:"11px",color:C.muted,display:"flex",gap:"16px",borderTop:`1px solid ${C.border}`}},
+                    fd.sector&&e("span",null,e("span",{style:{color:C.faint}},"Sector · "),fd.sector),
+                    fd.industry&&e("span",null,e("span",{style:{color:C.faint}},"Industry · "),fd.industry)
                   )
                 )
               );
