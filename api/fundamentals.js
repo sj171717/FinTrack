@@ -45,26 +45,12 @@ module.exports = async (req, res) => {
       fetchJson(`${BASE}/company/facts/?ticker=${ticker}`, apiKey),
     ]);
 
-    const inc = incR.status === "fulfilled" ? incR.value?.income_statements?.[0] : null;
-    const bal = balR.status === "fulfilled" ? balR.value?.balance_sheets?.[0] : null;
-    const facts = factR.status === "fulfilled" ? factR.value?.company_facts : null;
+    const incRaw = incR.status === "fulfilled" ? incR.value : null;
+    const balRaw = balR.status === "fulfilled" ? balR.value : null;
+    const factsRaw = factR.status === "fulfilled" ? factR.value : null;
 
-    const totalDebt = (bal?.long_term_debt ?? 0) + (bal?.short_term_debt ?? 0);
-    const equity = bal?.shareholders_equity ?? null;
-
-    res.status(200).json({
-      pe: facts?.pe_ratio ?? null,
-      eps: inc?.earnings_per_share_basic ?? null,
-      revenue: inc?.revenue ?? null,
-      netIncome: inc?.net_income ?? null,
-      marketCap: facts?.market_cap ?? null,
-      debtToEquity: equity && equity > 0 ? totalDebt / equity : null,
-      roe: equity && equity > 0 && inc?.net_income != null ? inc.net_income / equity * 100 : null,
-      sector: facts?.sector ?? null,
-      industry: facts?.industry ?? null,
-      employees: facts?.employees ?? null,
-      description: facts?.description ?? null,
-    });
+    // Return raw for debugging
+    res.status(200).json({ _debug: { incRaw, balRaw, factsRaw } });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
