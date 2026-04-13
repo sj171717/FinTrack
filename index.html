@@ -367,8 +367,14 @@
       );
     }
 
-    const TH=({c,right,hide})=>e("th",{className:hide?"mob-hide":undefined,style:{padding:"10px 14px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"600",fontSize:"10px",letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
-    const TD=({children,right,style:s,hide})=>e("td",{className:hide?"mob-hide":undefined,style:{padding:"11px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
+    const TH=({c,right,hide,adv,tableView})=>{
+      if(adv&&tableView!=="advanced") return null;
+      return e("th",{className:hide?"mob-hide":undefined,style:{padding:"10px 14px",textAlign:right?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"600",fontSize:"10px",letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap",background:C.surfaceAlt}},c);
+    };
+    const TD=({children,right,style:s,hide,adv,tableView})=>{
+      if(adv&&tableView!=="advanced") return null;
+      return e("td",{className:hide?"mob-hide":undefined,style:{padding:"11px 14px",textAlign:right?"right":"left",borderBottom:`1px solid ${C.border}`,verticalAlign:"middle",...s}},children);
+    };
 
     function MetCard({label,value,color,sub,style:extraStyle}) {
       return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",...extraStyle}},
@@ -891,6 +897,7 @@
       const [priceFetchTrigger,setPriceFetchTrigger]=useState(null);
       const dragIdx=useRef(null);
       const [hidden,setHidden]=useState(false);
+      const [tableView,setTableView]=useState("overview"); // "overview" | "advanced"
       const [aiQ,setAiQ]=useState("");
       const [aiResp,setAiResp]=useState(null);
       const [aiLoading,setAiLoading]=useState(false);
@@ -1481,7 +1488,7 @@
         const rawH=holdings.find(x=>x.id===h.id)||h;
         const hasMultiLots=(rawH.lots?.filter(l=>l.type==="buy").length||0)>1;
         return e("tr",{key:h.id,draggable:true,onDragStart:()=>onDragStart(holdings.indexOf(rawH)),onDragOver:ev=>onDragOver(ev,holdings.indexOf(rawH)),onDragEnd:onDragEnd,style:{background:breach?C.dnBg:nearExit?C.warnBg:"transparent",cursor:"grab"}},
-          e(TD,{hide:true},e("span",{style:{color:C.faint,fontSize:"14px",cursor:"grab",userSelect:"none",display:"inline-block",lineHeight:1}},"⠿")),
+          e(TD,{hide:true,adv:false},e("span",{style:{color:C.faint,fontSize:"14px",cursor:"grab",userSelect:"none",display:"inline-block",lineHeight:1}},"⠿")),
           e(TD,null,e("div",{style:{display:"flex",alignItems:"center",gap:"5px",flexWrap:"wrap"}},
             breach&&e("span",{style:{background:C.dn,color:"#fff",padding:"2px 6px",borderRadius:"4px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0,boxShadow:`0 0 0 2px ${C.dnBorder}`}},"⚠ EXIT"),
             nearExit&&e("span",{style:{background:C.warn,color:"#fff",padding:"2px 6px",borderRadius:"4px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0}},"⚠ NEAR EXIT"),
@@ -1517,22 +1524,22 @@
             e("div",{style:{fontSize:"10.5px",color:C.muted}},hidden?MASK:"$"+$n(h.qty*h.currentPrice,0))
           )),
           e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:gl,pct:glPct,hidden})),
-          e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
-          e(TD,{right:true,hide:true},(()=>{
+          e(TD,{right:true,adv:true,tableView},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
+          e(TD,{right:true,adv:true,tableView},(()=>{
             if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
             const sp=holdingSparklines[h.ticker];
-            if(!sp?.sharpe==null||sp?.sharpe==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
+            if(!sp||sp.sharpe==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
             const s=sp.sharpe;
             const col=s>=1?C.up:s>=0?C.text:C.dn;
             return e("div",{style:{textAlign:"right"}},
               e("span",{style:{fontWeight:"600",color:col,fontVariantNumeric:"tabular-nums",fontSize:"12px"}},s.toFixed(2)),
-              e("div",{style:{fontSize:"10px",color:C.muted}},"1M ann.")
+              e("div",{style:{fontSize:"10px",color:C.muted}},"annualized")
             );
           })()),
-          e(TD,{right:true,hide:true},(()=>{
+          e(TD,{right:true,adv:true,tableView},(()=>{
             if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
             const sp=holdingSparklines[h.ticker];
-            if(!sp?.beta==null||sp?.beta==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
+            if(!sp||sp.beta==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
             const b=sp.beta;
             const col=Math.abs(b)>1.5?C.dn:Math.abs(b)>1?C.warn:C.up;
             return e("div",{style:{textAlign:"right"}},
@@ -1540,14 +1547,14 @@
               e("div",{style:{fontSize:"10px",color:C.muted}},b>1.5?"High risk":b>1?"Aggressive":b>0.5?"Moderate":"Defensive")
             );
           })()),
-          e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
+          e(TD,{right:true,adv:true,tableView},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
             e(EditCell,{value:h.targetPrice,onSave:v=>upd(h.id,"targetPrice",v),hidden}),
             upside!=null&&!hidden&&e("div",{style:{marginTop:"3px"}},
               e("span",{style:{background:pcBg(upside),color:pc(upside),padding:"2px 7px",borderRadius:"5px",fontWeight:"600",fontSize:"11px",border:`1px solid ${upside>=0?C.upBorder:C.dnBorder}`,fontVariantNumeric:"tabular-nums"}},sign(upside)+$n(Math.abs(upside),1)+"%")
             )
           )),
-          e(TD,{right:true,hide:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(ExitCell,{value:exitP,current:h.currentPrice,onSave:v=>upd(h.id,"customExit",v),hidden})),
-          e(TD,{hide:true},e(NotesCell,{text:h.notes,onSave:v=>upd(h.id,"notes",v)})),
+          e(TD,{right:true,adv:true,tableView},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(ExitCell,{value:exitP,current:h.currentPrice,onSave:v=>upd(h.id,"customExit",v),hidden})),
+          e(TD,{adv:true,tableView},e(NotesCell,{text:h.notes,onSave:v=>upd(h.id,"notes",v)})),
           e(TD,null,e("button",{onClick:()=>del(h.id),style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"5px",padding:"3px 8px",fontSize:"11px",fontFamily:"inherit"}},"✕"))
         );
       });
@@ -1773,7 +1780,13 @@
                 e("svg",{width:"10",height:"10",viewBox:"0 0 10 10",fill:"none"},e("circle",{cx:"5",cy:"5",r:"4",stroke:"currentColor",strokeWidth:"1.2"}),e("path",{d:"M5 3v2l1.2 1.2",stroke:"currentColor",strokeWidth:"1.2",strokeLinecap:"round"})),
                 "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})
               ),
-              e("div",{style:{display:"flex",gap:"8px",width:isMobile?"100%":"auto"}},
+              e("div",{style:{display:"flex",gap:"6px",width:isMobile?"100%":"auto",alignItems:"center",flexWrap:"wrap"}},
+                e("div",{style:{display:"flex",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"2px",gap:"2px"}},
+                  ["overview","advanced"].map(v=>e("button",{key:v,onClick:()=>setTableView(v),
+                    style:{padding:"4px 10px",border:"none",borderRadius:"6px",cursor:"pointer",fontSize:"11px",fontFamily:"inherit",fontWeight:tableView===v?"600":"400",
+                      background:tableView===v?C.surface:"transparent",color:tableView===v?C.text:C.muted,
+                      boxShadow:tableView===v?"0 1px 3px rgba(0,0,0,0.12)":"none",transition:"all 0.15s",textTransform:"capitalize"}},v))
+                ),
                 e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"6px",flex:isMobile?"1":"none",justifyContent:"center",opacity:priceLoading?0.7:1},onClick:fetchPrices,disabled:priceLoading},
                   e("svg",{width:"12",height:"12",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:priceLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"8,1 11,1 11,4"})),
                   priceLoading?"Fetching…":"Refresh"
@@ -1831,10 +1844,13 @@
                 e("thead",null,e("tr",null,
                   e(TH,{c:"",hide:true}),e(TH,{c:"Ticker"}),e(TH,{c:"Avg Cost",right:true}),e(TH,{c:"Qty",right:true}),
                   e(TH,{c:"Price",right:true}),e(TH,{c:"Hold %",right:true}),
-                  e(TH,{c:"G / L",right:true}),e(TH,{c:"YTD G/L",right:true,hide:true}),
-                  e(TH,{c:"Sharpe",right:true,hide:true}),e(TH,{c:"Beta",right:true,hide:true}),
-                  e(TH,{c:"Target",right:true,hide:true}),
-                  e(TH,{c:"Exit",right:true,hide:true}),e(TH,{c:"Notes",hide:true}),e(TH,{c:""})
+                  e(TH,{c:"G / L",right:true}),
+                  e(TH,{c:"YTD G/L",right:true,adv:true,tableView}),
+                  e(TH,{c:"Sharpe (1M)",right:true,adv:true,tableView}),
+                  e(TH,{c:"Beta (1M)",right:true,adv:true,tableView}),
+                  e(TH,{c:"Target",right:true,adv:true,tableView}),
+                  e(TH,{c:"Exit",right:true,adv:true,tableView}),
+                  e(TH,{c:"Notes",adv:true,tableView}),e(TH,{c:""})
                 )),
                 e("tbody",null,...tableRows)
               )
