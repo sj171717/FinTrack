@@ -112,7 +112,7 @@
     }
     // ── Stooq CSV — free historical OHLCV, no API key, fetched via proxy ──
     async function stooqCandles(stooqSym, period) {
-      const daysMap = {"1D":3,"5D":10,"1W":10,"1M":35,"6M":185,"YTD":370,"1Y":370,"2Y":740,"5Y":1830,"MAX":3660};
+      const daysMap = {"1D":3,"5D":10,"1W":10,"1M":35,"6M":185,"YTD":370,"1Y":370,"2Y":740,"3Y":1095,"5Y":1830,"MAX":3660};
       const days = daysMap[period] || 35;
       const end = new Date(), start = new Date(+end - days*86400000);
       const fmt = d => `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
@@ -130,8 +130,8 @@
 
     // ── Yahoo Finance v8 chart — tries direct then CORS proxy ──
     async function yfCandles(ticker, period) {
-      const rangeMap={"1D":"1d","5D":"5d","1W":"5d","1M":"1mo","6M":"6mo","YTD":"ytd","1Y":"1y","2Y":"2y","5Y":"5y","MAX":"max"};
-      const intMap={"1D":"5m","5D":"1d","1W":"1d","1M":"1d","6M":"1d","YTD":"1d","1Y":"1d","2Y":"1wk","5Y":"1wk","MAX":"1mo"};
+      const rangeMap={"1D":"1d","5D":"5d","1W":"5d","1M":"1mo","6M":"6mo","YTD":"ytd","1Y":"1y","2Y":"2y","3Y":"5y","5Y":"5y","MAX":"max"};
+      const intMap={"1D":"5m","5D":"1d","1W":"1d","1M":"1d","6M":"1d","YTD":"1d","1Y":"1d","2Y":"1wk","3Y":"1wk","5Y":"1wk","MAX":"1mo"};
       const range=rangeMap[period]||"1mo";
       const interval=intMap[period]||"1d";
       const url1=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
@@ -923,6 +923,8 @@
       const [portfolioChartData,setPortfolioChartData]=useState(null); // {pts,ts}
       const [portfolioChartLoading,setPortfolioChartLoading]=useState(false);
       const [riskMetrics,setRiskMetrics]=useState(null); // {sharpe,beta,volatility}
+      const [riskPeriod,setRiskPeriod]=useState("1M");
+      const [holdingRiskMetrics,setHoldingRiskMetrics]=useState({}); // {[ticker]:{sharpe,beta}}
       const [strategyNotes,setStrategyNotes]=useState("");
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
@@ -1002,6 +1004,7 @@
         if(tab==="portfolio"&&holdings){
           fetchHoldingSparklines();
           fetchPortfolioSeries(portfolioChartPeriod);
+          fetchRiskMetrics(riskPeriod);
         }
         if(tab==="news"){fetchMarketData();if(holdings){fetchNews();fetchHoldingSparklines();}}
         if(tab==="prediction"){fetchKalshi();}
@@ -1010,6 +1013,10 @@
       useEffect(()=>{
         if(tab==="portfolio"&&holdings){setRiskMetrics(null);fetchPortfolioSeries(portfolioChartPeriod);}
       },[portfolioChartPeriod]);
+
+      useEffect(()=>{
+        if(tab==="portfolio"&&holdings){setRiskMetrics(null);setHoldingRiskMetrics({});fetchRiskMetrics(riskPeriod);}
+      },[riskPeriod]);
 
 
 
@@ -1266,12 +1273,6 @@
         const allTickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
         const missing=allTickers; // always re-fetch all, not just missing
 
-        // Fetch S&P 500 for beta calculation
-        let spxCandles=null;
-        try{spxCandles=await stooqCandles("^spx","1M");}catch{}
-        if(!spxCandles?.length) try{spxCandles=await yfCandles("^GSPC","1M");}catch{}
-        const spxRets=spxCandles&&spxCandles.length>=2?spxCandles.map(x=>x.c).slice(1).map((c,i)=>(c-spxCandles[i].c)/spxCandles[i].c):null;
-
         await Promise.allSettled(missing.map(async t=>{
           try {
             const stooqSym = t.startsWith("^") ? t.slice(1).toLowerCase() : t.toLowerCase()+".us";
@@ -1284,26 +1285,7 @@
             const price=pts[pts.length-1];
             const pct=pts[0]?((price-pts[0])/pts[0])*100:0;
             const dailyPct=((pts[pts.length-1]-pts[pts.length-2])/pts[pts.length-2])*100;
-
-            // Per-stock risk metrics (1M daily)
-            const rets=pts.slice(1).map((c,i)=>(c-pts[i])/pts[i]);
-            let sharpe=null,beta=null;
-            if(rets.length>=5){
-              const mean=rets.reduce((a,b)=>a+b,0)/rets.length;
-              const variance=rets.reduce((a,b)=>a+(b-mean)**2,0)/rets.length;
-              const rfDaily=4.3/100/252;
-              sharpe=Math.sqrt(variance)>0?((mean-rfDaily)/Math.sqrt(variance))*Math.sqrt(252):null;
-              if(spxRets&&spxRets.length>=rets.length){
-                const mr=spxRets.slice(-rets.length);
-                const n=Math.min(rets.length,mr.length);
-                const pr=rets.slice(-n),mrt=mr.slice(-n);
-                const mMean=mrt.reduce((a,b)=>a+b,0)/n,pMean=pr.reduce((a,b)=>a+b,0)/n;
-                let cov=0,mVar=0;
-                for(let i=0;i<n;i++){cov+=(pr[i]-pMean)*(mrt[i]-mMean);mVar+=(mrt[i]-mMean)**2;}
-                if(mVar>0) beta=cov/mVar;
-              }
-            }
-            setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct,sharpe,beta}}));
+            setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct}}));
           } catch {}
         }));
         holdingSparklinesRef.current=false;
@@ -1388,46 +1370,76 @@
 
         setPortfolioChartData({pts,ts:trimmedTs});
         setPortfolioChartLoading(false);
+      };
 
-        // ── Risk Metrics: Sharpe Ratio & Beta ──
-        (async()=>{
-          try{
-            if(pts.length<10){setRiskMetrics(null);return;}
-            // Daily portfolio returns
-            const portRet=[];
-            for(let i=1;i<pts.length;i++) portRet.push((pts[i]-pts[i-1])/pts[i-1]);
-            // Annualized volatility
-            const mean=portRet.reduce((a,b)=>a+b,0)/portRet.length;
-            const variance=portRet.reduce((a,b)=>a+(b-mean)**2,0)/portRet.length;
-            const vol=Math.sqrt(variance)*Math.sqrt(252)*100; // annualized %
-            // Risk-free rate: use 10-yr treasury from marketData, fallback 4.3%
-            const rf10y=(marketData?.yields||[]).find(y=>y.name==="10Y Treasury");
-            const rfDaily=(rf10y?.value??4.3)/100/252;
-            // Annualized Sharpe
-            const excessMean=mean-rfDaily;
-            const sharpe=Math.sqrt(variance)>0?(excessMean/Math.sqrt(variance))*Math.sqrt(252):null;
-            // Beta: fetch S&P 500 candles for same period
-            let beta=null;
-            try{
-              let mktCandles=null;
-              try{mktCandles=await stooqCandles("^spx",fetchPeriod);}catch{}
-              if(!mktCandles?.length) try{mktCandles=await yfCandles("^GSPC",fetchPeriod);}catch{}
-              if(mktCandles&&mktCandles.length>=pts.length){
-                const mktTrimmed=mktCandles.slice(-pts.length);
-                const mktRet=[];
-                for(let i=1;i<mktTrimmed.length;i++) mktRet.push((mktTrimmed[i].c-mktTrimmed[i-1].c)/mktTrimmed[i-1].c);
-                const n=Math.min(portRet.length,mktRet.length);
-                const pr=portRet.slice(-n), mr=mktRet.slice(-n);
-                const mMean=mr.reduce((a,b)=>a+b,0)/n;
-                const pMean=pr.reduce((a,b)=>a+b,0)/n;
-                let cov=0,mVar=0;
-                for(let i=0;i<n;i++){cov+=(pr[i]-pMean)*(mr[i]-mMean);mVar+=(mr[i]-mMean)**2;}
-                if(mVar>0) beta=cov/mVar;
+      // ── RISK METRICS: Sharpe, Beta, Volatility for portfolio + each stock ──
+      const fetchRiskMetrics=async(period)=>{
+        const nonCash=resolvedHoldings.filter(h=>h.ticker!=="Cash");
+        if(!nonCash.length)return;
+        setRiskMetrics(null);
+        setHoldingRiskMetrics({});
+        const rfDaily=4.3/100/252;
+        // Fetch S&P 500
+        let spxCandles=null;
+        try{spxCandles=await stooqCandles("^spx",period);}catch{}
+        if(!spxCandles?.length) try{spxCandles=await yfCandles("^GSPC",period);}catch{}
+        // For 3Y via Yahoo we get 5Y data — trim to ~756 trading days
+        if(period==="3Y"&&spxCandles?.length>800) spxCandles=spxCandles.slice(-756);
+        const spxPts=spxCandles?.length>=2?spxCandles.map(x=>x.c):null;
+        const spxRets=spxPts?spxPts.slice(1).map((c,i)=>(c-spxPts[i])/spxPts[i]):null;
+        // Compute helper
+        const computeMetrics=(rets,mrets)=>{
+          if(!rets||rets.length<5) return {sharpe:null,beta:null};
+          const mean=rets.reduce((a,b)=>a+b,0)/rets.length;
+          const variance=rets.reduce((a,b)=>a+(b-mean)**2,0)/rets.length;
+          const sharpe=Math.sqrt(variance)>0?((mean-rfDaily)/Math.sqrt(variance))*Math.sqrt(252):null;
+          let beta=null;
+          if(mrets&&mrets.length>=rets.length){
+            const mr=mrets.slice(-rets.length),pr=rets.slice(-mr.length);
+            const n=Math.min(pr.length,mr.length);
+            const mMean=mr.slice(0,n).reduce((a,b)=>a+b,0)/n,pMean=pr.slice(0,n).reduce((a,b)=>a+b,0)/n;
+            let cov=0,mVar=0;
+            for(let i=0;i<n;i++){cov+=(pr[i]-pMean)*(mr[i]-mMean);mVar+=(mr[i]-mMean)**2;}
+            if(mVar>0) beta=cov/mVar;
+          }
+          return {sharpe,beta};
+        };
+        // Per-stock metrics
+        const results=await Promise.allSettled(nonCash.map(async h=>{
+          const stooqSym=h.ticker.toLowerCase()+".us";
+          let candles=null;
+          try{candles=await stooqCandles(stooqSym,period);}catch{}
+          if(!candles?.length) try{candles=await yfCandles(h.ticker,period);}catch{}
+          if(period==="3Y"&&candles?.length>800) candles=candles.slice(-756);
+          return {h,candles:candles||[]};
+        }));
+        const valid=results.filter(r=>r.status==="fulfilled"&&r.value.candles.length>=5).map(r=>r.value);
+        const newHoldingMetrics={};
+        for(const {h,candles} of valid){
+          const pts=candles.map(x=>x.c);
+          const rets=pts.slice(1).map((c,i)=>(c-pts[i])/pts[i]);
+          newHoldingMetrics[h.ticker]=computeMetrics(rets,spxRets);
+        }
+        setHoldingRiskMetrics(newHoldingMetrics);
+        // Portfolio-level: value-weighted daily returns
+        if(valid.length>=1){
+          const minLen=Math.min(...valid.map(v=>v.candles.length));
+          if(minLen>=5){
+            const portRets=Array.from({length:minLen-1},(_,i)=>{
+              let pRet=0,totalW=0;
+              for(const {h,candles} of valid){
+                const c1=candles[candles.length-minLen+i],c2=candles[candles.length-minLen+i+1];
+                if(c1?.c&&c2?.c){const w=h.qty*c1.c;pRet+=w*(c2.c-c1.c)/c1.c;totalW+=w;}
               }
-            }catch{}
+              return totalW>0?pRet/totalW:0;
+            });
+            const mean=portRets.reduce((a,b)=>a+b,0)/portRets.length;
+            const variance=portRets.reduce((a,b)=>a+(b-mean)**2,0)/portRets.length;
+            const vol=Math.sqrt(variance)*Math.sqrt(252)*100;
+            const {sharpe,beta}=computeMetrics(portRets,spxRets);
             setRiskMetrics({sharpe,beta,volatility:vol});
-          }catch{setRiskMetrics(null);}
-        })();
+          }
+        }
       };
 
       // ── AI ANALYSIS: calls /api/ai serverless function (key stored server-side) ──
@@ -1527,9 +1539,10 @@
           e(TD,{right:true,adv:true,tableView},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
           e(TD,{right:true,adv:true,tableView},(()=>{
             if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
-            const sp=holdingSparklines[h.ticker];
-            if(!sp||sp.sharpe==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
-            const s=sp.sharpe;
+            const rm=holdingRiskMetrics[h.ticker];
+            if(!rm) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
+            if(rm.sharpe==null) return e("span",{style:{color:C.muted}},"—");
+            const s=rm.sharpe;
             const col=s>=1?C.up:s>=0?C.text:C.dn;
             return e("div",{style:{textAlign:"right"}},
               e("span",{style:{fontWeight:"600",color:col,fontVariantNumeric:"tabular-nums",fontSize:"12px"}},s.toFixed(2)),
@@ -1538,9 +1551,10 @@
           })()),
           e(TD,{right:true,adv:true,tableView},(()=>{
             if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
-            const sp=holdingSparklines[h.ticker];
-            if(!sp||sp.beta==null) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
-            const b=sp.beta;
+            const rm=holdingRiskMetrics[h.ticker];
+            if(!rm) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
+            if(rm.beta==null) return e("span",{style:{color:C.muted}},"—");
+            const b=rm.beta;
             const col=Math.abs(b)>1.5?C.dn:Math.abs(b)>1?C.warn:C.up;
             return e("div",{style:{textAlign:"right"}},
               e("span",{style:{fontWeight:"600",color:col,fontVariantNumeric:"tabular-nums",fontSize:"12px"}},b.toFixed(2)),
@@ -1736,32 +1750,43 @@
           }),
 
           // ── Risk Metrics ──
-          tab==="portfolio"&&e("div",{style:{display:"flex",gap:"8px",marginBottom:"1rem",flexWrap:"wrap"}},
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
-              e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Sharpe Ratio"),
-              e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=1?C.up:riskMetrics.sharpe>=0?C.text:C.dn):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
-                riskMetrics?.sharpe!=null?riskMetrics.sharpe.toFixed(2):(portfolioChartLoading?"…":"—")
-              ),
-              e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
-                riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=2?"Excellent":riskMetrics.sharpe>=1?"Good":riskMetrics.sharpe>=0?"Acceptable":"Below average"):"annualized · "+portfolioChartPeriod
+          tab==="portfolio"&&e("div",{style:{marginBottom:"1rem"}},
+            e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}},
+              e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase"}},"Risk Metrics"),
+              e("div",{style:{display:"flex",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"2px",gap:"2px"}},
+                ["1M","1Y","3Y","5Y"].map(p=>e("button",{key:p,onClick:()=>setRiskPeriod(p),
+                  style:{padding:"3px 9px",border:"none",borderRadius:"6px",cursor:"pointer",fontSize:"11px",fontFamily:"inherit",fontWeight:riskPeriod===p?"600":"400",
+                    background:riskPeriod===p?C.surface:"transparent",color:riskPeriod===p?C.text:C.muted,
+                    boxShadow:riskPeriod===p?"0 1px 3px rgba(0,0,0,0.12)":"none",transition:"all 0.15s"}},p))
               )
             ),
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
-              e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Beta (vs S&P 500)"),
-              e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.beta!=null?(Math.abs(riskMetrics.beta)>1.5?C.dn:Math.abs(riskMetrics.beta)>1?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
-                riskMetrics?.beta!=null?riskMetrics.beta.toFixed(2):(portfolioChartLoading?"…":"—")
+            e("div",{style:{display:"flex",gap:"8px",flexWrap:"wrap"}},
+              e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
+                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Portfolio Sharpe"),
+                e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=1?C.up:riskMetrics.sharpe>=0?C.text:C.dn):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
+                  riskMetrics?.sharpe!=null?riskMetrics.sharpe.toFixed(2):"—"
+                ),
+                e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
+                  riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=2?"Excellent":riskMetrics.sharpe>=1?"Good":riskMetrics.sharpe>=0?"Acceptable":"Below average"):"annualized · "+riskPeriod
+                )
               ),
-              e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
-                riskMetrics?.beta!=null?(riskMetrics.beta>1.5?"High risk":riskMetrics.beta>1?"Aggressive":riskMetrics.beta>0.5?"Moderate":"Defensive"):"vs market · "+portfolioChartPeriod
-              )
-            ),
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
-              e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Volatility"),
-              e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.volatility!=null?(riskMetrics.volatility>30?C.dn:riskMetrics.volatility>20?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
-                riskMetrics?.volatility!=null?riskMetrics.volatility.toFixed(1)+"%":(portfolioChartLoading?"…":"—")
+              e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
+                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Portfolio Beta"),
+                e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.beta!=null?(Math.abs(riskMetrics.beta)>1.5?C.dn:Math.abs(riskMetrics.beta)>1?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
+                  riskMetrics?.beta!=null?riskMetrics.beta.toFixed(2):"—"
+                ),
+                e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
+                  riskMetrics?.beta!=null?(riskMetrics.beta>1.5?"High risk":riskMetrics.beta>1?"Aggressive":riskMetrics.beta>0.5?"Moderate":"Defensive"):"vs S&P 500 · "+riskPeriod
+                )
               ),
-              e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
-                riskMetrics?.volatility!=null?(riskMetrics.volatility>30?"High":riskMetrics.volatility>20?"Elevated":riskMetrics.volatility>10?"Moderate":"Low"):"annualized std dev"
+              e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}},
+                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Volatility"),
+                e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.volatility!=null?(riskMetrics.volatility>30?C.dn:riskMetrics.volatility>20?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
+                  riskMetrics?.volatility!=null?riskMetrics.volatility.toFixed(1)+"%":"—"
+                ),
+                e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"4px"}},
+                  riskMetrics?.volatility!=null?(riskMetrics.volatility>30?"High":riskMetrics.volatility>20?"Elevated":riskMetrics.volatility>10?"Moderate":"Low"):"annualized std dev"
+                )
               )
             )
           ),
@@ -1846,8 +1871,8 @@
                   e(TH,{c:"Price",right:true}),e(TH,{c:"Hold %",right:true}),
                   e(TH,{c:"G / L",right:true}),
                   e(TH,{c:"YTD G/L",right:true,adv:true,tableView}),
-                  e(TH,{c:"Sharpe (1M)",right:true,adv:true,tableView}),
-                  e(TH,{c:"Beta (1M)",right:true,adv:true,tableView}),
+                  e(TH,{c:`Sharpe (${riskPeriod})`,right:true,adv:true,tableView}),
+                  e(TH,{c:`Beta (${riskPeriod})`,right:true,adv:true,tableView}),
                   e(TH,{c:"Target",right:true,adv:true,tableView}),
                   e(TH,{c:"Exit",right:true,adv:true,tableView}),
                   e(TH,{c:"Notes",adv:true,tableView}),e(TH,{c:""})
