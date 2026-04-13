@@ -53,8 +53,8 @@ function fetchDirect(url, headers) {
 
 async function fetchYahooSummary(ticker, host) {
   // Use v7 quote — same endpoint that works for price fetching in the app
-  const fields = "regularMarketPrice,trailingPE,epsTrailingTwelveMonths,marketCap,beta,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,earningsTimestamp,targetMeanPrice,fullExchangeName,sector,industry,country,returnOnEquity,debtToEquity";
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=${fields}`;
+  // No fields filter — let Yahoo return all available fields
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}`;
   const data = await fetchViaProxy(host, url);
   const q = data?.quoteResponse?.result?.[0];
   if (!q) return null;
