@@ -52,33 +52,28 @@ function fetchDirect(url, headers) {
 }
 
 async function fetchYahooSummary(ticker, host) {
-  const modules = "financialData,defaultKeyStatistics,summaryDetail,assetProfile,calendarEvents";
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=${encodeURIComponent(modules)}`;
+  // Use v7 quote — same endpoint that works for price fetching in the app
+  const fields = "regularMarketPrice,trailingPE,epsTrailingTwelveMonths,marketCap,beta,trailingAnnualDividendRate,trailingAnnualDividendYield,exDividendDate,earningsTimestamp,targetMeanPrice,fullExchangeName,sector,industry,country,returnOnEquity,debtToEquity";
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=${fields}`;
   const data = await fetchViaProxy(host, url);
-  const r = data?.quoteSummary?.result?.[0];
-  if (!r) return null;
-  const fin = r.financialData || {};
-  const stats = r.defaultKeyStatistics || {};
-  const detail = r.summaryDetail || {};
-  const profile = r.assetProfile || {};
-  const cal = r.calendarEvents || {};
-  const earningsTs = cal.earnings?.earningsDate?.[0]?.raw ?? null;
-  const exDivTs = detail.exDividendDate?.raw ?? null;
+  const q = data?.quoteResponse?.result?.[0];
+  if (!q) return null;
+  const fmtDate = ts => ts ? new Date(ts * 1000).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"}) : null;
   return {
-    marketCap: detail.marketCap?.raw ?? null,
-    pe: detail.trailingPE?.raw ?? null,
-    eps: stats.trailingEps?.raw ?? null,
-    beta: stats.beta?.raw ?? null,
-    dividendRate: detail.dividendRate?.raw ?? null,
-    dividendYield: detail.dividendYield?.raw ?? null,
-    exDivDate: exDivTs ? new Date(exDivTs * 1000).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"}) : null,
-    earningsDate: earningsTs ? new Date(earningsTs * 1000).toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"}) : null,
-    targetPrice: fin.targetMeanPrice?.raw ?? null,
-    sector: profile.sector ?? null,
-    industry: profile.industry ?? null,
-    location: profile.country ?? null,
-    roe: fin.returnOnEquity?.raw != null ? fin.returnOnEquity.raw * 100 : null,
-    debtToEquity: fin.debtToEquity?.raw != null ? fin.debtToEquity.raw / 100 : null,
+    marketCap: q.marketCap ?? null,
+    pe: q.trailingPE ?? null,
+    eps: q.epsTrailingTwelveMonths ?? null,
+    beta: q.beta ?? null,
+    dividendRate: q.trailingAnnualDividendRate ?? null,
+    dividendYield: q.trailingAnnualDividendYield ?? null,
+    exDivDate: fmtDate(q.exDividendDate),
+    earningsDate: fmtDate(q.earningsTimestamp),
+    targetPrice: q.targetMeanPrice ?? null,
+    sector: q.sector ?? null,
+    industry: q.industry ?? null,
+    location: q.country ?? null,
+    roe: q.returnOnEquity != null ? q.returnOnEquity * 100 : null,
+    debtToEquity: q.debtToEquity != null ? q.debtToEquity / 100 : null,
   };
 }
 
