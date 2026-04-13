@@ -585,8 +585,6 @@
 
     function PortfolioChart({pts,timestamps,period,change,totalVal,hidden,loading,chartPeriod,setChartPeriod,yearGoal,onGoalChange,ytdStartVal}){
       const [hoverIdx,setHoverIdx]=useState(null);
-      const [editingGoal,setEditingGoal]=useState(false);
-      const [goalInput,setGoalInput]=useState("");
       const color=change>=0?C.up:C.dn;
       const PERIODS_PC=["1W","1M","YTD","1Y","ALL"];
       const W=800,H=320,PL=4,PR=60,PT=12,PB=24,cw=W-PL-PR,ch=H-PT-PB;
@@ -694,53 +692,6 @@
             )
           ),
           hDate&&e("div",{style:{fontSize:"11px",color:C.muted,marginTop:"8px",fontWeight:"500",letterSpacing:"0.04em"}},hDate),
-          // Goal progress
-          e("div",{style:{marginTop:"14px",display:"flex",flexDirection:"column",alignItems:"center",gap:"6px"}},
-            editingGoal
-              ? e("div",{style:{display:"flex",gap:"6px",alignItems:"center"}},
-                  e("input",{autoFocus:true,type:"number",min:"0",max:"1000",step:"0.1",value:goalInput,
-                    onChange:ev=>setGoalInput(ev.target.value),
-                    onKeyDown:ev=>{
-                      if(ev.key==="Enter"){const v=parseFloat(goalInput);onGoalChange(isNaN(v)?null:v);setEditingGoal(false);}
-                      if(ev.key==="Escape"){setEditingGoal(false);}
-                    },
-                    style:{width:"80px",padding:"4px 8px",border:`1.5px solid ${C.accent}`,borderRadius:"6px",fontSize:"12px",fontFamily:"inherit",textAlign:"center",background:C.surface,color:C.text}}),
-                  e("span",{style:{fontSize:"12px",color:C.muted}},"%"),
-                  e("button",{onClick:()=>{const v=parseFloat(goalInput);onGoalChange(isNaN(v)?null:v);setEditingGoal(false);},
-                    style:{padding:"4px 10px",border:"none",borderRadius:"6px",background:C.accent,color:"#fff",cursor:"pointer",fontSize:"11px",fontFamily:"inherit",fontWeight:"600"}},"Set"),
-                  yearGoal!=null&&e("button",{onClick:()=>{onGoalChange(null);setEditingGoal(false);},
-                    style:{padding:"4px 10px",border:`1px solid ${C.border}`,borderRadius:"6px",background:"transparent",color:C.muted,cursor:"pointer",fontSize:"11px",fontFamily:"inherit"}},"Clear")
-                )
-              : yearGoal!=null
-                ? (()=>{
-                    const base=ytdStartVal||pts?.[0];
-                    const current=totalVal;
-                    const ytdPctNow=base?((current-base)/base*100):0;
-                    const prog=Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100));
-                    const retColor=ytdPctNow>=yearGoal?C.up:ytdPctNow>=0?C.text:C.dn;
-                    return e("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",gap:"6px",cursor:"pointer"},onClick:()=>{setGoalInput(yearGoal.toString());setEditingGoal(true);}},
-                      e("div",{style:{display:"flex",alignItems:"center",gap:"16px"}},
-                        e("div",{style:{textAlign:"center"}},
-                          e("div",{style:{fontSize:"18px",fontWeight:"700",color:retColor,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.02em",lineHeight:1}},(ytdPctNow>=0?"+":"")+ytdPctNow.toFixed(1)+"%"),
-                          e("div",{style:{fontSize:"9px",color:C.muted,marginTop:"2px",letterSpacing:"0.06em",textTransform:"uppercase"}},"YTD Return")
-                        ),
-                        e("div",{style:{fontSize:"12px",color:C.faint}},"→"),
-                        e("div",{style:{textAlign:"center"}},
-                          e("div",{style:{fontSize:"18px",fontWeight:"700",color:"#f59e0b",fontVariantNumeric:"tabular-nums",letterSpacing:"-0.02em",lineHeight:1}},"+"+yearGoal+"%"),
-                          e("div",{style:{fontSize:"9px",color:C.muted,marginTop:"2px",letterSpacing:"0.06em",textTransform:"uppercase"}},"Goal")
-                        )
-                      ),
-                      e("div",{style:{width:"180px",height:"5px",background:C.border,borderRadius:"3px",overflow:"hidden"}},
-                        e("div",{style:{height:"100%",width:prog+"%",background:ytdPctNow>=yearGoal?C.up:"#f59e0b",borderRadius:"3px",transition:"width 0.4s ease"}})
-                      ),
-                      ytdPctNow<yearGoal&&e("div",{style:{fontSize:"10px",color:C.muted}},
-                        "Need +"+(yearGoal-ytdPctNow).toFixed(1)+"% more to hit goal"
-                      )
-                    );
-                  })()
-                : e("button",{onClick:()=>{setGoalInput("");setEditingGoal(true);},
-                    style:{fontSize:"11px",color:C.muted,background:"transparent",border:`1px dashed ${C.border}`,borderRadius:"6px",padding:"3px 12px",cursor:"pointer",fontFamily:"inherit"}},"+ Set 1Y return goal")
-          )
         ),
         // Chart
         pts&&pts.length>=2
