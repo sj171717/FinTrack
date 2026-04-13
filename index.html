@@ -1554,8 +1554,8 @@
             e("div",{style:{fontSize:"10.5px",color:C.muted}},hidden?MASK:"$"+$n(h.qty*h.currentPrice,0))
           )),
           e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:gl,pct:glPct,hidden})),
-          e(TD,{right:true,adv:true,tableView},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
-          e(TD,{right:true,adv:true,tableView},(()=>{
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(PnlCell,{amount:ytd,pct:ytdP,hidden})),
+          e(TD,{right:true},(()=>{
             if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
             const rm=holdingRiskMetrics[h.ticker];
             if(!rm) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
@@ -1567,7 +1567,7 @@
               e("div",{style:{fontSize:"10px",color:C.muted}},"annualized")
             );
           })()),
-          e(TD,{right:true,adv:true,tableView},(()=>{
+          e(TD,{right:true},(()=>{
             if(h.ticker==="Cash") return e("span",{style:{color:C.muted}},"—");
             const rm=holdingRiskMetrics[h.ticker];
             if(!rm) return e("span",{style:{color:C.faint,fontSize:"11px"}},"…");
@@ -1579,14 +1579,14 @@
               e("div",{style:{fontSize:"10px",color:C.muted}},b>1.5?"High risk":b>1?"Aggressive":b>0.5?"Moderate":"Defensive")
             );
           })()),
-          e(TD,{right:true,adv:true,tableView},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e("div",{style:{textAlign:"right"}},
             e(EditCell,{value:h.targetPrice,onSave:v=>upd(h.id,"targetPrice",v),hidden}),
             upside!=null&&!hidden&&e("div",{style:{marginTop:"3px"}},
               e("span",{style:{background:pcBg(upside),color:pc(upside),padding:"2px 7px",borderRadius:"5px",fontWeight:"600",fontSize:"11px",border:`1px solid ${upside>=0?C.upBorder:C.dnBorder}`,fontVariantNumeric:"tabular-nums"}},sign(upside)+$n(Math.abs(upside),1)+"%")
             )
           )),
-          e(TD,{right:true,adv:true,tableView},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(ExitCell,{value:exitP,current:h.currentPrice,onSave:v=>upd(h.id,"customExit",v),hidden})),
-          e(TD,{adv:true,tableView},e(NotesCell,{text:h.notes,onSave:v=>upd(h.id,"notes",v)})),
+          e(TD,{right:true},h.ticker==="Cash"?e("span",{style:{color:C.muted}},"—"):e(ExitCell,{value:exitP,current:h.currentPrice,onSave:v=>upd(h.id,"customExit",v),hidden})),
+          e(TD,null,e(NotesCell,{text:h.notes,onSave:v=>upd(h.id,"notes",v)})),
           e(TD,null,e("button",{onClick:()=>del(h.id),style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"5px",padding:"3px 8px",fontSize:"11px",fontFamily:"inherit"}},"✕"))
         );
       });
@@ -1918,12 +1918,12 @@
                   e(TH,{c:"",hide:true}),e(TH,{c:"Ticker"}),e(TH,{c:"Avg Cost",right:true}),e(TH,{c:"Qty",right:true}),
                   e(TH,{c:"Price",right:true}),e(TH,{c:"Hold %",right:true}),
                   e(TH,{c:"G / L",right:true}),
-                  e(TH,{c:"YTD G/L",right:true,adv:true,tableView}),
-                  e(TH,{c:`Sharpe (${riskPeriod})`,right:true,adv:true,tableView}),
-                  e(TH,{c:`Beta (${riskPeriod})`,right:true,adv:true,tableView}),
-                  e(TH,{c:"Target",right:true,adv:true,tableView}),
-                  e(TH,{c:"Exit",right:true,adv:true,tableView}),
-                  e(TH,{c:"Notes",adv:true,tableView}),e(TH,{c:""})
+                  e(TH,{c:"YTD G/L",right:true}),
+                  e(TH,{c:`Sharpe (${riskPeriod})`,right:true}),
+                  e(TH,{c:`Beta (${riskPeriod})`,right:true}),
+                  e(TH,{c:"Target",right:true}),
+                  e(TH,{c:"Exit",right:true}),
+                  e(TH,{c:"Notes"}),e(TH,{c:""})
                 )),
                 e("tbody",null,...tableRows)
               )
