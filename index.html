@@ -959,8 +959,8 @@
       // Dark mode body background
       useEffect(()=>{
         document.body.style.background = darkMode
-          ? "#070b14"
-          : "linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%)";
+          ? "#060910"
+          : "#f4f6fb";
         document.body.style.minHeight = "100vh";
       },[darkMode]);
 
@@ -1748,6 +1748,10 @@
             ),
             e("div",{style:{display:"flex",alignItems:"center",gap:"0",flexShrink:0,height:"44px",borderLeft:`1px solid ${C.border}`}},
               !isMobile&&e("div",{style:{fontSize:"10px",color:C.muted,padding:"0 12px",borderRight:`1px solid ${C.border}`,height:"100%",display:"flex",alignItems:"center",letterSpacing:"0.05em"}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}).toUpperCase()),
+              e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Light mode":"Dark mode",
+                style:{display:"flex",alignItems:"center",background:"transparent",border:"none",borderRight:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",padding:"0 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"700",height:"100%",letterSpacing:"0.08em"}},
+                darkMode?"☀":"🌙"
+              ),
               e("button",{onClick:()=>{setKeyInput(apiKey);setShowKeyModal(true);},title:"API Keys",
                 style:{display:"flex",alignItems:"center",background:"transparent",border:"none",borderRight:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",padding:"0 12px",fontSize:"13px",fontFamily:"inherit",height:"100%"}},
                 "⚙"
@@ -2347,7 +2351,7 @@
               const needsCompany=["earnings","news","analysis","holders","profile"].includes(activeTab);
               const setTab=(tab)=>{
                 setPortfolioModal(prev=>({...prev,activeTab:tab}));
-                if(["earnings","news","analysis","holders","profile"].includes(tab)&&!companyData[portfolioModal.ticker]&&!companyData[portfolioModal.ticker]?.loading)
+                if(["earnings","news","analysis","holders","profile"].includes(tab)&&!companyData[portfolioModal.ticker]?.loading&&!companyData[portfolioModal.ticker]?.earnings)
                   fetchCompanyData(portfolioModal.ticker);
               };
               const fd=fundamentals[portfolioModal.ticker];
