@@ -39,19 +39,25 @@ module.exports = async (req, res) => {
   const to = now.toISOString().split("T")[0];
   const future = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  const [earningsR, nextEarningsR, newsR, filingsR] = await Promise.allSettled([
+  const [earningsR, nextEarningsR, newsR, filingsR, recR, targetR, holdersR] = await Promise.allSettled([
     fetchDirect(`https://finnhub.io/api/v1/stock/earnings?symbol=${ticker}&limit=8&${fh}`),
     fetchDirect(`https://finnhub.io/api/v1/calendar/earnings?symbol=${ticker}&from=${to}&to=${future}&${fh}`),
     fetchDirect(`https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${to}&${fh}`),
     fetchDirect(`https://finnhub.io/api/v1/stock/filings?symbol=${ticker}&${fh}`),
+    fetchDirect(`https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&${fh}`),
+    fetchDirect(`https://finnhub.io/api/v1/stock/price-target?symbol=${ticker}&${fh}`),
+    fetchDirect(`https://finnhub.io/api/v1/stock/fund-ownership?symbol=${ticker}&limit=10&${fh}`),
   ]);
 
   const earnings = earningsR.status === "fulfilled" && Array.isArray(earningsR.value) ? earningsR.value : [];
   const nextEarnings = nextEarningsR.status === "fulfilled" ? nextEarningsR.value?.earningsCalendar?.[0] : null;
   const news = newsR.status === "fulfilled" && Array.isArray(newsR.value) ? newsR.value.slice(0, 20) : [];
   const filings = filingsR.status === "fulfilled" ? (filingsR.value?.data || []).slice(0, 10) : [];
+  const recommendation = recR.status === "fulfilled" && Array.isArray(recR.value) ? recR.value[0] : null;
+  const priceTarget = targetR.status === "fulfilled" ? targetR.value : null;
+  const holders = holdersR.status === "fulfilled" ? (holdersR.value?.data || []).slice(0, 10) : [];
 
-  // Get description + CEO/employees from FMP profile
+  // Description, CEO, employees from FMP profile
   let description = null, ceo = null, employees = null, website = null, ipo = null;
   if (fmpKey) {
     try {
@@ -67,5 +73,9 @@ module.exports = async (req, res) => {
     } catch {}
   }
 
-  res.status(200).json({ earnings, nextEarnings, news, filings, description, ceo, employees, website, ipo });
+  res.status(200).json({
+    earnings, nextEarnings, news, filings,
+    recommendation, priceTarget, holders,
+    description, ceo, employees, website, ipo,
+  });
 };
