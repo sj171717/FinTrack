@@ -20,7 +20,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
-    body { background: #060910; font-family: 'JetBrains Mono','Courier New',monospace; min-height: 100vh; color: #c8d4e8; }
+    body { background: #060910; font-family: 'JetBrains Mono','Courier New',monospace; min-height: 100vh; }
     #root { max-width: 1500px; margin: 0 auto; padding: 1rem; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
     @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
@@ -244,13 +244,13 @@
     const C = {};
 
     const C_LIGHT = {
-      bg:"#060910", panel:"#0a0e18", surface:"#0c1120", surfaceAlt:"#0f1628",
-      border:"#162030", borderMid:"#1e2e42", text:"#d4e0f0", muted:"#4a6080", faint:"#162030",
-      accent:"#ff8c00", accentBg:"rgba(255,140,0,0.1)", accentMuted:"rgba(255,140,0,0.3)",
-      up:"#00d26a", upBg:"rgba(0,210,106,0.08)", upBorder:"rgba(0,210,106,0.25)",
-      dn:"#ff3b5c", dnBg:"rgba(255,59,92,0.08)", dnBorder:"rgba(255,59,92,0.25)",
-      warn:"#f59e0b", warnBg:"rgba(245,158,11,0.08)", warnBorder:"rgba(245,158,11,0.25)",
-      tag:"#0f1628", tagText:"#4a6080",
+      bg:"#f4f6fb", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f0f2f8",
+      border:"#e0e6f0", borderMid:"#c8d0e4", text:"#080d1a", muted:"#5a6a85", faint:"#d0d8ea",
+      accent:"#4f52e8", accentBg:"#eeefff", accentMuted:"#9698ef",
+      up:"#00976a", upBg:"#e4fdf3", upBorder:"#85deba",
+      dn:"#e0183a", dnBg:"#fff0f2", dnBorder:"#f8aab8",
+      warn:"#c96d00", warnBg:"#fff8ee", warnBorder:"#fdd49a",
+      tag:"#eeefff", tagText:"#5a6a85",
     };
 
     const C_DARK = {
@@ -900,7 +900,7 @@
 
     function FinTrack() {
       // Apply dark/light mode to C on every render (option b)
-      const [darkMode,setDarkMode]=useState(false);
+      const [darkMode,setDarkMode]=useState(true);
       Object.assign(C, darkMode ? C_DARK : C_LIGHT);
 
       const [isMobile,setIsMobile]=useState(()=>window.innerWidth<=640);
@@ -1632,9 +1632,13 @@
         const up=changePct>=0;
         const col=loaded?(up?C.up:C.dn):C.muted;
         const fmtVal=loaded?value.toLocaleString("en-US",{minimumFractionDigits:decimals,maximumFractionDigits:decimals}):"—";
-        return e("div",{onClick:onClick||undefined,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`,cursor:onClick?"pointer":"default",transition:"opacity 0.1s"}},
+        const absSub=loaded&&change!=null?(up?"+":"")+$n(change,2):null;
+        return e("div",{onClick:onClick||undefined,style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`,cursor:onClick?"pointer":"default"}},
           loaded
-            ?e("span",{style:{fontSize:"12px",fontWeight:"500",color:C.text}},name)
+            ?e("div",null,
+                e("div",{style:{fontSize:"12px",fontWeight:"500",color:C.text}},name),
+                absSub&&e("div",{style:{fontSize:"10px",color:col,fontVariantNumeric:"tabular-nums"}},absSub)
+              )
             :e("div",{style:{...pulseSk,width:"90px",height:"12px"}}),
           e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
             loaded
