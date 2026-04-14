@@ -900,7 +900,7 @@
 
     function FinTrack() {
       // Apply dark/light mode to C on every render (option b)
-      const [darkMode,setDarkMode]=useState(true);
+      const [darkMode,setDarkMode]=useState(false);
       Object.assign(C, darkMode ? C_DARK : C_LIGHT);
 
       const [isMobile,setIsMobile]=useState(()=>window.innerWidth<=640);
@@ -1750,7 +1750,7 @@
               !isMobile&&e("div",{style:{fontSize:"10px",color:C.muted,padding:"0 12px",borderRight:`1px solid ${C.border}`,height:"100%",display:"flex",alignItems:"center",letterSpacing:"0.05em"}},new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}).toUpperCase()),
               e("button",{onClick:()=>setDarkMode(v=>!v),title:darkMode?"Light mode":"Dark mode",
                 style:{display:"flex",alignItems:"center",background:"transparent",border:"none",borderRight:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",padding:"0 12px",fontSize:"11px",fontFamily:"inherit",fontWeight:"700",height:"100%",letterSpacing:"0.08em"}},
-                darkMode?"☀":"🌙"
+                darkMode?"LIGHT":"DARK"
               ),
               e("button",{onClick:()=>{setKeyInput(apiKey);setShowKeyModal(true);},title:"API Keys",
                 style:{display:"flex",alignItems:"center",background:"transparent",border:"none",borderRight:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",padding:"0 12px",fontSize:"13px",fontFamily:"inherit",height:"100%"}},
