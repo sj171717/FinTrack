@@ -2472,18 +2472,16 @@
                   e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.faint,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},"Income Statement (TTM)"),
                   e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"8px",overflow:"hidden"}},
                     [
-                      ["Revenue",fd.revenue,null],
-                      ["Gross Profit",fd.grossProfit,null],
-                      ["Net Income",fd.netIncome,fd.netIncome>0?C.up:fd.netIncome<0?C.dn:null],
-                      ["Operating Income",fd.operatingIncome,fd.operatingIncome>0?C.up:fd.operatingIncome<0?C.dn:null],
-                      ["Gross Margin",fd.grossMargin!=null?fmt(fd.grossMargin,1)+"%":null,null],
-                      ["Operating Margin",fd.netMargin!=null?fmt(fd.netMargin,1)+"%":null,null],
-                      ["Net Margin",fd.netMargin!=null?fmt(fd.netMargin,1)+"%":null,fd.netMargin>10?C.up:fd.netMargin>0?C.text:fd.netMargin!=null?C.dn:null],
-                      ["EPS (TTM)",fd.eps!=null?"$"+fmt(fd.eps,2):null,fd.eps>0?C.up:fd.eps<0?C.dn:null],
-                      ["ROE",fd.roe!=null?fmt(fd.roe,1)+"%":null,fd.roe>15?C.up:fd.roe>0?C.text:fd.roe!=null?C.dn:null],
-                      ["Debt / Equity",fd.debtToEquity!=null?fmt(fd.debtToEquity,2):null,fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:fd.debtToEquity!=null?C.up:null],
-                    ].map(([label,val,color],i,arr)=>{
-                      const display=typeof val==="string"?val:(val!=null?fmtB(val):"—");
+                      ["Revenue",fmtB(fd.revenue),null],
+                      ["Gross Profit",fmtB(fd.grossProfit),null],
+                      ["Net Income",fmtB(fd.netIncome),fd.netIncome!=null?(fd.netIncome>0?C.up:C.dn):null],
+                      ["Operating Income",fmtB(fd.operatingIncome),fd.operatingIncome!=null?(fd.operatingIncome>0?C.up:C.dn):null],
+                      ["Gross Margin",fd.grossMargin!=null?fmt(fd.grossMargin,1)+"%":"—",null],
+                      ["Net Margin",fd.netMargin!=null?fmt(fd.netMargin,1)+"%":"—",fd.netMargin!=null?(fd.netMargin>10?C.up:fd.netMargin>0?C.text:C.dn):null],
+                      ["EPS (TTM)",fd.eps!=null?"$"+fmt(fd.eps,2):"—",fd.eps!=null?(fd.eps>0?C.up:C.dn):null],
+                      ["ROE",fd.roe!=null?fmt(fd.roe,1)+"%":"—",fd.roe!=null?(fd.roe>15?C.up:fd.roe>0?C.text:C.dn):null],
+                      ["Debt / Equity",fd.debtToEquity!=null?fmt(fd.debtToEquity,2):"—",fd.debtToEquity!=null?(fd.debtToEquity>2?C.dn:fd.debtToEquity>1?C.warn:C.up):null],
+                    ].map(([label,display,color],i,arr)=>{
                       return e("div",{key:i,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:C.surface,borderBottom:i<arr.length-1?`1px solid ${C.border}`:"none"}},
                         e("span",{style:{fontSize:"12px",color:C.muted}},label),
                         e("span",{style:{fontSize:"13px",fontWeight:"600",color:color||C.text,fontVariantNumeric:"tabular-nums"}},display)
