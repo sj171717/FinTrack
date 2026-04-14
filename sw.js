@@ -1,4 +1,4 @@
-const CACHE = "fintrack-v1";
+const CACHE = "fintrack-v3";
 
 // Core shell files to cache on install
 const SHELL = [
