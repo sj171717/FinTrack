@@ -54,8 +54,9 @@ module.exports = async (req, res) => {
   const news = newsR.status === "fulfilled" && Array.isArray(newsR.value) ? newsR.value.slice(0, 20) : [];
   const filings = filingsR.status === "fulfilled" ? (filingsR.value?.data || []).slice(0, 10) : [];
   const recommendation = recR.status === "fulfilled" && Array.isArray(recR.value) ? recR.value[0] : null;
-  const priceTarget = targetR.status === "fulfilled" ? targetR.value : null;
-  const holders = holdersR.status === "fulfilled" ? (holdersR.value?.data || []).slice(0, 10) : [];
+  const ptRaw = targetR.status === "fulfilled" ? targetR.value : null;
+  const priceTarget = ptRaw && (ptRaw.targetMean || ptRaw.targetHigh || ptRaw.targetLow) ? ptRaw : null;
+  const holders = holdersR.status === "fulfilled" ? (holdersR.value?.ownership || holdersR.value?.data || []).slice(0, 10) : [];
 
   // Description, CEO, employees from FMP profile
   let description = null, ceo = null, employees = null, website = null, ipo = null;
