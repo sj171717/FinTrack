@@ -2359,7 +2359,7 @@
               const cd=companyData[portfolioModal.ticker];
               const fmt=(v,d=2)=>v==null?"—":$n(v,d);
               const fmtB=(v)=>v==null?"—":"$"+(Math.abs(v)>=1e9?$n(v/1e9,2)+"B":Math.abs(v)>=1e6?$n(v/1e6,1)+"M":$n(v,0));
-              const Spinner=()=>e("div",{style:{width:"13px",height:"13px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}});
+              const spinner=e("div",{style:{display:"flex",justifyContent:"center",padding:"40px"}},e("div",{style:{width:"13px",height:"13px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}));
               const Row=({items})=>e("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))",gap:"1px",background:C.border}},
                 items.filter(Boolean).map(({label,value,color},i)=>e("div",{key:i,style:{background:C.surface,padding:"8px 10px"}},
                   e("div",{style:{fontSize:"9px",color:C.faint,letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:"2px"}},label),
@@ -2375,8 +2375,7 @@
                   marginBottom:"-1px",transition:"color 0.15s",flexShrink:0
                 }},t))
               );
-              const CdLoading=()=>cd?.loading?e("div",{style:{display:"flex",justifyContent:"center",padding:"40px"}},e(Spinner)):
-                cd?.error?e("div",{style:{fontSize:"11px",color:C.dn}},"Failed to load"):null;
+              const cdStatus=cd?.loading?spinner:cd?.error?e("div",{style:{fontSize:"11px",color:C.dn,padding:"8px 0"}},"Failed to load"):null;
 
               // ── Chart tab ──
               if(activeTab==="chart") return e("div",null,
@@ -2410,7 +2409,7 @@
               // ── Summary tab ──
               if(activeTab==="summary") return e("div",null,
                 tabBar,
-                fd?.loading&&e("div",{style:{display:"flex",justifyContent:"center",padding:"20px"}},e(Spinner)),
+                fd?.loading&&spinner,
                 fd?.error&&e("div",{style:{fontSize:"11px",color:C.dn}},fd.error),
                 fd&&!fd.loading&&!fd.error&&e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"8px",overflow:"hidden"}},
                   e(Row,{items:[
@@ -2436,7 +2435,7 @@
               // ── Earnings tab ──
               if(activeTab==="earnings") return e("div",null,
                 tabBar,
-                e(CdLoading),
+                cdStatus,
                 cd&&!cd.loading&&(()=>{
                   const ne=cd.nextEarnings;
                   const hist=cd.earnings||[];
@@ -2468,7 +2467,7 @@
               // ── Financials tab ──
               if(activeTab==="financials") return e("div",null,
                 tabBar,
-                fd?.loading&&e("div",{style:{display:"flex",justifyContent:"center",padding:"20px"}},e(Spinner)),
+                fd?.loading&&spinner,
                 fd&&!fd.loading&&e("div",null,
                   e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.faint,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},"Income Statement (TTM)"),
                   e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"8px",overflow:"hidden"}},
@@ -2497,7 +2496,7 @@
               // ── Analysis tab ──
               if(activeTab==="analysis") return e("div",null,
                 tabBar,
-                e(CdLoading),
+                cdStatus,
                 cd&&!cd.loading&&(()=>{
                   const rec=cd.recommendation;
                   const pt=cd.priceTarget;
@@ -2547,7 +2546,7 @@
               // ── News tab ──
               if(activeTab==="news") return e("div",null,
                 tabBar,
-                e(CdLoading),
+                cdStatus,
                 cd&&!cd.loading&&(()=>{
                   const items=cd.news||[];
                   if(!items.length) return e("div",{style:{fontSize:"12px",color:C.muted,padding:"30px 0",textAlign:"center"}},"No recent news");
@@ -2576,7 +2575,7 @@
                         fontSize:"11px",fontFamily:"inherit",fontWeight:portfolioModal.period===p?"600":"400"}},p))
                   )
                 ),
-                portfolioModal.loading&&e("div",{style:{display:"flex",justifyContent:"center",padding:"30px"}},e(Spinner)),
+                portfolioModal.loading&&spinner,
                 !portfolioModal.loading&&portfolioModal.ohlc&&portfolioModal.ohlc.length>0
                   ?e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"8px",overflow:"hidden"}},
                     e("div",{style:{display:"grid",gridTemplateColumns:"1.2fr 1fr 1fr 1fr 1fr",gap:"1px",background:C.border}},
@@ -2599,7 +2598,7 @@
               // ── Holders tab ──
               if(activeTab==="holders") return e("div",null,
                 tabBar,
-                e(CdLoading),
+                cdStatus,
                 cd&&!cd.loading&&(()=>{
                   const items=cd.holders||[];
                   if(!items.length) return e("div",{style:{fontSize:"12px",color:C.muted,padding:"30px 0",textAlign:"center"}},"No holder data available");
@@ -2619,7 +2618,7 @@
               // ── Profile tab ──
               if(activeTab==="profile") return e("div",null,
                 tabBar,
-                e(CdLoading),
+                cdStatus,
                 cd&&!cd.loading&&(()=>{
                   const fd2=fundamentals[portfolioModal.ticker];
                   return e("div",null,
