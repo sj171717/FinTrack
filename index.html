@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="FinTrack" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -20,7 +20,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
-    body { background: #060910; font-family: 'JetBrains Mono','Courier New',monospace; min-height: 100vh; }
+    body { background: #060910; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
     #root { max-width: 1500px; margin: 0 auto; padding: 1rem; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
     @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
@@ -1720,7 +1720,7 @@
         )
       );
 
-      return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'JetBrains Mono','Courier New',monospace",borderRadius:"0",overflow:"hidden",border:`1px solid ${C.border}`}},
+      return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'Inter','Helvetica Neue',Arial,sans-serif",borderRadius:"0",overflow:"hidden",border:`1px solid ${C.border}`}},
 
         // ── Header ──
         e("div",{style:{borderBottom:`1px solid ${C.border}`,background:C.panel,position:"sticky",top:0,zIndex:100}},
@@ -1978,7 +1978,7 @@
               onChange:ev=>{const v=ev.target.value;setStrategyNotes(v);if(user)fbDb.collection("users").doc(user.uid).set({notes:v},{merge:true}).catch(()=>{});},
               placeholder:"Write your market outlook, position thesis, risk notes, upcoming catalysts…\n\ne.g. LLY: Holding through FDA April 10 decision. Risk is delay past Q2.\nGOOG: Patient hold toward $400 target. Valuation still reasonable at 20x fwd.",
               rows:8,
-              style:{width:"100%",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,borderRadius:"2px",padding:"12px 14px",fontSize:"12.5px",fontFamily:"'JetBrains Mono','Courier New',monospace",lineHeight:"1.7",resize:"vertical",outline:"none",boxSizing:"border-box"}
+              style:{width:"100%",background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,borderRadius:"2px",padding:"12px 14px",fontSize:"12.5px",fontFamily:"'Inter','Helvetica Neue',Arial,sans-serif",lineHeight:"1.7",resize:"vertical",outline:"none",boxSizing:"border-box"}
             })
           ),
 
