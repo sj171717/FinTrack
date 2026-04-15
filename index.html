@@ -768,8 +768,9 @@
       const remLots=buys.map(b=>({...b,rem:b.qty}));
       for(const sell of sells){let sq=sell.qty;for(const lot of remLots){if(sq<=0||lot.rem<=0)continue;const used=Math.min(sq,lot.rem);lot.rem-=used;sq-=used;}}
       remLots.forEach(l=>remMap[l.id]=l.rem);
-      const nbf={date:new Date().toISOString().split('T')[0],price:"",qty:""};
-      const nsf={date:new Date().toISOString().split('T')[0],price:"",qty:""};
+      const BROKERS=["Robinhood","Fidelity","Schwab","TD Ameritrade","E*TRADE","Webull","Interactive Brokers","Merrill Edge","Vanguard","Tastytrade","Other"];
+      const nbf={date:new Date().toISOString().split('T')[0],price:"",qty:"",broker:""};
+      const nsf={date:new Date().toISOString().split('T')[0],price:"",qty:"",broker:""};
       const [newBuy,setNewBuy]=useState(nbf);
       const [newSell,setNewSell]=useState(nsf);
       const [showAddBuy,setShowAddBuy]=useState(false);
@@ -777,7 +778,7 @@
       const addBuyLot=()=>{
         const price=+newBuy.price,qty2=+newBuy.qty;
         if(!price||!qty2)return;
-        const lot={id:rawH.id+"_l"+Date.now(),type:"buy",date:newBuy.date,price,qty:qty2};
+        const lot={id:rawH.id+"_l"+Date.now(),type:"buy",date:newBuy.date,price,qty:qty2,...(newBuy.broker?{broker:newBuy.broker}:{})};
         setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h));
         setLotsModal(prev=>({...prev,holding:{...rawH,lots:[...(rawH.lots||[]),lot]}}));
         setNewBuy(nbf); setShowAddBuy(false);
@@ -785,7 +786,7 @@
       const addSellLot=()=>{
         const price=+newSell.price,qty2=+newSell.qty;
         if(!price||!qty2)return;
-        const lot={id:rawH.id+"_s"+Date.now(),type:"sell",date:newSell.date,price,qty:qty2};
+        const lot={id:rawH.id+"_s"+Date.now(),type:"sell",date:newSell.date,price,qty:qty2,...(newSell.broker?{broker:newSell.broker}:{})};
         const proceeds=price*qty2;
         setHoldings(p=>{
           const updated=p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h);
@@ -832,6 +833,12 @@
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Date"),e("input",{type:"date",value:newBuy.date,onChange:ev=>setNewBuy(p=>({...p,date:ev.target.value})),style:inpS})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Price ($)"),e("input",{type:"number",placeholder:"0.00",value:newBuy.price,onChange:ev=>setNewBuy(p=>({...p,price:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addBuyLot(),style:{...inpS,width:"90px"}})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",placeholder:"0",value:newBuy.qty,onChange:ev=>setNewBuy(p=>({...p,qty:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addBuyLot(),style:{...inpS,width:"90px"}})),
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker (optional)"),
+                e("select",{value:newBuy.broker,onChange:ev=>setNewBuy(p=>({...p,broker:ev.target.value})),style:{...inpS,width:"150px"}},
+                  e("option",{value:""},"— Select —"),
+                  BROKERS.map(b=>e("option",{key:b,value:b},b))
+                )
+              ),
               e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
                 e("button",{onClick:addBuyLot,style:BS("p")},"Add"),
                 e("button",{onClick:()=>setShowAddBuy(false),style:BS()},"Cancel")
@@ -840,7 +847,7 @@
             buys.length===0?e("div",{style:{fontSize:"12px",color:C.muted,padding:"8px 0"}},"No buy lots yet — add your first purchase above.")
             :e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:"11.5px"}},
               e("thead",null,e("tr",null,
-                ...(["Date","Buy Price","Shares","Rem. Shares","Mkt Value","Gain / Loss",""].map((c,i)=>e("th",{key:i,style:{padding:"6px 8px",textAlign:i>1?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"500",fontSize:"10px",letterSpacing:"0.06em",textTransform:"uppercase",background:C.surfaceAlt}},c)))
+                ...(["Date","Broker","Buy Price","Shares","Rem. Shares","Mkt Value","Gain / Loss",""].map((c,i)=>e("th",{key:i,style:{padding:"6px 8px",textAlign:i>2?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"500",fontSize:"10px",letterSpacing:"0.06em",textTransform:"uppercase",background:C.surfaceAlt}},c)))
               )),
               e("tbody",null,...buys.map((lot)=>{
                 const rem=remMap[lot.id]??lot.qty;
@@ -849,6 +856,7 @@
                 const glPct=lot.price?(rawH.currentPrice-lot.price)/lot.price*100:0;
                 return e("tr",{key:lot.id,style:{borderBottom:`1px solid ${C.border}`}},
                   e("td",{style:{padding:"7px 8px",color:C.text}},lot.date),
+                  e("td",{style:{padding:"7px 8px"}},lot.broker?e("span",{style:{fontSize:"9px",fontWeight:"600",color:C.accent,background:C.accentBg,border:`1px solid ${C.accentMuted}`,padding:"1px 5px",borderRadius:"6px",whiteSpace:"nowrap"}},lot.broker):e("span",{style:{color:C.faint,fontSize:"10px"}},"—")),
                   e("td",{style:{padding:"7px 8px",color:C.text}},"$"+$n(lot.price)),
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:C.muted}},$n(lot.qty,4)),
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:rem>0?C.text:C.faint}},$n(rem,4)+(rem===0?" (sold)":"")),
@@ -868,6 +876,12 @@
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Date"),e("input",{type:"date",value:newSell.date,onChange:ev=>setNewSell(p=>({...p,date:ev.target.value})),style:inpS})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Sell Price ($)"),e("input",{type:"number",placeholder:"0.00",value:newSell.price,onChange:ev=>setNewSell(p=>({...p,price:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addSellLot(),style:{...inpS,width:"90px"}})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",placeholder:"0",value:newSell.qty,onChange:ev=>setNewSell(p=>({...p,qty:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addSellLot(),style:{...inpS,width:"90px"}})),
+              e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker (optional)"),
+                e("select",{value:newSell.broker,onChange:ev=>setNewSell(p=>({...p,broker:ev.target.value})),style:{...inpS,width:"150px"}},
+                  e("option",{value:""},"— Select —"),
+                  BROKERS.map(b=>e("option",{key:b,value:b},b))
+                )
+              ),
               e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
                 e("button",{onClick:addSellLot,style:BS("p")},"Add"),
                 e("button",{onClick:()=>setShowAddSell(false),style:BS()},"Cancel")
@@ -1000,6 +1014,7 @@
       const [holdingRiskMetrics,setHoldingRiskMetrics]=useState({}); // {[ticker]:{sharpe,beta}}
       const [strategyNotes,setStrategyNotes]=useState("");
       const [costBasisMethod,setCostBasisMethod]=useState("FIFO"); // "FIFO" | "HIFO" | "AvgCost"
+      const [brokerFilter,setBrokerFilter]=useState(null); // null = all, string = specific broker
       const [yearGoal,setYearGoal]=useState(null); // % e.g. 15 means 15%
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
@@ -1134,9 +1149,10 @@
         const cp=livePrice>0?livePrice:(h.currentPrice||0);
         const hh={...h,currentPrice:cp};
         if(!h.lots||h.ticker==="Cash")return{...hh,realizedGL:0,unrealizedGL:(cp-(h.avgCost||0))*(h.qty||0)};
-        const c=computeFromLots(h.lots,cp,costBasisMethod);
+        const filteredLots=brokerFilter?h.lots.filter(l=>l.broker===brokerFilter):h.lots;
+        const c=computeFromLots(filteredLots,cp,costBasisMethod);
         return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
-      });
+      }).filter(h=>h.ticker==="Cash"||!brokerFilter||(h.qty>0));
 
       const totalVal      =resolvedHoldings.reduce((s,h)=>s+h.qty*h.currentPrice,0);
       const totalCost     =resolvedHoldings.reduce((s,h)=>s+h.qty*h.avgCost,0);
@@ -2093,6 +2109,16 @@
                   )
                 )
             ),
+
+            (()=>{
+              const allBrokers=[...new Set((holdings||[]).flatMap(h=>(h.lots||[]).map(l=>l.broker).filter(Boolean)))].sort();
+              return allBrokers.length>0&&e("div",{style:{display:"flex",gap:"6px",padding:"8px 1rem",borderBottom:`1px solid ${C.border}`,alignItems:"center",flexWrap:"wrap",background:C.surfaceAlt}},
+                e("span",{style:{fontSize:"9px",fontWeight:"700",color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase"}},"Broker:"),
+                e("button",{onClick:()=>setBrokerFilter(null),style:{padding:"2px 10px",border:`1px solid ${brokerFilter===null?C.accent:C.border}`,borderRadius:"8px",cursor:"pointer",fontSize:"10px",fontFamily:"inherit",fontWeight:brokerFilter===null?"600":"400",background:brokerFilter===null?C.accentBg:"transparent",color:brokerFilter===null?C.accent:C.muted}},"All"),
+                allBrokers.map(b=>e("button",{key:b,onClick:()=>setBrokerFilter(brokerFilter===b?null:b),
+                  style:{padding:"2px 10px",border:`1px solid ${brokerFilter===b?C.accent:C.border}`,borderRadius:"8px",cursor:"pointer",fontSize:"10px",fontFamily:"inherit",fontWeight:brokerFilter===b?"600":"400",background:brokerFilter===b?C.accentBg:"transparent",color:brokerFilter===b?C.accent:C.muted}},b))
+              );
+            })(),
 
             e("div",{style:{overflowX:"auto"}},
               e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:"12px"}},
