@@ -1796,22 +1796,20 @@
             const col=isUp?C.up:C.dn;
             const bg=isUp?C.upBg:C.dnBg;
             const bdr=isUp?C.upBorder:C.dnBorder;
+            const livePrice=sp?.price>0?sp.price:(h.currentPrice||0);
             return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true,activeTab:"chart"});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.marketCap&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
-              style:{flex:"0 0 130px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:"4px",padding:"8px 10px",cursor:"pointer",boxShadow:"0 1px 3px rgba(0,0,0,0.04)",transition:"border-color 0.12s"}},
-              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"4px"}},
-                e("span",{style:{background:C.accentBg,color:C.accent,padding:"1px 6px",borderRadius:"4px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`}},h.ticker),
-                e("span",{style:{fontSize:"10px",color:col,fontWeight:"600",background:bg,border:`1px solid ${bdr}`,padding:"1px 5px",borderRadius:"4px"}},(isUp?"+":"")+todayPct.toFixed(1)+"%")
+              style:{flex:"0 0 auto",minWidth:"108px",background:C.surface,border:`1px solid ${C.border}`,borderLeft:`3px solid ${col}`,borderRadius:"4px",padding:"7px 10px 7px 9px",cursor:"pointer",transition:"box-shadow 0.12s",position:"relative"}},
+              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"3px"}},
+                e("span",{style:{fontFamily:"'SF Mono','Fira Mono','Consolas',monospace",fontSize:"10px",fontWeight:"700",color:C.accent,letterSpacing:"0.06em"}},h.ticker),
+                e("span",{style:{fontSize:"10px",color:col,fontWeight:"600",background:bg,border:`1px solid ${bdr}`,padding:"0px 5px",borderRadius:"3px",fontVariantNumeric:"tabular-nums",lineHeight:"16px"}},(isUp?"+":"")+todayPct.toFixed(2)+"%")
               ),
-              sp
-                ?e(F,null,
-                    e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,fontVariantNumeric:"tabular-nums",marginBottom:"2px"}},"$"+$n(h.currentPrice||sp.price)),
-                    sp.ahPrice&&e("div",{style:{fontSize:"9px",color:C.muted,marginBottom:"2px",fontVariantNumeric:"tabular-nums",lineHeight:"1.3"}},
-                      e("span",{style:{marginRight:"3px"}},"AH: $"+$n(sp.ahPrice,2)),
-                      sp.ahPct!=null&&e("span",{style:{color:sp.ahPct>=0?C.up:C.dn,fontWeight:"600"}},(sp.ahPct>=0?"+":"")+sp.ahPct.toFixed(2)+"%")
-                    ),
-                    e(MiniSpark,{pts:sp.pts,color:col,gid:"hsp"+i})
-                  )
-                :e("div",{style:{height:"50px",background:C.border,borderRadius:"2px",animation:"pulse 1.2s ease-in-out infinite"}})
+              e("div",{style:{fontSize:"14px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums",fontFamily:"'SF Mono','Fira Mono','Consolas',monospace",letterSpacing:"-0.01em",lineHeight:"1"}},
+                livePrice?"$"+$n(livePrice,2):"—"
+              ),
+              sp?.ahPrice&&e("div",{style:{fontSize:"9px",color:C.muted,marginTop:"3px",fontVariantNumeric:"tabular-nums",fontFamily:"'SF Mono','Fira Mono','Consolas',monospace"}},
+                "AH $"+$n(sp.ahPrice,2)+" ",
+                sp.ahPct!=null&&e("span",{style:{color:sp.ahPct>=0?C.up:C.dn,fontWeight:"600"}},(sp.ahPct>=0?"+":"")+sp.ahPct.toFixed(2)+"%")
+              )
             );
           })
         )
