@@ -228,6 +228,18 @@
       { name:"Consumer Conf.",  value:92.9, prev:98.3, date:"Mar 2026", note:"Conference Board index" },
     ];
 
+    const MARKET_HOLIDAYS = {
+      US:[["2025-01-01","New Year's Day"],["2025-01-20","MLK Day"],["2025-02-17","Presidents' Day"],["2025-04-18","Good Friday"],["2025-05-26","Memorial Day"],["2025-07-04","Independence Day"],["2025-09-01","Labor Day"],["2025-11-27","Thanksgiving"],["2025-12-25","Christmas"],["2026-01-01","New Year's Day"],["2026-01-19","MLK Day"],["2026-02-16","Presidents' Day"],["2026-04-03","Good Friday"],["2026-05-25","Memorial Day"],["2026-07-03","Independence Day (obs)"],["2026-09-07","Labor Day"],["2026-11-26","Thanksgiving"],["2026-12-25","Christmas"]],
+      JP:[["2025-01-01","New Year's"],["2025-01-13","Coming of Age Day"],["2025-02-11","Foundation Day"],["2025-02-24","Emperor's Birthday"],["2025-03-21","Vernal Equinox"],["2025-04-29","Showa Day"],["2025-05-03","Constitution Day"],["2025-05-04","Greenery Day"],["2025-05-05","Children's Day"],["2025-07-21","Marine Day"],["2025-08-11","Mountain Day"],["2025-09-15","Respect for Aged Day"],["2025-09-23","Autumnal Equinox"],["2025-10-13","Sports Day"],["2025-11-03","Culture Day"],["2025-11-24","Labour Thanksgiving"],["2026-01-01","New Year's"],["2026-01-12","Coming of Age Day"],["2026-02-11","Foundation Day"],["2026-02-23","Emperor's Birthday"],["2026-03-20","Vernal Equinox"],["2026-04-29","Showa Day"],["2026-05-03","Constitution Day"],["2026-05-04","Greenery Day"],["2026-05-05","Children's Day"],["2026-07-20","Marine Day"],["2026-08-11","Mountain Day"],["2026-09-21","Respect for Aged Day"],["2026-09-23","Autumnal Equinox"],["2026-10-12","Sports Day"],["2026-11-03","Culture Day"],["2026-11-23","Labour Thanksgiving"]],
+      UK:[["2025-01-01","New Year's"],["2025-04-18","Good Friday"],["2025-04-21","Easter Monday"],["2025-05-05","Early May BH"],["2025-05-26","Spring BH"],["2025-08-25","Summer BH"],["2025-12-25","Christmas"],["2025-12-26","Boxing Day"],["2026-01-01","New Year's"],["2026-04-03","Good Friday"],["2026-04-06","Easter Monday"],["2026-05-04","Early May BH"],["2026-05-25","Spring BH"],["2026-08-31","Summer BH"],["2026-12-25","Christmas"],["2026-12-28","Boxing Day (obs)"]],
+      EU:[["2025-01-01","New Year's"],["2025-04-18","Good Friday"],["2025-04-21","Easter Monday"],["2025-05-01","Labour Day"],["2025-12-25","Christmas"],["2025-12-26","Boxing Day"],["2026-01-01","New Year's"],["2026-04-03","Good Friday"],["2026-04-06","Easter Monday"],["2026-05-01","Labour Day"],["2026-12-25","Christmas"],["2026-12-26","Boxing Day"]],
+      CN:[["2025-01-01","New Year's"],["2025-01-28","Spring Festival"],["2025-01-29","Spring Festival"],["2025-01-30","Spring Festival"],["2025-01-31","Spring Festival"],["2025-02-03","Spring Festival"],["2025-02-04","Spring Festival"],["2025-04-04","Qingming"],["2025-05-01","Labour Day"],["2025-05-02","Labour Day"],["2025-05-05","Labour Day"],["2025-06-02","Dragon Boat"],["2025-10-01","National Day"],["2025-10-02","National Day"],["2025-10-03","National Day"],["2025-10-06","National Day"],["2025-10-07","National Day"],["2025-10-08","National Day"],["2026-01-01","New Year's"],["2026-01-28","Spring Festival"],["2026-01-29","Spring Festival"],["2026-01-30","Spring Festival"],["2026-02-02","Spring Festival"],["2026-02-03","Spring Festival"],["2026-04-05","Qingming"],["2026-05-01","Labour Day"],["2026-05-04","Labour Day"],["2026-06-19","Dragon Boat"],["2026-10-01","National Day"],["2026-10-02","National Day"],["2026-10-05","National Day"],["2026-10-06","National Day"],["2026-10-07","National Day"],["2026-10-08","National Day"]],
+      HK:[["2025-01-01","New Year's"],["2025-01-29","Lunar New Year"],["2025-01-30","Lunar New Year"],["2025-01-31","Lunar New Year"],["2025-04-04","Ching Ming"],["2025-04-18","Good Friday"],["2025-04-19","Easter Saturday"],["2025-04-21","Easter Monday"],["2025-05-01","Labour Day"],["2025-05-05","Buddha's Birthday"],["2025-06-02","Dragon Boat"],["2025-07-01","HKSAR Day"],["2025-10-01","National Day"],["2025-10-07","Chung Yeung"],["2025-12-25","Christmas"],["2025-12-26","Boxing Day"],["2026-01-01","New Year's"],["2026-01-28","Lunar New Year"],["2026-01-29","Lunar New Year"],["2026-01-30","Lunar New Year"],["2026-04-03","Good Friday"],["2026-04-04","Easter Saturday"],["2026-04-05","Ching Ming"],["2026-04-06","Easter Monday"],["2026-05-01","Labour Day"],["2026-06-19","Dragon Boat"],["2026-07-01","HKSAR Day"],["2026-10-01","National Day"],["2026-10-07","Chung Yeung"],["2026-12-25","Christmas"],["2026-12-26","Boxing Day"]],
+      TW:[["2025-01-01","New Year's"],["2025-01-27","Spring Festival"],["2025-01-28","Spring Festival"],["2025-01-29","Spring Festival"],["2025-01-30","Spring Festival"],["2025-02-28","Peace Memorial"],["2025-04-03","Children's Day"],["2025-04-04","Tomb Sweeping"],["2025-05-01","Labour Day"],["2025-05-30","Dragon Boat"],["2025-10-10","National Day"],["2026-01-01","New Year's"],["2026-01-22","Spring Festival"],["2026-01-23","Spring Festival"],["2026-01-26","Spring Festival"],["2026-01-27","Spring Festival"],["2026-02-28","Peace Memorial"],["2026-04-03","Children's Day"],["2026-04-04","Tomb Sweeping"],["2026-05-01","Labour Day"],["2026-06-19","Dragon Boat"],["2026-10-10","National Day"]],
+    };
+    const MKT_FLAGS = {US:"🇺🇸",JP:"🇯🇵",UK:"🇬🇧",EU:"🇪🇺",CN:"🇨🇳",HK:"🇭🇰",TW:"🇹🇼"};
+    const MKT_NAMES = {US:"NYSE/NASDAQ",JP:"Tokyo",UK:"London",EU:"Euronext",CN:"Shanghai",HK:"Hong Kong",TW:"Taiwan"};
+
     const DEFAULT_EXIT_PCT = 0.85;
 
     const INITIAL_HOLDINGS = [
@@ -938,6 +950,14 @@
       const [news,setNews]=useState(null);
       const [newsLoading,setNewsLoading]=useState(false);
       const [newsSubTab,setNewsSubTab]=useState("market");
+      const [calendarData,setCalendarData]=useState(null);
+      const [calendarLoading,setCalendarLoading]=useState(false);
+      const [calendarFetched,setCalendarFetched]=useState(false);
+      const [calViewMonth,setCalViewMonth]=useState(new Date().getMonth());
+      const [calViewYear,setCalViewYear]=useState(new Date().getFullYear());
+      const [calFilter,setCalFilter]=useState("all");
+      const [calSelectedDay,setCalSelectedDay]=useState(null);
+      const [calMarkets,setCalMarkets]=useState(["US","JP","UK","EU","CN","HK","TW"]);
       const [newsFetched,setNewsFetched]=useState(false);
       const [kalshiData,setKalshiData]=useState(null);
       const [kalshiLoading,setKalshiLoading]=useState(false);
@@ -1047,6 +1067,7 @@
         }
         if(tab==="news"){fetchMarketData();if(holdings){fetchNews();fetchHoldingSparklines();holdings.filter(h=>h.ticker!=="Cash").forEach(h=>{if(!companyData[h.ticker]?.loading&&!companyData[h.ticker]?.earnings)fetchCompanyData(h.ticker);});}}
         if(tab==="prediction"){fetchKalshi();}
+        if(tab==="calendar"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}
       },[tab,holdings]);
 
       useEffect(()=>{
@@ -1284,6 +1305,19 @@
         setNews({market,watchlist});
         setNewsLoading(false);
         if(market.length>0||Object.keys(watchlist).length>0) setNewsFetched(true);
+      };
+
+      // ── CALENDAR ──
+      const fetchCalendar=async(force=false)=>{
+        if(calendarLoading||(calendarFetched&&!force))return;
+        setCalendarLoading(true);
+        const tickers=(holdings||[]).filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
+        try{
+          const data=await fetch(`/api/calendar?tickers=${tickers.join(",")}`).then(r=>r.json());
+          setCalendarData(data);
+          setCalendarFetched(true);
+        }catch{setCalendarData({error:"Failed to load calendar data"});}
+        setCalendarLoading(false);
       };
 
       // ── KALSHI PREDICTION MARKETS ──
@@ -1744,8 +1778,8 @@
               ),
               // Tabs — desktop only (mobile shows below)
               !isMobile&&e("div",{style:{display:"flex",alignItems:"stretch",gap:"0",borderLeft:`1px solid ${C.border}`}},
-                [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
-                  e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
+                [["news","Markets"],["calendar","Calendar"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
+                  e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}if(k==="calendar"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}},
                     style:{padding:"0 18px",border:"none",borderRight:`1px solid ${C.border}`,borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
                       background:"transparent",
                       color:tab===k?C.text:C.muted,
@@ -1781,8 +1815,8 @@
           // Mobile tab row
           isMobile&&e("div",{style:{padding:"0 0.75rem",borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}},
             e("div",{style:{display:"flex",gap:"0"}},
-              [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
-                e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
+              [["news","Markets"],["calendar","Calendar"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
+                e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}if(k==="calendar"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}},
                   style:{padding:"10px 16px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
                     background:"transparent",
                     color:tab===k?C.text:C.muted,
@@ -2099,8 +2133,15 @@
                 });
               });
               allItems.sort((a,b)=>(b._sortKey||0)-(a._sortKey||0));
+              // Deduplicate by headline — merge ticker badges
+              const seenHL=new Map(), deduped=[];
+              allItems.forEach(item=>{
+                const key=item.headline.toLowerCase().trim().slice(0,80);
+                if(seenHL.has(key)){const ex=seenHL.get(key);if(!ex._tickers.includes(item._ticker))ex._tickers.push(item._ticker);}
+                else{const entry={...item,_tickers:[item._ticker]};seenHL.set(key,entry);deduped.push(entry);}
+              });
               const anyLoading=holdings&&holdings.filter(h=>h.ticker!=="Cash").some(h=>companyData[h.ticker]?.loading);
-              if(!allItems.length) return e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"2px",padding:"2rem",textAlign:"center"}},
+              if(!deduped.length) return e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"2px",padding:"2rem",textAlign:"center"}},
                 anyLoading
                   ?e(F,null,e("div",{style:{width:"20px",height:"20px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 8px"}}),e("div",{style:{fontSize:"12px",color:C.muted}},"Loading…"))
                   :e("div",{style:{fontSize:"12px",color:C.muted}},"No watchlist news — try Refresh All"));
@@ -2109,9 +2150,10 @@
                   e("div",{style:{width:"10px",height:"10px",border:`1.5px solid ${C.border}`,borderTop:`1.5px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),
                   "Loading Finnhub news…"),
                 e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
-                  allItems.map((item,i)=>e("div",{key:i,style:{borderBottom:i<allItems.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"flex-start"}},
-                    e("div",{style:{flexShrink:0,padding:"10px 8px 10px 12px",paddingTop:"12px"}},
-                      e("span",{style:{background:C.accentBg,color:C.accent,padding:"2px 7px",borderRadius:"2px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`,whiteSpace:"nowrap"}},item._ticker)),
+                  deduped.map((item,i)=>e("div",{key:i,style:{borderBottom:i<deduped.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"flex-start"}},
+                    e("div",{style:{flexShrink:0,padding:"8px 6px 8px 10px",display:"flex",flexDirection:"column",gap:"2px",alignItems:"flex-start",minWidth:"52px"}},
+                      item._tickers.map((t,ti)=>e("span",{key:ti,style:{background:C.accentBg,color:C.accent,padding:"1px 5px",borderRadius:"2px",fontWeight:"700",fontSize:"9px",border:`1px solid ${C.accentMuted}`,whiteSpace:"nowrap"}},t))
+                    ),
                     e("div",{style:{flex:1,minWidth:0}},e(NewsRow,{item}))
                   ))
                 )
@@ -2331,7 +2373,166 @@
               e("div",{style:{fontSize:"13px",lineHeight:"1.8",whiteSpace:"pre-wrap",color:C.text,borderTop:`1px solid ${C.border}`,paddingTop:"12px"}},aiResp)
             ),
             !aiLoading&&!aiResp&&e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"2px",padding:"2.5rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"1.9"}},"Context-aware of your portfolio, costs, P&L and targets",e("br"),"Uses live web search for latest news, analyst reports and market data"))
-          )
+          ),
+
+          // ── CALENDAR TAB ──
+          tab==="calendar"&&(()=>{
+            const today=new Date().toISOString().split("T")[0];
+            const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
+            const toggleCalMarket=m=>setCalMarkets(prev=>prev.includes(m)?prev.filter(x=>x!==m):[...prev,m]);
+            const calNavBtn={background:"none",border:`1px solid ${C.border}`,color:C.text,cursor:"pointer",borderRadius:"2px",padding:"4px 10px",fontSize:"13px",fontFamily:"inherit"};
+
+            // Build events map
+            const evMap={};
+            const addEv=(date,ev)=>{if(!date)return;if(!evMap[date])evMap[date]=[];evMap[date].push(ev);};
+
+            if(calFilter==="all"||calFilter==="economic"){
+              (calendarData?.economic||[]).forEach(ev=>addEv(ev.date,{type:"economic",name:ev.event,country:ev.country,impact:ev.impact,estimate:ev.estimate,prev:ev.prev,unit:ev.unit}));
+            }
+            if(calFilter==="all"||calFilter==="earnings"){
+              (calendarData?.earnings||[]).forEach(ev=>addEv(ev.date,{type:"earnings",name:ev.symbol,ticker:ev.symbol,hour:ev.hour,epsEstimate:ev.epsEstimate}));
+              // Also include nextEarnings from already-loaded company data
+              Object.entries(companyData).forEach(([ticker,cd])=>{
+                if(cd?.nextEarnings?.date)addEv(cd.nextEarnings.date,{type:"earnings",name:ticker,ticker,hour:cd.nextEarnings.hour,epsEstimate:cd.nextEarnings.epsEstimate});
+              });
+            }
+            if(calFilter==="all"||calFilter==="dividends"){
+              Object.entries(calendarData?.dividends||{}).forEach(([ticker,divs])=>{
+                (divs||[]).forEach(d=>{if(d.exDate)addEv(d.exDate,{type:"dividend",name:ticker+" ex-div",ticker,amount:d.amount,currency:d.currency});});
+              });
+            }
+            if(calFilter==="all"||calFilter==="holidays"){
+              Object.entries(MARKET_HOLIDAYS).forEach(([market,holidays])=>{
+                if(!calMarkets.includes(market))return;
+                holidays.forEach(([date,name])=>addEv(date,{type:"holiday",name,market}));
+              });
+            }
+
+            // Grid cells
+            const firstDay=new Date(calViewYear,calViewMonth,1).getDay();
+            const daysInMonth=new Date(calViewYear,calViewMonth+1,0).getDate();
+            const cells=[];
+            for(let i=0;i<firstDay;i++)cells.push(null);
+            for(let d=1;d<=daysInMonth;d++){
+              const ds=`${calViewYear}-${String(calViewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+              cells.push({day:d,dateStr:ds,events:evMap[ds]||[]});
+            }
+            // Pad to complete last row
+            while(cells.length%7!==0)cells.push(null);
+
+            const evColor=(type,impact)=>type==="economic"?(impact==="high"?C.dn:C.warn):type==="earnings"?C.up:type==="dividend"?C.accent:C.muted;
+            const evBg=(type,impact)=>type==="economic"?(impact==="high"?C.dnBg:C.warnBg):type==="earnings"?C.upBg:type==="dividend"?C.accentBg:C.surfaceAlt;
+
+            const selEvents=calSelectedDay?evMap[calSelectedDay]||[]:null;
+
+            return e("div",{style:{display:"flex",flexDirection:"column",gap:"12px"}},
+              // Header
+              e("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px",flexWrap:"wrap"}},
+                e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
+                  e("button",{onClick:()=>{const d=new Date(calViewYear,calViewMonth-1,1);setCalViewMonth(d.getMonth());setCalViewYear(d.getFullYear());setCalSelectedDay(null);},style:calNavBtn},"‹"),
+                  e("div",{style:{fontSize:"16px",fontWeight:"700",color:C.text,minWidth:"160px",textAlign:"center"}},MONTH_NAMES[calViewMonth]+" "+calViewYear),
+                  e("button",{onClick:()=>{const d=new Date(calViewYear,calViewMonth+1,1);setCalViewMonth(d.getMonth());setCalViewYear(d.getFullYear());setCalSelectedDay(null);},style:calNavBtn},"›"),
+                  e("button",{onClick:()=>{setCalViewMonth(new Date().getMonth());setCalViewYear(new Date().getFullYear());setCalSelectedDay(null);},style:{...calNavBtn,fontSize:"11px",color:C.muted}},"Today")
+                ),
+                e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
+                  e("button",{onClick:()=>fetchCalendar(true),style:{...calNavBtn,fontSize:"11px",color:C.muted,display:"flex",alignItems:"center",gap:"5px"}},
+                    calendarLoading&&e("div",{style:{width:"9px",height:"9px",border:`1.5px solid ${C.border}`,borderTop:`1.5px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),
+                    calendarLoading?"Loading…":"Refresh"
+                  )
+                )
+              ),
+              // Filter tabs
+              e("div",{style:{display:"flex",borderBottom:`1px solid ${C.border}`,gap:"0"}},
+                [["all","All"],["economic","Economic"],["earnings","Earnings"],["dividends","Dividends"],["holidays","Holidays"]].map(([k,l])=>
+                  e("button",{key:k,onClick:()=>setCalFilter(k),
+                    style:{padding:"8px 14px",border:"none",borderBottom:`2px solid ${calFilter===k?C.accent:"transparent"}`,background:"transparent",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",fontWeight:calFilter===k?"700":"400",color:calFilter===k?C.text:C.muted,marginBottom:"-1px",transition:"color 0.15s",whiteSpace:"nowrap"}},l)
+                )
+              ),
+              // Market toggles (for holidays)
+              (calFilter==="all"||calFilter==="holidays")&&e("div",{style:{display:"flex",flexWrap:"wrap",gap:"5px"}},
+                Object.keys(MARKET_HOLIDAYS).map(m=>
+                  e("button",{key:m,onClick:()=>toggleCalMarket(m),
+                    style:{padding:"3px 10px",border:`1px solid ${calMarkets.includes(m)?C.accent:C.border}`,borderRadius:"20px",cursor:"pointer",fontFamily:"inherit",fontSize:"11px",fontWeight:"500",
+                      background:calMarkets.includes(m)?C.accentBg:"transparent",color:calMarkets.includes(m)?C.accent:C.muted,transition:"all 0.1s"}},
+                    MKT_FLAGS[m]+" "+m)
+                )
+              ),
+              // Calendar grid
+              e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
+                // Day headers
+                e("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:C.surfaceAlt,borderBottom:`1px solid ${C.border}`}},
+                  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>
+                    e("div",{key:d,style:{padding:"6px",textAlign:"center",fontSize:"10px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.06em"}},d)
+                  )
+                ),
+                // Cells
+                e("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"1px",background:C.border}},
+                  cells.map((cell,i)=>{
+                    if(!cell)return e("div",{key:"e"+i,style:{background:C.surfaceAlt,minHeight:"85px"}});
+                    const isToday=cell.dateStr===today;
+                    const isSel=cell.dateStr===calSelectedDay;
+                    const hasHoliday=cell.events.some(ev=>ev.type==="holiday");
+                    const isWeekend=new Date(cell.dateStr+"T12:00:00").getDay()%6===0;
+                    return e("div",{key:cell.dateStr,onClick:()=>setCalSelectedDay(isSel?null:cell.dateStr),
+                      style:{background:isSel?C.accentBg:hasHoliday?C.surfaceAlt:isWeekend?"rgba(0,0,0,0.01)":C.surface,minHeight:"85px",padding:"5px 6px",cursor:"pointer",position:"relative",
+                        outline:isSel?`2px solid ${C.accent}`:"none",outlineOffset:"-2px",transition:"background 0.1s"}},
+                      e("div",{style:{fontSize:"11px",fontWeight:isToday?"700":"500",color:isToday?C.accent:C.muted,textAlign:"right",marginBottom:"3px",lineHeight:"1"}},
+                        isToday?e("span",{style:{background:C.accent,color:darkMode?"#000":"#fff",borderRadius:"50%",width:"18px",height:"18px",display:"inline-flex",alignItems:"center",justifyContent:"center"}},cell.day):cell.day
+                      ),
+                      cell.events.slice(0,3).map((ev,j)=>
+                        e("div",{key:j,style:{fontSize:"9px",fontWeight:"600",color:evColor(ev.type,ev.impact),background:evBg(ev.type,ev.impact),padding:"1px 4px",borderRadius:"2px",marginBottom:"2px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"1.5"}},
+                          ev.type==="holiday"?(MKT_FLAGS[ev.market]||"")+" "+ev.name:ev.type==="economic"?ev.name:ev.type==="earnings"?ev.name+" Q earnings":ev.name
+                        )
+                      ),
+                      cell.events.length>3&&e("div",{style:{fontSize:"9px",color:C.muted}},"+"+(cell.events.length-3)+" more")
+                    );
+                  })
+                )
+              ),
+              // Legend
+              e("div",{style:{display:"flex",flexWrap:"wrap",gap:"10px",fontSize:"10px",color:C.muted}},
+                [["economic","high","High Impact Econ",C.dn,C.dnBg],["economic","medium","Med Impact Econ",C.warn,C.warnBg],["earnings",null,"Earnings",C.up,C.upBg],["dividend",null,"Dividend",C.accent,C.accentBg],["holiday",null,"Market Holiday",C.muted,C.surfaceAlt]]
+                  .map(([type,impact,label,col,bg],i)=>e("div",{key:i,style:{display:"flex",alignItems:"center",gap:"4px"}},
+                    e("div",{style:{width:"10px",height:"10px",borderRadius:"2px",background:bg,border:`1px solid ${col}`,flexShrink:0}}),
+                    e("span",null,label)
+                  ))
+              ),
+              // Selected day detail
+              selEvents&&selEvents.length>0&&e("div",{style:{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:"2px",padding:"14px 16px"}},
+                e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
+                  e("div",{style:{fontSize:"13px",fontWeight:"700",color:C.text}},
+                    new Date(calSelectedDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})
+                  ),
+                  e("button",{onClick:()=>setCalSelectedDay(null),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"16px",lineHeight:1}},"×")
+                ),
+                ["holiday","economic","earnings","dividend"].map(type=>{
+                  const evs=selEvents.filter(ev=>ev.type===type);
+                  if(!evs.length)return null;
+                  const labels={holiday:"Market Holidays",economic:"Economic Releases",earnings:"Earnings",dividend:"Dividends"};
+                  return e("div",{key:type,style:{marginBottom:"12px"}},
+                    e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"6px"}},labels[type]),
+                    evs.map((ev,i)=>e("div",{key:i,style:{display:"flex",alignItems:"flex-start",gap:"10px",padding:"7px 10px",background:evBg(ev.type,ev.impact),borderRadius:"2px",marginBottom:"4px",border:`1px solid ${evColor(ev.type,ev.impact)}22`}},
+                      e("div",{style:{flex:1}},
+                        e("div",{style:{fontSize:"12px",fontWeight:"600",color:evColor(ev.type,ev.impact)}},
+                          ev.type==="holiday"?(MKT_FLAGS[ev.market]||"")+" "+MKT_NAMES[ev.market]+" — "+ev.name:
+                          ev.type==="economic"?ev.name:
+                          ev.type==="earnings"?ev.name+" Earnings"+(ev.hour==="bmo"?" (BMO)":ev.hour==="amc"?" (AMC)":""):
+                          ev.name
+                        ),
+                        ev.type==="economic"&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px",display:"flex",gap:"12px"}},
+                          ev.country&&e("span",null,(MKT_FLAGS[ev.country]||ev.country)+" "+ev.country),
+                          ev.estimate!=null&&e("span",null,"Est: "+ev.estimate+(ev.unit?" "+ev.unit:"")),
+                          ev.prev!=null&&e("span",null,"Prev: "+ev.prev+(ev.unit?" "+ev.unit:""))
+                        ),
+                        ev.type==="earnings"&&ev.epsEstimate!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px"}},"EPS est: $"+ev.epsEstimate),
+                        ev.type==="dividend"&&ev.amount!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px"}},"Amount: "+(ev.currency||"$")+" "+ev.amount)
+                      )
+                    ))
+                  );
+                })
+              )
+            );
+          })()
         ),
 
         // ── API Key Modal ──

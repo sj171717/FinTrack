@@ -3,6 +3,7 @@
     "api/ai.js": { "maxDuration": 60 },
     "api/proxy.js": { "maxDuration": 15 },
     "api/fundamentals.js": { "maxDuration": 15 },
-    "api/company.js": { "maxDuration": 15 }
+    "api/company.js": { "maxDuration": 15 },
+    "api/calendar.js": { "maxDuration": 15 }
   }
 }
