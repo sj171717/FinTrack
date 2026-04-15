@@ -155,10 +155,28 @@
     }
 
     // ── Lot tracking helpers ──
-    function computeFromLots(lots, currentPrice) {
+    function computeFromLots(lots, currentPrice, method="FIFO") {
       if(!lots||!lots.length) return {avgCost:0,qty:0,realizedGL:0,unrealizedGL:0,active:[]};
-      const buys=[...lots.filter(l=>l.type==="buy")].sort((a,b)=>new Date(a.date)-new Date(b.date));
+      const allBuys=[...lots.filter(l=>l.type==="buy")];
       const sells=[...lots.filter(l=>l.type==="sell")].sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+      if(method==="AvgCost") {
+        // Running weighted average — sells use current avg cost at time of sale
+        const events=[...lots].sort((a,b)=>new Date(a.date)-new Date(b.date)||((a.type==="buy"?0:1)-(b.type==="buy"?0:1)));
+        let runQty=0, runCost=0, realizedGL=0;
+        for(const ev of events){
+          if(ev.type==="buy"){runCost=runQty>0?(runCost*runQty+ev.price*ev.qty)/(runQty+ev.qty):ev.price;runQty+=ev.qty;}
+          else if(ev.type==="sell"&&runQty>0){const used=Math.min(ev.qty,runQty);realizedGL+=(ev.price-runCost)*used;runQty=Math.max(0,runQty-ev.qty);}
+        }
+        const avgCost=runCost;
+        const unrealizedGL=runQty*(currentPrice-avgCost);
+        return {avgCost,qty:runQty,realizedGL,unrealizedGL,active:[{price:avgCost,rem:runQty}]};
+      }
+
+      // FIFO or HIFO: sort buys accordingly
+      const buys=method==="HIFO"
+        ?allBuys.sort((a,b)=>b.price-a.price)   // highest cost first
+        :allBuys.sort((a,b)=>new Date(a.date)-new Date(b.date)); // oldest first (FIFO)
       const rem=buys.map(b=>({...b,rem:b.qty}));
       let realizedGL=0;
       for(const sell of sells){
@@ -981,6 +999,7 @@
       const riskPeriod=portfolioChartPeriod==="1W"?"1M":portfolioChartPeriod==="YTD"?"1Y":portfolioChartPeriod==="ALL"?"5Y":["1M","1Y","3Y","5Y"].includes(portfolioChartPeriod)?portfolioChartPeriod:"1M";
       const [holdingRiskMetrics,setHoldingRiskMetrics]=useState({}); // {[ticker]:{sharpe,beta}}
       const [strategyNotes,setStrategyNotes]=useState("");
+      const [costBasisMethod,setCostBasisMethod]=useState("FIFO"); // "FIFO" | "HIFO" | "AvgCost"
       const [yearGoal,setYearGoal]=useState(null); // % e.g. 15 means 15%
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
@@ -1032,6 +1051,7 @@
             }
             if(data?.notes) setStrategyNotes(data.notes);
             if(data?.yearGoal!=null) setYearGoal(data.yearGoal);
+            if(data?.costBasisMethod) setCostBasisMethod(data.costBasisMethod);
             try{ const k=localStorage.getItem("ft-apikey"); if(k)setApiKey(k); }catch{}
           } catch { setHoldings([]); }
         })();
@@ -1114,7 +1134,7 @@
         const cp=livePrice>0?livePrice:(h.currentPrice||0);
         const hh={...h,currentPrice:cp};
         if(!h.lots||h.ticker==="Cash")return{...hh,realizedGL:0,unrealizedGL:(cp-(h.avgCost||0))*(h.qty||0)};
-        const c=computeFromLots(h.lots,cp);
+        const c=computeFromLots(h.lots,cp,costBasisMethod);
         return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
       });
 
@@ -1141,8 +1161,7 @@
           const sp=rawH.ytdStartPrice??price;
           return {ytdGL:acc.ytdGL+h.qty*(price-sp), ytdBase:acc.ytdBase+h.qty*sp};
         }
-        // FIFO remaining lots
-        const {active}=computeFromLots(rawH.lots,price);
+        const {active}=computeFromLots(rawH.lots,price,costBasisMethod);
         let gl=0,base=0;
         for(const lot of active){
           const sp=new Date(lot.date).getTime()<jan1Ms?(rawH.ytdStartPrice??lot.price):lot.price;
@@ -2015,7 +2034,14 @@
                 "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})
               ),
               e("div",{style:{display:"flex",gap:"6px",width:isMobile?"100%":"auto",alignItems:"center",flexWrap:"wrap"}},
-                e("span",{style:{fontSize:"10px",color:C.muted,padding:"0 4px"}},"Risk period: "+riskPeriod),
+                e("span",{style:{fontSize:"10px",color:C.muted,padding:"0 4px"}},"Risk: "+riskPeriod),
+                e("div",{style:{display:"flex",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"2px",gap:"2px",alignItems:"center"}},
+                  e("span",{style:{fontSize:"9px",color:C.muted,padding:"0 4px",fontWeight:"600",letterSpacing:"0.05em"}},"BASIS"),
+                  ["FIFO","HIFO","AvgCost"].map(m=>e("button",{key:m,onClick:()=>{setCostBasisMethod(m);if(user)fbDb.collection("users").doc(user.uid).set({costBasisMethod:m},{merge:true}).catch(()=>{});},
+                    style:{padding:"3px 8px",border:"none",borderRadius:"6px",cursor:"pointer",fontSize:"10px",fontFamily:"inherit",fontWeight:costBasisMethod===m?"600":"400",
+                      background:costBasisMethod===m?C.surface:"transparent",color:costBasisMethod===m?C.text:C.muted,
+                      boxShadow:costBasisMethod===m?"0 1px 3px rgba(0,0,0,0.12)":"none",transition:"all 0.15s"}},m))
+                ),
                 e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"6px",flex:isMobile?"1":"none",justifyContent:"center",opacity:priceLoading?0.7:1},onClick:fetchPrices,disabled:priceLoading},
                   e("svg",{width:"12",height:"12",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:priceLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"8,1 11,1 11,4"})),
                   priceLoading?"Fetching…":"Refresh"
