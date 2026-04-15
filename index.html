@@ -414,21 +414,16 @@
     }
 
     function NewsRow({item}) {
-      const sentColor=item.sentiment==="bullish"?C.up:item.sentiment==="bearish"?C.dn:C.warn;
-      const sentBg   =item.sentiment==="bullish"?C.upBg:item.sentiment==="bearish"?C.dnBg:C.warnBg;
-      const sentBdr  =item.sentiment==="bullish"?C.upBorder:item.sentiment==="bearish"?C.dnBorder:C.warnBorder;
-      const sentLabel=item.sentiment==="bullish"?"▲":item.sentiment==="bearish"?"▼":"●";
-      const sentFull =item.sentiment==="bullish"?"Bullish":item.sentiment==="bearish"?"Bearish":"Neutral";
-      return e("div",{style:{display:"flex",alignItems:"flex-start",gap:"10px",padding:"10px 0",borderBottom:`1px solid ${C.border}`}},
-        e("span",{title:sentFull,style:{flexShrink:0,marginTop:"2px",fontSize:"10px",background:sentBg,color:sentColor,border:`1px solid ${sentBdr}`,padding:"2px 6px",borderRadius:"4px",fontWeight:"600",minWidth:"20px",textAlign:"center"}},sentLabel),
+      const sentColor=item.sentiment==="bullish"?C.up:item.sentiment==="bearish"?C.dn:C.faint;
+      return e("div",{style:{display:"flex",alignItems:"baseline",gap:"8px",padding:"8px 0",borderBottom:`1px solid ${C.border}`}},
+        e("span",{style:{flexShrink:0,width:"6px",height:"6px",borderRadius:"50%",background:sentColor,marginTop:"5px",display:"inline-block"}}),
         e("div",{style:{flex:1,minWidth:0}},
           item.link
-            ?e("a",{href:item.link,target:"_blank",rel:"noopener noreferrer",style:{fontSize:"13px",fontWeight:"600",color:C.accent,lineHeight:"1.45",textDecoration:"none",display:"block"}},item.headline)
-            :e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,lineHeight:"1.45"}},item.headline)
-        ),
-        e("div",{style:{flexShrink:0,textAlign:"right",fontSize:"10.5px",color:C.muted,whiteSpace:"nowrap",marginTop:"2px"}},
-          item.time&&e("div",null,item.time),
-          item.source&&e("div",{style:{color:C.accent,fontWeight:"500"}},item.source)
+            ?e("a",{href:item.link,target:"_blank",rel:"noopener noreferrer",style:{fontSize:"13px",color:C.text,lineHeight:"1.5",textDecoration:"none",display:"block"}},item.headline)
+            :e("div",{style:{fontSize:"13px",color:C.text,lineHeight:"1.5"}},item.headline),
+          e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px"}},
+            [item.source,item.time].filter(Boolean).join(" · ")
+          )
         )
       );
     }
@@ -2810,12 +2805,13 @@
                 cd&&!cd.loading&&(()=>{
                   // Finnhub news → NewsRow format
                   const fhItems=(cd.news||[]).map(n=>{
-                    return {headline:n.headline,source:n.source,time:fmtNewsTime((n.datetime||0)*1000),link:n.url,sentiment:sentimentOf(n.headline+" "+(n.summary||""))};
+                    const ts=(n.datetime||0)*1000;
+                    return {headline:n.headline,source:n.source,time:fmtNewsTime(ts),_ts:ts,link:n.url,sentiment:sentimentOf(n.headline+" "+(n.summary||""))};
                   });
                   // Google News from watchlist feed (if already fetched)
                   const gnItems=news?.watchlist?.[portfolioModal.ticker]||[];
-                  // Merge: Finnhub first, then any Google News not already covered
-                  const allItems=[...fhItems,...gnItems];
+                  // Merge and sort by time descending
+                  const allItems=[...fhItems,...gnItems].sort((a,b)=>(b._ts||0)-(a._ts||0));
                   if(!allItems.length) return e("div",{style:{fontSize:"12px",color:C.muted,padding:"30px 0",textAlign:"center"}},"No recent news");
                   return e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
                     allItems.map((n,i)=>e(NewsRow,{key:i,item:n}))
