@@ -1800,13 +1800,13 @@
             return e("div",{key:h.ticker,onClick:()=>{setPortfolioModal({ticker:h.ticker,period:"1D",series:null,timestamps:null,ohlc:null,loading:true,activeTab:"chart"});fetchPortfolioChart(h.ticker,"1D");if(!fundamentals[h.ticker]?.marketCap&&!fundamentals[h.ticker]?.loading)fetchFundamentals(h.ticker);},
               style:{flex:"0 0 auto",minWidth:"108px",background:C.surface,border:`1px solid ${C.border}`,borderLeft:`3px solid ${col}`,borderRadius:"4px",padding:"7px 10px 7px 9px",cursor:"pointer",transition:"box-shadow 0.12s",position:"relative"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px",marginBottom:"3px"}},
-                e("span",{style:{fontFamily:"'SF Mono','Fira Mono','Consolas',monospace",fontSize:"10px",fontWeight:"700",color:C.accent,letterSpacing:"0.06em"}},h.ticker),
+                e("span",{style:{fontSize:"10px",fontWeight:"700",color:C.accent,letterSpacing:"0.06em"}},h.ticker),
                 e("span",{style:{fontSize:"10px",color:col,fontWeight:"600",background:bg,border:`1px solid ${bdr}`,padding:"0px 5px",borderRadius:"3px",fontVariantNumeric:"tabular-nums",lineHeight:"16px"}},(isUp?"+":"")+todayPct.toFixed(2)+"%")
               ),
-              e("div",{style:{fontSize:"14px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums",fontFamily:"'SF Mono','Fira Mono','Consolas',monospace",letterSpacing:"-0.01em",lineHeight:"1"}},
+              e("div",{style:{fontSize:"14px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.01em",lineHeight:"1"}},
                 livePrice?"$"+$n(livePrice,2):"—"
               ),
-              sp?.ahPrice&&e("div",{style:{fontSize:"9px",color:C.muted,marginTop:"3px",fontVariantNumeric:"tabular-nums",fontFamily:"'SF Mono','Fira Mono','Consolas',monospace"}},
+              sp?.ahPrice&&e("div",{style:{fontSize:"9px",color:C.muted,marginTop:"3px",fontVariantNumeric:"tabular-nums"}},
                 "AH $"+$n(sp.ahPrice,2)+" ",
                 sp.ahPct!=null&&e("span",{style:{color:sp.ahPct>=0?C.up:C.dn,fontWeight:"600"}},(sp.ahPct>=0?"+":"")+sp.ahPct.toFixed(2)+"%")
               )
