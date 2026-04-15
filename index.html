@@ -20,17 +20,17 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
-    body { background: #060910; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
+    body { background: #f1f4f8; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
     #root { max-width: 1500px; margin: 0 auto; padding: 1rem; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
     @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
     @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #1e2d40; border-radius: 0; }
-    input::placeholder { color: #2e3f55; }
-    input:focus { border-color: #ff8c00 !important; box-shadow: 0 0 0 2px rgba(255,140,0,0.2) !important; }
-    tr:hover td { background: rgba(255,140,0,0.04) !important; }
+    ::-webkit-scrollbar-thumb { background: #c5cfe0; border-radius: 0; }
+    input::placeholder { color: #9aabbd; }
+    input:focus { border-color: #4a7fbf !important; box-shadow: 0 0 0 2px rgba(74,127,191,0.15) !important; }
+    tr:hover td { background: rgba(74,127,191,0.04) !important; }
     .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing: 0; }
     .card-anim { animation: fadeIn 0.2s ease; }
     .hide-tab { display: none !important; }
@@ -256,23 +256,23 @@
     const C = {};
 
     const C_LIGHT = {
-      bg:"#f4f6fb", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f0f2f8",
-      border:"#e0e6f0", borderMid:"#c8d0e4", text:"#080d1a", muted:"#5a6a85", faint:"#d0d8ea",
-      accent:"#4f52e8", accentBg:"#eeefff", accentMuted:"#9698ef",
-      up:"#00976a", upBg:"#e4fdf3", upBorder:"#85deba",
-      dn:"#e0183a", dnBg:"#fff0f2", dnBorder:"#f8aab8",
-      warn:"#c96d00", warnBg:"#fff8ee", warnBorder:"#fdd49a",
-      tag:"#eeefff", tagText:"#5a6a85",
+      bg:"#f1f4f8", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#eef1f7",
+      border:"#dce3ef", borderMid:"#c4cfe3", text:"#0f172a", muted:"#64748b", faint:"#cbd5e1",
+      accent:"#2563eb", accentBg:"#eff6ff", accentMuted:"#93c5fd",
+      up:"#16a34a", upBg:"#f0fdf4", upBorder:"#86efac",
+      dn:"#dc2626", dnBg:"#fef2f2", dnBorder:"#fca5a5",
+      warn:"#d97706", warnBg:"#fffbeb", warnBorder:"#fcd34d",
+      tag:"#f1f5f9", tagText:"#64748b",
     };
 
     const C_DARK = {
-      bg:"#060910", panel:"#0a0e18", surface:"#0c1120", surfaceAlt:"#0f1628",
-      border:"#162030", borderMid:"#1e2e42", text:"#d4e0f0", muted:"#4a6080", faint:"#162030",
-      accent:"#ff8c00", accentBg:"rgba(255,140,0,0.1)", accentMuted:"rgba(255,140,0,0.3)",
-      up:"#00d26a", upBg:"rgba(0,210,106,0.08)", upBorder:"rgba(0,210,106,0.25)",
-      dn:"#ff3b5c", dnBg:"rgba(255,59,92,0.08)", dnBorder:"rgba(255,59,92,0.25)",
-      warn:"#f59e0b", warnBg:"rgba(245,158,11,0.08)", warnBorder:"rgba(245,158,11,0.25)",
-      tag:"#0f1628", tagText:"#4a6080",
+      bg:"#0f1520", panel:"#151d2e", surface:"#1a2336", surfaceAlt:"#1e2840",
+      border:"#263348", borderMid:"#2e3f5c", text:"#e2e8f0", muted:"#64748b", faint:"#263348",
+      accent:"#60a5fa", accentBg:"rgba(96,165,250,0.1)", accentMuted:"rgba(96,165,250,0.35)",
+      up:"#34d399", upBg:"rgba(52,211,153,0.08)", upBorder:"rgba(52,211,153,0.3)",
+      dn:"#f87171", dnBg:"rgba(248,113,113,0.08)", dnBorder:"rgba(248,113,113,0.3)",
+      warn:"#fbbf24", warnBg:"rgba(251,191,36,0.08)", warnBorder:"rgba(251,191,36,0.3)",
+      tag:"#1e2840", tagText:"#64748b",
     };
 
     const $n = (n,d=2) => n==null?"—":n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -991,8 +991,8 @@
       // Dark mode body background
       useEffect(()=>{
         document.body.style.background = darkMode
-          ? "#060910"
-          : "#f4f6fb";
+          ? "#0f1520"
+          : "#f1f4f8";
         document.body.style.minHeight = "100vh";
       },[darkMode]);
 
@@ -1067,7 +1067,7 @@
         }
         if(tab==="news"){fetchMarketData();if(holdings){fetchNews();fetchHoldingSparklines();holdings.filter(h=>h.ticker!=="Cash").forEach(h=>{if(!companyData[h.ticker]?.loading&&!companyData[h.ticker]?.earnings)fetchCompanyData(h.ticker);});}}
         if(tab==="prediction"){fetchKalshi();}
-        if(tab==="calendar"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}
+        if(tab==="news"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}
       },[tab,holdings]);
 
       useEffect(()=>{
@@ -1562,7 +1562,7 @@
       const inp={background:C.surface,border:`1px solid ${C.border}`,color:C.text,padding:"7px 10px",borderRadius:"2px",fontSize:"12px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
       const tabB=k=>({padding:"7px 16px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",fontSize:"13px",fontFamily:"inherit",background:"transparent",color:tab===k?C.text:C.muted,fontWeight:tab===k?"700":"400",transition:"color 0.15s"});
 
-      if(user===undefined)return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%)",color:"#64748b",fontSize:"13px",fontFamily:"inherit"}},"Loading…");
+      if(user===undefined)return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#e8eef8 0%,#f1f4f8 40%,#f8fafc 100%)",color:"#64748b",fontSize:"13px",fontFamily:"inherit"}},"Loading…");
       if(!user)return e(LoginScreen,null);
       if(!holdings)return e("div",{style:{background:C.bg,color:C.muted,padding:"2rem",borderRadius:"2px",fontSize:"13px"}},"Loading…");
 
@@ -1778,8 +1778,8 @@
               ),
               // Tabs — desktop only (mobile shows below)
               !isMobile&&e("div",{style:{display:"flex",alignItems:"stretch",gap:"0",borderLeft:`1px solid ${C.border}`}},
-                [["news","Markets"],["calendar","Calendar"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
-                  e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}if(k==="calendar"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}},
+                [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
+                  e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
                     style:{padding:"0 18px",border:"none",borderRight:`1px solid ${C.border}`,borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
                       background:"transparent",
                       color:tab===k?C.text:C.muted,
@@ -1815,8 +1815,8 @@
           // Mobile tab row
           isMobile&&e("div",{style:{padding:"0 0.75rem",borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}},
             e("div",{style:{display:"flex",gap:"0"}},
-              [["news","Markets"],["calendar","Calendar"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
-                e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}if(k==="calendar"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}},
+              [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
+                e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
                   style:{padding:"10px 16px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
                     background:"transparent",
                     color:tab===k?C.text:C.muted,
@@ -2093,6 +2093,111 @@
 
             // Holdings sparkline strip
             nonCashHoldings.length>0&&holdingSparkStrip,
+
+            // ── Calendar ──
+            (()=>{
+              const today=new Date().toISOString().split("T")[0];
+              const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
+              const toggleCalMarket=m=>setCalMarkets(prev=>prev.includes(m)?prev.filter(x=>x!==m):[...prev,m]);
+              const calNavBtn={background:"none",border:`1px solid ${C.border}`,color:C.text,cursor:"pointer",borderRadius:"2px",padding:"3px 10px",fontSize:"13px",fontFamily:"inherit"};
+              const evMap={};
+              const addEv=(date,ev)=>{if(!date)return;if(!evMap[date])evMap[date]=[];evMap[date].push(ev);};
+              if(calFilter==="all"||calFilter==="economic"){(calendarData?.economic||[]).forEach(ev=>addEv(ev.date,{type:"economic",name:ev.event,country:ev.country,impact:ev.impact,estimate:ev.estimate,prev:ev.prev,unit:ev.unit}));}
+              if(calFilter==="all"||calFilter==="earnings"){
+                (calendarData?.earnings||[]).forEach(ev=>addEv(ev.date,{type:"earnings",name:ev.symbol,ticker:ev.symbol,hour:ev.hour,epsEstimate:ev.epsEstimate}));
+                Object.entries(companyData).forEach(([ticker,cd])=>{if(cd?.nextEarnings?.date)addEv(cd.nextEarnings.date,{type:"earnings",name:ticker,ticker,hour:cd.nextEarnings.hour,epsEstimate:cd.nextEarnings.epsEstimate});});
+              }
+              if(calFilter==="all"||calFilter==="dividends"){Object.entries(calendarData?.dividends||{}).forEach(([ticker,divs])=>{(divs||[]).forEach(d=>{if(d.exDate)addEv(d.exDate,{type:"dividend",name:ticker+" ex-div",ticker,amount:d.amount,currency:d.currency});});});}
+              if(calFilter==="all"||calFilter==="holidays"){Object.entries(MARKET_HOLIDAYS).forEach(([market,holidays])=>{if(!calMarkets.includes(market))return;holidays.forEach(([date,name])=>addEv(date,{type:"holiday",name,market}));});}
+              const firstDay=new Date(calViewYear,calViewMonth,1).getDay();
+              const daysInMonth=new Date(calViewYear,calViewMonth+1,0).getDate();
+              const cells=[];
+              for(let i=0;i<firstDay;i++)cells.push(null);
+              for(let d=1;d<=daysInMonth;d++){const ds=`${calViewYear}-${String(calViewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;cells.push({day:d,dateStr:ds,events:evMap[ds]||[]});}
+              while(cells.length%7!==0)cells.push(null);
+              const evColor=(type,impact)=>type==="economic"?(impact==="high"?C.dn:C.warn):type==="earnings"?C.up:type==="dividend"?C.accent:C.muted;
+              const evBg=(type,impact)=>type==="economic"?(impact==="high"?C.dnBg:C.warnBg):type==="earnings"?C.upBg:type==="dividend"?C.accentBg:C.surfaceAlt;
+              const selEvents=calSelectedDay?evMap[calSelectedDay]||[]:null;
+              return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
+                // Calendar header
+                e("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap",gap:"8px"}},
+                  e("div",{style:{display:"flex",alignItems:"center",gap:"6px"}},
+                    e("button",{onClick:()=>{const d=new Date(calViewYear,calViewMonth-1,1);setCalViewMonth(d.getMonth());setCalViewYear(d.getFullYear());setCalSelectedDay(null);},style:calNavBtn},"‹"),
+                    e("div",{style:{fontSize:"13px",fontWeight:"700",color:C.text,minWidth:"140px",textAlign:"center"}},MONTH_NAMES[calViewMonth]+" "+calViewYear),
+                    e("button",{onClick:()=>{const d=new Date(calViewYear,calViewMonth+1,1);setCalViewMonth(d.getMonth());setCalViewYear(d.getFullYear());setCalSelectedDay(null);},style:calNavBtn},"›"),
+                    e("button",{onClick:()=>{setCalViewMonth(new Date().getMonth());setCalViewYear(new Date().getFullYear());setCalSelectedDay(null);},style:{...calNavBtn,fontSize:"11px",color:C.muted}},"Today")
+                  ),
+                  e("div",{style:{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}},
+                    [["all","All"],["economic","Econ"],["earnings","Earnings"],["dividends","Dividends"],["holidays","Holidays"]].map(([k,l])=>
+                      e("button",{key:k,onClick:()=>setCalFilter(k),style:{padding:"2px 9px",border:`1px solid ${calFilter===k?C.accent:C.border}`,borderRadius:"20px",cursor:"pointer",fontFamily:"inherit",fontSize:"11px",fontWeight:calFilter===k?"600":"400",background:calFilter===k?C.accentBg:"transparent",color:calFilter===k?C.accent:C.muted,transition:"all 0.1s"}},l)
+                    ),
+                    e("button",{onClick:()=>{if(!calendarFetched&&!calendarLoading)fetchCalendar();else fetchCalendar(true);},style:{...calNavBtn,fontSize:"11px",color:C.muted,display:"flex",alignItems:"center",gap:"4px"}},
+                      calendarLoading&&e("div",{style:{width:"8px",height:"8px",border:`1.5px solid ${C.border}`,borderTop:`1.5px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),
+                      calendarLoading?"Loading…":"Load Events"
+                    )
+                  )
+                ),
+                // Market toggles
+                (calFilter==="all"||calFilter==="holidays")&&e("div",{style:{display:"flex",flexWrap:"wrap",gap:"4px",padding:"8px 14px",borderBottom:`1px solid ${C.border}`}},
+                  Object.keys(MARKET_HOLIDAYS).map(m=>e("button",{key:m,onClick:()=>toggleCalMarket(m),style:{padding:"2px 8px",border:`1px solid ${calMarkets.includes(m)?C.accent:C.border}`,borderRadius:"20px",cursor:"pointer",fontFamily:"inherit",fontSize:"10px",background:calMarkets.includes(m)?C.accentBg:"transparent",color:calMarkets.includes(m)?C.accent:C.muted}},MKT_FLAGS[m]+" "+m))
+                ),
+                // Day headers
+                e("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:C.surfaceAlt,borderBottom:`1px solid ${C.border}`}},
+                  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>e("div",{key:d,style:{padding:"5px",textAlign:"center",fontSize:"10px",fontWeight:"600",color:C.muted,textTransform:"uppercase",letterSpacing:"0.05em"}},d))
+                ),
+                // Grid
+                e("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"1px",background:C.border}},
+                  cells.map((cell,i)=>{
+                    if(!cell)return e("div",{key:"e"+i,style:{background:C.surfaceAlt,minHeight:"80px"}});
+                    const isToday=cell.dateStr===today;
+                    const isSel=cell.dateStr===calSelectedDay;
+                    const isWeekend=new Date(cell.dateStr+"T12:00:00").getDay()%6===0;
+                    return e("div",{key:cell.dateStr,onClick:()=>setCalSelectedDay(isSel?null:cell.dateStr),
+                      style:{background:isSel?C.accentBg:isWeekend?C.surfaceAlt:C.surface,minHeight:"80px",padding:"4px 5px",cursor:"pointer",outline:isSel?`2px solid ${C.accent}`:"none",outlineOffset:"-2px"}},
+                      e("div",{style:{fontSize:"11px",fontWeight:isToday?"700":"400",textAlign:"right",marginBottom:"2px",lineHeight:"1"}},
+                        isToday?e("span",{style:{background:C.accent,color:"#fff",borderRadius:"50%",width:"17px",height:"17px",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:"10px"}},cell.day):e("span",{style:{color:isWeekend?C.muted:C.text}},cell.day)
+                      ),
+                      cell.events.slice(0,3).map((ev,j)=>e("div",{key:j,style:{fontSize:"9px",fontWeight:"500",color:evColor(ev.type,ev.impact),background:evBg(ev.type,ev.impact),padding:"1px 3px",borderRadius:"2px",marginBottom:"1px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"1.5"}},
+                        ev.type==="holiday"?(MKT_FLAGS[ev.market]||"")+" "+ev.name:ev.type==="earnings"?ev.name+" ▸":ev.name
+                      )),
+                      cell.events.length>3&&e("div",{style:{fontSize:"9px",color:C.muted}},"+"+(cell.events.length-3))
+                    );
+                  })
+                ),
+                // Legend
+                e("div",{style:{display:"flex",flexWrap:"wrap",gap:"10px",padding:"8px 14px",borderTop:`1px solid ${C.border}`,fontSize:"10px",color:C.muted}},
+                  [["High Impact",C.dn,C.dnBg],["Med Impact",C.warn,C.warnBg],["Earnings",C.up,C.upBg],["Dividend",C.accent,C.accentBg],["Holiday",C.muted,C.surfaceAlt]]
+                    .map(([label,col,bg],i)=>e("div",{key:i,style:{display:"flex",alignItems:"center",gap:"4px"}},e("div",{style:{width:"8px",height:"8px",borderRadius:"2px",background:bg,border:`1px solid ${col}`}}),label))
+                ),
+                // Selected day detail
+                selEvents&&selEvents.length>0&&e("div",{style:{padding:"12px 14px",borderTop:`1px solid ${C.accent}`,background:C.accentBg}},
+                  e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"8px"}},
+                    e("div",{style:{fontSize:"12px",fontWeight:"700",color:C.text}},new Date(calSelectedDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})),
+                    e("button",{onClick:()=>setCalSelectedDay(null),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"14px"}},"×")
+                  ),
+                  ["holiday","economic","earnings","dividend"].map(type=>{
+                    const evs=selEvents.filter(ev=>ev.type===type);
+                    if(!evs.length)return null;
+                    const labels={holiday:"Market Holidays",economic:"Economic Releases",earnings:"Earnings",dividend:"Dividends"};
+                    return e("div",{key:type,style:{marginBottom:"8px"}},
+                      e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"4px"}},labels[type]),
+                      evs.map((ev,i)=>e("div",{key:i,style:{fontSize:"11px",padding:"5px 8px",background:evBg(ev.type,ev.impact),borderRadius:"2px",marginBottom:"3px",borderLeft:`2px solid ${evColor(ev.type,ev.impact)}`}},
+                        e("div",{style:{fontWeight:"600",color:evColor(ev.type,ev.impact)}},
+                          ev.type==="holiday"?(MKT_FLAGS[ev.market]||"")+" "+MKT_NAMES[ev.market]+" — "+ev.name:
+                          ev.type==="earnings"?ev.name+" Earnings"+(ev.hour==="bmo"?" (BMO)":ev.hour==="amc"?" (AMC)":""):
+                          ev.name
+                        ),
+                        ev.type==="economic"&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"1px"}},
+                          [ev.country&&(MKT_FLAGS[ev.country]||"")+" "+ev.country, ev.estimate!=null&&"Est: "+ev.estimate+(ev.unit?" "+ev.unit:""), ev.prev!=null&&"Prev: "+ev.prev+(ev.unit?" "+ev.unit:"")].filter(Boolean).join("  ·  ")
+                        ),
+                        ev.type==="earnings"&&ev.epsEstimate!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"1px"}},"EPS est: $"+ev.epsEstimate),
+                        ev.type==="dividend"&&ev.amount!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"1px"}},"Ex-div · Amount: "+(ev.currency||"$")+ev.amount)
+                      ))
+                    );
+                  })
+                )
+              );
+            })(),
 
             // ── News sub-tab bar ──
             e("div",{style:{display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:"12px"}},
@@ -2375,169 +2480,11 @@
             !aiLoading&&!aiResp&&e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"2px",padding:"2.5rem",textAlign:"center"}},e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"1.9"}},"Context-aware of your portfolio, costs, P&L and targets",e("br"),"Uses live web search for latest news, analyst reports and market data"))
           ),
 
-          // ── CALENDAR TAB ──
-          tab==="calendar"&&(()=>{
-            const today=new Date().toISOString().split("T")[0];
-            const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
-            const toggleCalMarket=m=>setCalMarkets(prev=>prev.includes(m)?prev.filter(x=>x!==m):[...prev,m]);
-            const calNavBtn={background:"none",border:`1px solid ${C.border}`,color:C.text,cursor:"pointer",borderRadius:"2px",padding:"4px 10px",fontSize:"13px",fontFamily:"inherit"};
-
-            // Build events map
-            const evMap={};
-            const addEv=(date,ev)=>{if(!date)return;if(!evMap[date])evMap[date]=[];evMap[date].push(ev);};
-
-            if(calFilter==="all"||calFilter==="economic"){
-              (calendarData?.economic||[]).forEach(ev=>addEv(ev.date,{type:"economic",name:ev.event,country:ev.country,impact:ev.impact,estimate:ev.estimate,prev:ev.prev,unit:ev.unit}));
-            }
-            if(calFilter==="all"||calFilter==="earnings"){
-              (calendarData?.earnings||[]).forEach(ev=>addEv(ev.date,{type:"earnings",name:ev.symbol,ticker:ev.symbol,hour:ev.hour,epsEstimate:ev.epsEstimate}));
-              // Also include nextEarnings from already-loaded company data
-              Object.entries(companyData).forEach(([ticker,cd])=>{
-                if(cd?.nextEarnings?.date)addEv(cd.nextEarnings.date,{type:"earnings",name:ticker,ticker,hour:cd.nextEarnings.hour,epsEstimate:cd.nextEarnings.epsEstimate});
-              });
-            }
-            if(calFilter==="all"||calFilter==="dividends"){
-              Object.entries(calendarData?.dividends||{}).forEach(([ticker,divs])=>{
-                (divs||[]).forEach(d=>{if(d.exDate)addEv(d.exDate,{type:"dividend",name:ticker+" ex-div",ticker,amount:d.amount,currency:d.currency});});
-              });
-            }
-            if(calFilter==="all"||calFilter==="holidays"){
-              Object.entries(MARKET_HOLIDAYS).forEach(([market,holidays])=>{
-                if(!calMarkets.includes(market))return;
-                holidays.forEach(([date,name])=>addEv(date,{type:"holiday",name,market}));
-              });
-            }
-
-            // Grid cells
-            const firstDay=new Date(calViewYear,calViewMonth,1).getDay();
-            const daysInMonth=new Date(calViewYear,calViewMonth+1,0).getDate();
-            const cells=[];
-            for(let i=0;i<firstDay;i++)cells.push(null);
-            for(let d=1;d<=daysInMonth;d++){
-              const ds=`${calViewYear}-${String(calViewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-              cells.push({day:d,dateStr:ds,events:evMap[ds]||[]});
-            }
-            // Pad to complete last row
-            while(cells.length%7!==0)cells.push(null);
-
-            const evColor=(type,impact)=>type==="economic"?(impact==="high"?C.dn:C.warn):type==="earnings"?C.up:type==="dividend"?C.accent:C.muted;
-            const evBg=(type,impact)=>type==="economic"?(impact==="high"?C.dnBg:C.warnBg):type==="earnings"?C.upBg:type==="dividend"?C.accentBg:C.surfaceAlt;
-
-            const selEvents=calSelectedDay?evMap[calSelectedDay]||[]:null;
-
-            return e("div",{style:{display:"flex",flexDirection:"column",gap:"12px"}},
-              // Header
-              e("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"12px",flexWrap:"wrap"}},
-                e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
-                  e("button",{onClick:()=>{const d=new Date(calViewYear,calViewMonth-1,1);setCalViewMonth(d.getMonth());setCalViewYear(d.getFullYear());setCalSelectedDay(null);},style:calNavBtn},"‹"),
-                  e("div",{style:{fontSize:"16px",fontWeight:"700",color:C.text,minWidth:"160px",textAlign:"center"}},MONTH_NAMES[calViewMonth]+" "+calViewYear),
-                  e("button",{onClick:()=>{const d=new Date(calViewYear,calViewMonth+1,1);setCalViewMonth(d.getMonth());setCalViewYear(d.getFullYear());setCalSelectedDay(null);},style:calNavBtn},"›"),
-                  e("button",{onClick:()=>{setCalViewMonth(new Date().getMonth());setCalViewYear(new Date().getFullYear());setCalSelectedDay(null);},style:{...calNavBtn,fontSize:"11px",color:C.muted}},"Today")
-                ),
-                e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
-                  e("button",{onClick:()=>fetchCalendar(true),style:{...calNavBtn,fontSize:"11px",color:C.muted,display:"flex",alignItems:"center",gap:"5px"}},
-                    calendarLoading&&e("div",{style:{width:"9px",height:"9px",border:`1.5px solid ${C.border}`,borderTop:`1.5px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),
-                    calendarLoading?"Loading…":"Refresh"
-                  )
-                )
-              ),
-              // Filter tabs
-              e("div",{style:{display:"flex",borderBottom:`1px solid ${C.border}`,gap:"0"}},
-                [["all","All"],["economic","Economic"],["earnings","Earnings"],["dividends","Dividends"],["holidays","Holidays"]].map(([k,l])=>
-                  e("button",{key:k,onClick:()=>setCalFilter(k),
-                    style:{padding:"8px 14px",border:"none",borderBottom:`2px solid ${calFilter===k?C.accent:"transparent"}`,background:"transparent",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",fontWeight:calFilter===k?"700":"400",color:calFilter===k?C.text:C.muted,marginBottom:"-1px",transition:"color 0.15s",whiteSpace:"nowrap"}},l)
-                )
-              ),
-              // Market toggles (for holidays)
-              (calFilter==="all"||calFilter==="holidays")&&e("div",{style:{display:"flex",flexWrap:"wrap",gap:"5px"}},
-                Object.keys(MARKET_HOLIDAYS).map(m=>
-                  e("button",{key:m,onClick:()=>toggleCalMarket(m),
-                    style:{padding:"3px 10px",border:`1px solid ${calMarkets.includes(m)?C.accent:C.border}`,borderRadius:"20px",cursor:"pointer",fontFamily:"inherit",fontSize:"11px",fontWeight:"500",
-                      background:calMarkets.includes(m)?C.accentBg:"transparent",color:calMarkets.includes(m)?C.accent:C.muted,transition:"all 0.1s"}},
-                    MKT_FLAGS[m]+" "+m)
-                )
-              ),
-              // Calendar grid
-              e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
-                // Day headers
-                e("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:C.surfaceAlt,borderBottom:`1px solid ${C.border}`}},
-                  ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>
-                    e("div",{key:d,style:{padding:"6px",textAlign:"center",fontSize:"10px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.06em"}},d)
-                  )
-                ),
-                // Cells
-                e("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:"1px",background:C.border}},
-                  cells.map((cell,i)=>{
-                    if(!cell)return e("div",{key:"e"+i,style:{background:C.surfaceAlt,minHeight:"85px"}});
-                    const isToday=cell.dateStr===today;
-                    const isSel=cell.dateStr===calSelectedDay;
-                    const hasHoliday=cell.events.some(ev=>ev.type==="holiday");
-                    const isWeekend=new Date(cell.dateStr+"T12:00:00").getDay()%6===0;
-                    return e("div",{key:cell.dateStr,onClick:()=>setCalSelectedDay(isSel?null:cell.dateStr),
-                      style:{background:isSel?C.accentBg:hasHoliday?C.surfaceAlt:isWeekend?"rgba(0,0,0,0.01)":C.surface,minHeight:"85px",padding:"5px 6px",cursor:"pointer",position:"relative",
-                        outline:isSel?`2px solid ${C.accent}`:"none",outlineOffset:"-2px",transition:"background 0.1s"}},
-                      e("div",{style:{fontSize:"11px",fontWeight:isToday?"700":"500",color:isToday?C.accent:C.muted,textAlign:"right",marginBottom:"3px",lineHeight:"1"}},
-                        isToday?e("span",{style:{background:C.accent,color:darkMode?"#000":"#fff",borderRadius:"50%",width:"18px",height:"18px",display:"inline-flex",alignItems:"center",justifyContent:"center"}},cell.day):cell.day
-                      ),
-                      cell.events.slice(0,3).map((ev,j)=>
-                        e("div",{key:j,style:{fontSize:"9px",fontWeight:"600",color:evColor(ev.type,ev.impact),background:evBg(ev.type,ev.impact),padding:"1px 4px",borderRadius:"2px",marginBottom:"2px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"1.5"}},
-                          ev.type==="holiday"?(MKT_FLAGS[ev.market]||"")+" "+ev.name:ev.type==="economic"?ev.name:ev.type==="earnings"?ev.name+" Q earnings":ev.name
-                        )
-                      ),
-                      cell.events.length>3&&e("div",{style:{fontSize:"9px",color:C.muted}},"+"+(cell.events.length-3)+" more")
-                    );
-                  })
-                )
-              ),
-              // Legend
-              e("div",{style:{display:"flex",flexWrap:"wrap",gap:"10px",fontSize:"10px",color:C.muted}},
-                [["economic","high","High Impact Econ",C.dn,C.dnBg],["economic","medium","Med Impact Econ",C.warn,C.warnBg],["earnings",null,"Earnings",C.up,C.upBg],["dividend",null,"Dividend",C.accent,C.accentBg],["holiday",null,"Market Holiday",C.muted,C.surfaceAlt]]
-                  .map(([type,impact,label,col,bg],i)=>e("div",{key:i,style:{display:"flex",alignItems:"center",gap:"4px"}},
-                    e("div",{style:{width:"10px",height:"10px",borderRadius:"2px",background:bg,border:`1px solid ${col}`,flexShrink:0}}),
-                    e("span",null,label)
-                  ))
-              ),
-              // Selected day detail
-              selEvents&&selEvents.length>0&&e("div",{style:{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:"2px",padding:"14px 16px"}},
-                e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
-                  e("div",{style:{fontSize:"13px",fontWeight:"700",color:C.text}},
-                    new Date(calSelectedDay+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})
-                  ),
-                  e("button",{onClick:()=>setCalSelectedDay(null),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"16px",lineHeight:1}},"×")
-                ),
-                ["holiday","economic","earnings","dividend"].map(type=>{
-                  const evs=selEvents.filter(ev=>ev.type===type);
-                  if(!evs.length)return null;
-                  const labels={holiday:"Market Holidays",economic:"Economic Releases",earnings:"Earnings",dividend:"Dividends"};
-                  return e("div",{key:type,style:{marginBottom:"12px"}},
-                    e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"6px"}},labels[type]),
-                    evs.map((ev,i)=>e("div",{key:i,style:{display:"flex",alignItems:"flex-start",gap:"10px",padding:"7px 10px",background:evBg(ev.type,ev.impact),borderRadius:"2px",marginBottom:"4px",border:`1px solid ${evColor(ev.type,ev.impact)}22`}},
-                      e("div",{style:{flex:1}},
-                        e("div",{style:{fontSize:"12px",fontWeight:"600",color:evColor(ev.type,ev.impact)}},
-                          ev.type==="holiday"?(MKT_FLAGS[ev.market]||"")+" "+MKT_NAMES[ev.market]+" — "+ev.name:
-                          ev.type==="economic"?ev.name:
-                          ev.type==="earnings"?ev.name+" Earnings"+(ev.hour==="bmo"?" (BMO)":ev.hour==="amc"?" (AMC)":""):
-                          ev.name
-                        ),
-                        ev.type==="economic"&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px",display:"flex",gap:"12px"}},
-                          ev.country&&e("span",null,(MKT_FLAGS[ev.country]||ev.country)+" "+ev.country),
-                          ev.estimate!=null&&e("span",null,"Est: "+ev.estimate+(ev.unit?" "+ev.unit:"")),
-                          ev.prev!=null&&e("span",null,"Prev: "+ev.prev+(ev.unit?" "+ev.unit:""))
-                        ),
-                        ev.type==="earnings"&&ev.epsEstimate!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px"}},"EPS est: $"+ev.epsEstimate),
-                        ev.type==="dividend"&&ev.amount!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px"}},"Amount: "+(ev.currency||"$")+" "+ev.amount)
-                      )
-                    ))
-                  );
-                })
-              )
-            );
-          })()
         ),
 
         // ── API Key Modal ──
         showKeyModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.45)"},onClick:()=>setShowKeyModal(false)},
-          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",padding:"1.5rem",width:"440px",maxWidth:"92vw",boxShadow:"0 0 0 1px rgba(255,140,0,0.15),0 20px 40px rgba(0,0,0,0.8)"}},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",padding:"1.5rem",width:"440px",maxWidth:"92vw",boxShadow:`0 0 0 1px ${C.accentMuted},0 20px 40px rgba(0,0,0,0.5)`}},
             e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,marginBottom:"4px"}},"Anthropic API Key"),
             e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"10px",lineHeight:"1.55"}},"Required only for the AI Analysis tab. Prices and news work without a key. Saved to ",e("code",{style:{background:C.tag,padding:"1px 5px",borderRadius:"3px"}},"localStorage"),"."),
             e("input",{type:"password",placeholder:"sk-ant-...",value:keyInput,onChange:ev=>setKeyInput(ev.target.value),
