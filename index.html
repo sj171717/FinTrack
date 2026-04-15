@@ -20,8 +20,8 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
-    body { background: #e8edf5; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
-    #root { max-width: 1500px; margin: 0 auto; padding: 1rem; }
+    body { background: #c8d4e8; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
+    #root { max-width: 1500px; margin: 0 auto; padding: 1.25rem; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
     @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
     @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
@@ -257,7 +257,7 @@
     const C = {};
 
     const C_LIGHT = {
-      bg:"#e8edf5", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f2f5fa",
+      bg:"#c8d4e8", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f4f6fa",
       border:"#dce3ef", borderMid:"#c4cfe3", text:"#0f172a", muted:"#64748b", faint:"#cbd5e1",
       accent:"#2563eb", accentBg:"#eff6ff", accentMuted:"#93c5fd",
       up:"#16a34a", upBg:"#f0fdf4", upBorder:"#86efac",
@@ -406,9 +406,9 @@
     };
 
     function MetCard({label,value,color,sub,style:extraStyle}) {
-      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",outline:"none",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",...extraStyle}},
-        e("div",{style:{fontSize:"8px",color:C.muted,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"6px",fontWeight:"600"}},label),
-        e("div",{style:{fontSize:"18px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"0"}},value),
+      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",outline:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.08)",...extraStyle}},
+        e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"8px",fontWeight:"600"}},label),
+        e("div",{style:{fontSize:"22px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},value),
         sub&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"4px",letterSpacing:"0.03em"}},sub)
       );
     }
@@ -1374,9 +1374,32 @@
           }
           return Object.values(map);
         };
-        const[finResults,econResults]=await Promise.all([
+        // ── Trending: broad fetch, exclude sports/entertainment, keep market-relevant ──
+        const EXCLUDE_KW=["nfl","nba","mlb","nhl","ncaa","super bowl","world series","stanley cup","championship","playoff","standings","draft pick","golf","tennis","soccer","football","basketball","baseball","hockey","olympics","oscar","grammy","emmy","tony","box office","movie","film","actor","actress","celebrity","music","album","billboard","singer","kardashian","taylor swift","award show","reality tv","game show","esport","gaming","fortnite","minecraft"];
+        const TREND_KW=["fed","interest rate","inflation","gdp","recession","unemployment","tariff","trade","china","russia","ukraine","war","sanction","opec","oil","energy","gas","ai","artificial intelligence","tech","regulation","antitrust","fda","drug","vaccine","pharma","election","congress","senate","president","policy","legislation","debt","budget","housing","mortgage","market","stock","dollar","bond","yield","crypto","bitcoin","gold","ipo","merger","acquisition"];
+        const fetchTrending=async()=>{
+          const url=`https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=200`;
+          try{
+            let data=null;
+            try{const r=await fetch(url,{headers:{accept:"application/json"}});if(r.ok)data=await r.json();}catch{}
+            if(!data?.markets?.length){try{data=JSON.parse(await fetchViaProxy(url));}catch{}}
+            const markets=data?.markets||[];
+            const scored=markets.map(m=>{
+              const txt=(m.title||m.subtitle||"").toLowerCase();
+              const isExcluded=EXCLUDE_KW.some(k=>txt.includes(k));
+              if(isExcluded)return null;
+              const score=TREND_KW.filter(k=>txt.includes(k)).length;
+              return{...m,_score:score,_series:m.series_ticker||"TREND",totalVol:parseFloat(m.volume_fp||0)};
+            }).filter(m=>m&&(m._score>0||m.totalVol>5000));
+            // Group by event, pick top by volume, return top 10
+            const grouped=groupByEvent(scored.filter(Boolean));
+            return grouped.sort((a,b)=>b.totalVol-a.totalVol).slice(0,10);
+          }catch{return[];}
+        };
+        const[finResults,econResults,trendEvents]=await Promise.all([
           Promise.all(FIN_SERIES.map(fetchSeries)),
           Promise.all(ECON_SERIES.map(fetchSeries)),
+          fetchTrending(),
         ]);
         // Pick best event per series first (prevents one series dominating), then top 6
         const bestPerSeries=markets=>{
@@ -1388,7 +1411,7 @@
         };
         const finEvents=bestPerSeries(finResults.flat());
         const econEvents=bestPerSeries(econResults.flat());
-        setKalshiData({finance:finEvents,economics:econEvents,total:finEvents.length+econEvents.length});
+        setKalshiData({finance:finEvents,economics:econEvents,trends:trendEvents,total:finEvents.length+econEvents.length+trendEvents.length});
         setKalshiFetched(true);
         setKalshiLoading(false);
       };
@@ -1781,7 +1804,7 @@
 
       // ── Holdings sparkline strip for news tab ──
       const nonCashHoldings=resolvedHoldings.filter(h=>h.ticker!=="Cash");
-      const holdingSparkStrip=e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",padding:"14px 16px",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)"}},
+      const holdingSparkStrip=e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",padding:"14px 16px",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 8px 32px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)"}},
         e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"}},"Your Holdings"),
         e("div",{style:{display:"flex",gap:"8px",overflowX:"auto",paddingBottom:"4px"}},
           ...nonCashHoldings.map((h,i)=>{
@@ -1875,7 +1898,7 @@
         ),
 
         // ── Body ──
-        e("div",{style:{padding:isMobile?"0.5rem":"1rem 1rem"}},
+        e("div",{style:{padding:isMobile?"0.75rem":"1.5rem"}},
           tab==="portfolio"&&e("div",{style:{display:"flex",gap:"8px",marginBottom:"1rem",flexWrap:"wrap"}},
             e(MetCard,{label:"Portfolio Value",value:hidden?MASK:"$"+$n(totalVal,0),style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             e(MetCard,{label:"Total Return",value:hidden?MASK:sign(totalGL)+"$"+$n(Math.abs(totalGL),0),color:hidden?C.muted:pc(totalGL),sub:hidden?MASK:sign(totalGLPct)+$n(Math.abs(totalGLPct),1)+"% · incl. realized",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
@@ -1888,7 +1911,7 @@
               const prog=yearGoal?Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100)):0;
               const retColor=yearGoal!=null&&ytdPctNow>=yearGoal?C.up:ytdPctNow>=0?C.text:C.dn;
               return e("div",{
-                style:{background:C.surface,border:`1px solid ${yearGoal!=null?"#f59e0b":C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",cursor:"pointer",position:"relative",overflow:"hidden"},
+                style:{background:C.surface,border:`1px solid ${yearGoal!=null?"#f59e0b":C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 4px 16px rgba(0,0,0,0.08)",cursor:"pointer",position:"relative",overflow:"hidden"},
                 onClick:()=>{
                   const g=window.prompt("Set YTD return goal (%)",yearGoal??15);
                   if(g===null)return;
@@ -1964,7 +1987,7 @@
           ),
 
           // ── PORTFOLIO TAB ──
-          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)"}},
+          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 8px 32px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)"}},
             e("div",{style:{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",padding:"0.75rem 1rem",gap:isMobile?"8px":"0",borderBottom:`1px solid ${C.border}`}},
               !isMobile&&e("div",{style:{display:"flex",alignItems:"center",gap:"12px"}},
                 e("span",{style:{fontSize:"11px",color:C.muted}},"Click any value to edit · Force Exit default = avg cost × 85%"),
@@ -2120,11 +2143,11 @@
           ),
 
           // ── NEWS TAB ──
-          tab==="news"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.25rem"}},
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)"}},
+          tab==="news"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.5rem"}},
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 8px 32px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`}},
                 e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
-                  e("span",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Market Summary"),
+                  e("span",{style:{fontSize:"15px",fontWeight:"700",color:C.text}},"Market Summary"),
                   marketLoading&&e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:C.muted,strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:"spin 1s linear infinite"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
                   e("span",{style:{fontSize:"10.5px",color:C.muted}},"via Stooq · news via Google News")
                 ),
@@ -2338,7 +2361,7 @@
           // ── PREDICTION TAB ──
           tab==="prediction"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"0.6rem"}},
             // Header
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"0",padding:"0.75rem 1rem",position:"relative",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 2px 8px rgba(0,0,0,0.06)"}},
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"0",padding:"0.75rem 1rem",position:"relative",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 4px 16px rgba(0,0,0,0.08)"}},
               e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"3px",background:`linear-gradient(90deg,${C.accent},${C.up},${C.accent})`,opacity:0.7}}),
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
                 e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
@@ -2524,6 +2547,12 @@
                   SectionHeader("Economics","📊"),
                   kalshiLoading?e(SkeletonGrid,null):
                   (kalshiData?.economics?.length>0?CardGrid(kalshiData.economics):e("div",{style:{fontSize:"12px",color:C.muted,padding:"0.5rem 0"}},empty))
+                ),
+                e("div",null,
+                  SectionHeader("Trending Events","🔥"),
+                  e("div",{style:{fontSize:"10.5px",color:C.muted,marginBottom:"8px"}},"Top market-moving bets by volume — politics, geopolitics, energy, tech, policy. Excludes sports & entertainment."),
+                  kalshiLoading?e(SkeletonGrid,null):
+                  (kalshiData?.trends?.length>0?CardGrid(kalshiData.trends):e("div",{style:{fontSize:"12px",color:C.muted,padding:"0.5rem 0"}},empty))
                 )
               );
             })()
