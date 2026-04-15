@@ -1526,7 +1526,7 @@
       };
 
       const inp={background:C.surface,border:`1px solid ${C.border}`,color:C.text,padding:"7px 10px",borderRadius:"2px",fontSize:"12px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
-      const tabB=k=>({padding:"7px 16px",border:`1.5px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",borderRadius:"2px",fontSize:"12px",fontFamily:"inherit",background:tab===k?C.accentBg:"transparent",color:tab===k?C.accent:C.muted,fontWeight:tab===k?"600":"400"});
+      const tabB=k=>({padding:"7px 16px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",fontSize:"13px",fontFamily:"inherit",background:"transparent",color:tab===k?C.text:C.muted,fontWeight:tab===k?"700":"400",transition:"color 0.15s"});
 
       if(user===undefined)return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#eef0ff 0%,#f4f6fb 40%,#fafbff 100%)",color:"#64748b",fontSize:"13px",fontFamily:"inherit"}},"Loading…");
       if(!user)return e(LoginScreen,null);
@@ -1743,14 +1743,14 @@
                 e("span",{style:{fontSize:"13px",fontWeight:"700",color:C.accent,letterSpacing:"0.15em",whiteSpace:"nowrap",textTransform:"uppercase"}},"FinTrack")
               ),
               // Tabs — desktop only (mobile shows below)
-              !isMobile&&e("div",{style:{display:"flex",alignItems:"center",gap:"0",borderLeft:`1px solid ${C.border}`}},
-                [["news","MARKETS"],["prediction","PREDICTIONS"],["portfolio","PORTFOLIO"],["ai","AI"]].map(([k,l])=>
+              !isMobile&&e("div",{style:{display:"flex",alignItems:"stretch",gap:"0",borderLeft:`1px solid ${C.border}`}},
+                [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
                   e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
-                    style:{padding:"6px 16px",border:"none",borderRight:`1px solid ${C.border}`,cursor:"pointer",
-                      background:tab===k?C.accent:"transparent",
-                      color:tab===k?"#000":C.muted,
-                      fontWeight:"700",fontSize:"11px",fontFamily:"inherit",letterSpacing:"0.1em",
-                      transition:"all 0.1s"}},l)
+                    style:{padding:"0 18px",border:"none",borderRight:`1px solid ${C.border}`,borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
+                      background:"transparent",
+                      color:tab===k?C.text:C.muted,
+                      fontWeight:tab===k?"700":"400",fontSize:"13px",fontFamily:"inherit",
+                      transition:"color 0.15s",whiteSpace:"nowrap"}},l)
                 )
               ),
               breaches>0&&e("span",{style:{fontSize:"10px",background:C.dnBg,border:`1px solid ${C.dnBorder}`,color:C.dn,padding:"2px 8px",fontWeight:"700",whiteSpace:"nowrap",letterSpacing:"0.05em"}},"⚠ "+(isMobile?breaches:breaches+" EXIT BREACH"+(breaches>1?"ES":"")))
@@ -1779,16 +1779,15 @@
             )
           ),
           // Mobile tab row
-          isMobile&&e("div",{style:{padding:"0 0.75rem 0.5rem",overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}},
-            e("div",{style:{display:"flex",gap:"2px",background:C.surfaceAlt,borderRadius:"0",padding:"3px",border:`1px solid ${C.border}`}},
+          isMobile&&e("div",{style:{padding:"0 0.75rem",borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}},
+            e("div",{style:{display:"flex",gap:"0"}},
               [["news","Markets"],["prediction","Predictions"],["portfolio","Portfolio"],["ai","AI"]].map(([k,l])=>
                 e("button",{key:k,onClick:()=>{setTab(k);if(k==="news"){fetchNews();fetchMarketData();fetchHoldingSparklines();}if(k==="prediction"){fetchKalshi();}},
-                  style:{flex:"1",padding:"6px 10px",border:"none",borderRadius:"2px",cursor:"pointer",
-                    background:tab===k?C.surface:"transparent",
+                  style:{padding:"10px 16px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",
+                    background:"transparent",
                     color:tab===k?C.text:C.muted,
-                    fontWeight:tab===k?"600":"400",fontSize:"12px",fontFamily:"inherit",
-                    transition:"all 0.15s",whiteSpace:"nowrap",
-                    boxShadow:tab===k?`0 1px 3px rgba(0,0,0,0.15)`:"none"}},l)
+                    fontWeight:tab===k?"700":"400",fontSize:"13px",fontFamily:"inherit",
+                    transition:"color 0.15s",whiteSpace:"nowrap",marginBottom:"-1px"}},l)
               )
             )
           )
@@ -2398,10 +2397,11 @@
               const TABS=["Chart","Summary","Earnings","Financials","Analysis","News","Holders","Profile"];
               const tabBar=e("div",{style:{display:"flex",overflowX:"auto",borderBottom:`1px solid ${C.border}`,marginBottom:"14px",scrollbarWidth:"none"}},
                 TABS.map(t=>e("button",{key:t,onClick:()=>setTab(t.toLowerCase()),style:{
-                  padding:"8px 14px",border:"none",background:"transparent",cursor:"pointer",fontSize:"12px",fontWeight:"600",whiteSpace:"nowrap",
-                  color:activeTab===t.toLowerCase()?C.accent:C.muted,
+                  padding:"9px 14px",border:"none",background:"transparent",cursor:"pointer",fontSize:"13px",whiteSpace:"nowrap",flexShrink:0,
+                  color:activeTab===t.toLowerCase()?C.text:C.muted,
+                  fontWeight:activeTab===t.toLowerCase()?"700":"400",
                   borderBottom:`2px solid ${activeTab===t.toLowerCase()?C.accent:"transparent"}`,
-                  marginBottom:"-1px",transition:"color 0.15s",flexShrink:0
+                  marginBottom:"-1px",transition:"color 0.15s"
                 }},t))
               );
               const cdStatus=cd?.loading?spinner:cd?.error?e("div",{style:{fontSize:"11px",color:C.dn,padding:"8px 0"}},"Failed to load"):null;
