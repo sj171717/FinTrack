@@ -2113,7 +2113,8 @@
               const daysInMonth=new Date(calViewYear,calViewMonth+1,0).getDate();
               const cells=[];
               for(let i=0;i<firstDay;i++)cells.push(null);
-              for(let d=1;d<=daysInMonth;d++){const ds=`${calViewYear}-${String(calViewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;cells.push({day:d,dateStr:ds,events:evMap[ds]||[]});}
+              const evOrder={earnings:0,dividend:1,holiday:2,economic:3};
+              for(let d=1;d<=daysInMonth;d++){const ds=`${calViewYear}-${String(calViewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;const evs=(evMap[ds]||[]).filter(ev=>!(ev.type==="economic"&&ev.impact!=="high")).sort((a,b)=>(evOrder[a.type]??9)-(evOrder[b.type]??9));cells.push({day:d,dateStr:ds,events:evs});}
               while(cells.length%7!==0)cells.push(null);
               const evColor=(type,impact)=>type==="economic"?(impact==="high"?C.dn:C.warn):type==="earnings"?C.up:type==="dividend"?C.accent:C.muted;
               const evBg=(type,impact)=>type==="economic"?(impact==="high"?C.dnBg:C.warnBg):type==="earnings"?C.upBg:type==="dividend"?C.accentBg:C.surfaceAlt;
