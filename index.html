@@ -20,7 +20,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
-    body { background: linear-gradient(135deg, #b8cce0 0%, #c8d4e8 50%, #bfcfdf 100%); background-attachment: fixed; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
+    body { background-color: #f0f4f8; background-image: radial-gradient(circle, #b8c8dc 1.2px, transparent 1.2px); background-size: 26px 26px; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
     #root { max-width: 1500px; margin: 0 auto; padding: 1.25rem; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
     @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
@@ -257,7 +257,7 @@
     const C = {};
 
     const C_LIGHT = {
-      bg:"#c8d4e8", panel:"rgba(255,255,255,0.92)", surface:"rgba(255,255,255,0.82)", surfaceAlt:"rgba(240,244,250,0.7)",
+      bg:"transparent", panel:"rgba(255,255,255,0.94)", surface:"rgba(255,255,255,0.88)", surfaceAlt:"rgba(241,245,251,0.8)",
       border:"#dce3ef", borderMid:"#c4cfe3", text:"#0f172a", muted:"#64748b", faint:"#cbd5e1",
       accent:"#2563eb", accentBg:"#eff6ff", accentMuted:"#93c5fd",
       up:"#16a34a", upBg:"#f0fdf4", upBorder:"#86efac",
@@ -1766,9 +1766,9 @@
           )
         );
       };
-      const MktSectionHead=(label)=>e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.accent,letterSpacing:"0.08em",textTransform:"uppercase",padding:"14px 0 6px"}},label);
+      const MktSectionHead=(label)=>e("div",{style:{fontSize:"9px",fontWeight:"700",color:C.accent,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"8px"}},label);
 
-      const MktCol=(label,rows)=>e("div",{style:{display:"flex",flexDirection:"column",minWidth:0,borderBottom:isMobile?`1px solid ${C.border}`:"none",paddingBottom:isMobile?"0.5rem":"0"}},
+      const MktCol=(label,rows)=>e("div",{style:{display:"flex",flexDirection:"column",minWidth:0,background:C.surfaceAlt,borderRadius:"12px",padding:"12px 14px",border:`1px solid ${C.border}`}},
         MktSectionHead(label),
         ...rows
       );
@@ -1789,13 +1789,13 @@
         );
       };
       const usIdx=["S&P 500","NASDAQ 100","Dow Jones","Russell 2000"];
-      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:isMobile?"0.25rem 0.75rem 1rem":"0.25rem 1.25rem 1.25rem",display:"flex",flexDirection:"column",gap:"0"}},
-        e("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))",gap:isMobile?"0":"0 2rem",paddingBottom:"1rem",borderBottom:`1px solid ${C.border}`,marginBottom:"0.25rem"}},
+      const marketListSection=(marketData&&!marketData.error)?e("div",{style:{padding:isMobile?"0.75rem":"1rem 1.25rem",display:"flex",flexDirection:"column",gap:"0.75rem"}},
+        e("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))",gap:"0.75rem"}},
           MktCol("US Markets",(marketData.indices||[]).filter(i=>usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2,()=>{setMarketChartModal({ticker:idx.yf,stooqSym:idx.stooq,name:idx.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(idx.yf,idx.stooq,"1D");}))),
           MktCol("Global Markets",(marketData.indices||[]).filter(i=>!usIdx.includes(i.name)).map(idx=>MktRow(idx.name,idx.value,idx.changePct,idx.change,null,2,()=>{setMarketChartModal({ticker:idx.yf,stooqSym:idx.stooq,name:idx.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(idx.yf,idx.stooq,"1D");}))),
           MktCol("Currencies",(marketData.currencies||[]).map(c=>MktRow(c.name,c.value,c.changePct,null,null,4,()=>{setMarketChartModal({ticker:c.yf,stooqSym:c.stooq,name:c.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(c.yf,c.stooq,"1D");})))
         ),
-        e("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))",gap:isMobile?"0":"0 2rem"}},
+        e("div",{style:{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,minmax(0,1fr))",gap:"0.75rem"}},
           MktCol("Commodities & Volatility",(marketData.macro||[]).map(m=>MktRow(m.name,m.value,m.changePct,null,m.unit,2,()=>{setMarketChartModal({ticker:m.yf,stooqSym:m.stooq,name:m.name,period:"1D",series:null,timestamps:null,ohlc:null,modalLastPrice:null,loading:true});fetchMarketChart(m.yf,m.stooq,"1D");}))),
           MktCol("Economic Indicators",ECON_INDICATORS.map(EconRow)),
           MktCol("Treasury Yields",(marketData.yields||[]).map(y=>MktRow(y.name,y.value,y.changePct,null,y.unit,2)))
