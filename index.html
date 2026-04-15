@@ -415,14 +415,15 @@
 
     function NewsRow({item}) {
       const sentColor=item.sentiment==="bullish"?C.up:item.sentiment==="bearish"?C.dn:C.faint;
-      return e("div",{style:{display:"flex",alignItems:"baseline",gap:"8px",padding:"8px 0",borderBottom:`1px solid ${C.border}`}},
-        e("span",{style:{flexShrink:0,width:"6px",height:"6px",borderRadius:"50%",background:sentColor,marginTop:"5px",display:"inline-block"}}),
+      return e("div",{style:{display:"flex",alignItems:"stretch",gap:"0",padding:"9px 0"}},
+        e("div",{style:{flexShrink:0,width:"3px",background:sentColor,borderRadius:"2px",marginRight:"10px",alignSelf:"stretch"}}),
         e("div",{style:{flex:1,minWidth:0}},
           item.link
-            ?e("a",{href:item.link,target:"_blank",rel:"noopener noreferrer",style:{fontSize:"13px",color:C.text,lineHeight:"1.5",textDecoration:"none",display:"block"}},item.headline)
-            :e("div",{style:{fontSize:"13px",color:C.text,lineHeight:"1.5"}},item.headline),
-          e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"2px"}},
-            [item.source,item.time].filter(Boolean).join(" · ")
+            ?e("a",{href:item.link,target:"_blank",rel:"noopener noreferrer",style:{fontSize:"13px",fontWeight:"500",color:C.text,lineHeight:"1.5",textDecoration:"none",display:"block"}},item.headline)
+            :e("div",{style:{fontSize:"13px",fontWeight:"500",color:C.text,lineHeight:"1.5"}},item.headline),
+          e("div",{style:{display:"flex",alignItems:"center",gap:"6px",marginTop:"4px"}},
+            item.source&&e("span",{style:{fontSize:"9px",fontWeight:"600",color:C.accent,background:C.accentBg,border:`1px solid ${C.accentMuted}`,padding:"1px 5px",borderRadius:"3px",letterSpacing:"0.03em"}},item.source),
+            item.time&&e("span",{style:{fontSize:"10px",color:C.muted}},item.time)
           )
         )
       );
@@ -2284,7 +2285,7 @@
                 if(!seen.has(key)){seen.add(key);merged.push(item);}
               });
               merged.sort((a,b)=>(b._ts||0)-(a._ts||0));
-              return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
+              return e("div",{style:{background:C.surface,borderRadius:"2px",overflow:"hidden"}},
                 merged.length>0
                   ?merged.map((item,i)=>e(NewsRow,{key:i,item}))
                   :e("div",{style:{padding:"2rem",textAlign:"center",fontSize:"12px",color:C.muted}},"No headlines — try Refresh All"));
@@ -2323,9 +2324,9 @@
                 anyLoading&&e("div",{style:{display:"flex",alignItems:"center",gap:"8px",padding:"6px 0",marginBottom:"6px",fontSize:"11px",color:C.muted}},
                   e("div",{style:{width:"10px",height:"10px",border:`1.5px solid ${C.border}`,borderTop:`1.5px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}),
                   "Loading Finnhub news…"),
-                e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
-                  deduped.map((item,i)=>e("div",{key:i,style:{borderBottom:i<deduped.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"flex-start"}},
-                    e("div",{style:{flexShrink:0,padding:"8px 6px 8px 10px",display:"flex",flexDirection:"column",gap:"2px",alignItems:"flex-start",minWidth:"52px"}},
+                e("div",{style:{background:C.surface,borderRadius:"2px",overflow:"hidden"}},
+                  deduped.map((item,i)=>e("div",{key:i,style:{display:"flex",alignItems:"flex-start"}},
+                    e("div",{style:{flexShrink:0,padding:"9px 6px 0 0",display:"flex",flexDirection:"column",gap:"3px",alignItems:"flex-start",minWidth:"48px"}},
                       item._tickers.map((t,ti)=>e("span",{key:ti,style:{background:C.accentBg,color:C.accent,padding:"1px 5px",borderRadius:"2px",fontWeight:"700",fontSize:"9px",border:`1px solid ${C.accentMuted}`,whiteSpace:"nowrap"}},t))
                     ),
                     e("div",{style:{flex:1,minWidth:0}},e(NewsRow,{item}))
@@ -2813,7 +2814,7 @@
                   // Merge and sort by time descending
                   const allItems=[...fhItems,...gnItems].sort((a,b)=>(b._ts||0)-(a._ts||0));
                   if(!allItems.length) return e("div",{style:{fontSize:"12px",color:C.muted,padding:"30px 0",textAlign:"center"}},"No recent news");
-                  return e("div",{style:{border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
+                  return e("div",{style:{borderRadius:"2px",overflow:"hidden"}},
                     allItems.map((n,i)=>e(NewsRow,{key:i,item:n}))
                   );
                 })()
