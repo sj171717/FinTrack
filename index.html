@@ -2181,9 +2181,9 @@
               const calNavBtn={background:"none",border:`1px solid ${C.border}`,color:C.text,cursor:"pointer",borderRadius:"8px",padding:"3px 10px",fontSize:"13px",fontFamily:"inherit"};
               const evMap={};
               const addEv=(date,ev)=>{if(!date)return;if(!evMap[date])evMap[date]=[];evMap[date].push(ev);};
-              if(calFilter==="all"||calFilter==="economic"){(calendarData?.economic||[]).forEach(ev=>addEv(ev.date,{type:"economic",name:ev.event,country:ev.country,impact:ev.impact,estimate:ev.estimate,prev:ev.prev,unit:ev.unit}));}
+              if(calFilter==="all"||calFilter==="economic"){(calendarData?.economic||[]).forEach(ev=>addEv(ev.date,{type:"economic",name:ev.event,country:ev.country,impact:ev.impact,estimate:ev.estimate,actual:ev.actual,prev:ev.prev,unit:ev.unit}));}
               if(calFilter==="all"||calFilter==="earnings"){
-                (calendarData?.earnings||[]).forEach(ev=>addEv(ev.date,{type:"earnings",name:ev.symbol,ticker:ev.symbol,hour:ev.hour,epsEstimate:ev.epsEstimate}));
+                (calendarData?.earnings||[]).forEach(ev=>addEv(ev.date,{type:"earnings",name:ev.symbol,ticker:ev.symbol,hour:ev.hour,epsEstimate:ev.epsEstimate,epsActual:ev.epsActual}));
                 Object.entries(companyData).forEach(([ticker,cd])=>{if(cd?.nextEarnings?.date)addEv(cd.nextEarnings.date,{type:"earnings",name:ticker,ticker,hour:cd.nextEarnings.hour,epsEstimate:cd.nextEarnings.epsEstimate});});
               }
               if(calFilter==="all"||calFilter==="dividends"){Object.entries(calendarData?.dividends||{}).forEach(([ticker,divs])=>{(divs||[]).forEach(d=>{if(d.exDate)addEv(d.exDate,{type:"dividend",name:ticker+" ex-div",ticker,amount:d.amount,currency:d.currency});});});}
@@ -2267,10 +2267,20 @@
                           ev.type==="earnings"?ev.name+" Earnings"+(ev.hour==="bmo"?" (BMO)":ev.hour==="amc"?" (AMC)":""):
                           ev.name
                         ),
-                        ev.type==="economic"&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"1px"}},
-                          [ev.country&&(MKT_FLAGS[ev.country]||"")+" "+ev.country, ev.estimate!=null&&"Est: "+ev.estimate+(ev.unit?" "+ev.unit:""), ev.prev!=null&&"Prev: "+ev.prev+(ev.unit?" "+ev.unit:"")].filter(Boolean).join("  ·  ")
+                        ev.type==="economic"&&e("div",{style:{marginTop:"3px"}},
+                          e("div",{style:{fontSize:"10px",color:C.muted}},
+                            [ev.country&&(MKT_FLAGS[ev.country]||"")+" "+ev.country, ev.estimate!=null&&"Est: "+ev.estimate+(ev.unit?" "+ev.unit:""), ev.prev!=null&&"Prev: "+ev.prev+(ev.unit?" "+ev.unit:"")].filter(Boolean).join("  ·  ")
+                          ),
+                          ev.actual!=null&&e("div",{style:{fontSize:"10px",fontWeight:"600",marginTop:"1px",color:ev.estimate!=null?(ev.actual>=ev.estimate?C.up:C.dn):C.text}},
+                            "Actual: "+ev.actual+(ev.unit?" "+ev.unit:"")+(ev.estimate!=null?" "+(ev.actual>=ev.estimate?"▲ Beat":"▼ Missed"):"")
+                          )
                         ),
-                        ev.type==="earnings"&&ev.epsEstimate!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"1px"}},"EPS est: $"+ev.epsEstimate),
+                        ev.type==="earnings"&&e("div",{style:{marginTop:"3px"}},
+                          ev.epsEstimate!=null&&e("div",{style:{fontSize:"10px",color:C.muted}},"EPS est: $"+$n(ev.epsEstimate,2)),
+                          ev.epsActual!=null&&e("div",{style:{fontSize:"10px",fontWeight:"600",color:ev.epsEstimate!=null?(ev.epsActual>=ev.epsEstimate?C.up:C.dn):C.text}},
+                            "EPS actual: $"+$n(ev.epsActual,2)+(ev.epsEstimate!=null?" "+(ev.epsActual>=ev.epsEstimate?"▲ Beat":"▼ Missed"):"")
+                          )
+                        ),
                         ev.type==="dividend"&&ev.amount!=null&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"1px"}},"Ex-div · Amount: "+(ev.currency||"$")+ev.amount)
                       ))
                     );
