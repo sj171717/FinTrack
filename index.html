@@ -288,9 +288,10 @@
           const raw      = item.querySelector("description")?.textContent||"";
           const summary  = raw.replace(/<[^>]*>/g,"").replace(/&[a-z]+;/g," ").trim().slice(0,120);
           const pub      = item.querySelector("pubDate")?.textContent||"";
+          const pubMs    = pub ? new Date(pub).getTime() : 0;
           const time     = pub ? new Date(pub).toLocaleDateString("en-US",{month:"short",day:"numeric"})+" · "+new Date(pub).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",hour12:true}) : "";
           const link     = item.querySelector("link")?.textContent||"";
-          return { headline, summary, source:"Google News", time, link, sentiment:sentimentOf(headline+" "+summary) };
+          return { headline, summary, source:"Google News", time, link, sentiment:sentimentOf(headline+" "+summary), _ts:pubMs };
         });
       } catch { return []; }
     };
@@ -2077,7 +2078,7 @@
               // Flatten all watchlist tickers' news from all sources, tagging each with ticker
               const allItems=[];
               Object.entries(news.watchlist||{}).forEach(([ticker,items])=>{
-                (items||[]).forEach(item=>allItems.push({...item,_ticker:ticker,_sortKey:0}));
+                (items||[]).forEach(item=>allItems.push({...item,_ticker:ticker,_sortKey:item._ts||0}));
               });
               // Merge Finnhub news for any tickers already loaded
               Object.entries(companyData).forEach(([ticker,cd])=>{
@@ -2087,10 +2088,11 @@
                     headline:n.headline,source:n.source,
                     time:(()=>{const ago=Math.round((Date.now()-n.datetime*1000)/3600000);return ago<1?"just now":ago<24?ago+"h ago":Math.round(ago/24)+"d ago";})(),
                     link:n.url,sentiment:sentimentOf(n.headline+" "+(n.summary||"")),
-                    _ticker:ticker,_sortKey:n.datetime||0
+                    _ticker:ticker,_sortKey:(n.datetime||0)*1000
                   });
                 });
               });
+              allItems.sort((a,b)=>(b._sortKey||0)-(a._sortKey||0));
               const anyLoading=holdings&&holdings.filter(h=>h.ticker!=="Cash").some(h=>companyData[h.ticker]?.loading);
               if(!allItems.length) return e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"2px",padding:"2rem",textAlign:"center"}},
                 anyLoading
