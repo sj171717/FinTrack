@@ -4,6 +4,9 @@
     "api/proxy.js": { "maxDuration": 15 },
     "api/fundamentals.js": { "maxDuration": 15 },
     "api/company.js": { "maxDuration": 15 },
-    "api/calendar.js": { "maxDuration": 15 }
+    "api/calendar.js": { "maxDuration": 15 },
+    "api/quotes.js": { "maxDuration": 15 },
+    "api/sparklines.js": { "maxDuration": 15 },
+    "api/intraday.js": { "maxDuration": 15 }
   }
 }

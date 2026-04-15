@@ -92,12 +92,13 @@
         const data=JSON.parse(txt);
         const results=data?.quoteResponse?.result||[];
         for(const r of results){
-          // Use post-market price if available (after-hours), else regular market
-          const price=r.postMarketPrice||r.regularMarketPrice;
-          const changePct=r.postMarketPrice
-            ?((r.postMarketPrice-r.regularMarketPrice)/r.regularMarketPrice*100)
-            :(r.regularMarketChangePercent||0);
-          if(price) out[r.symbol]={price,changePct,isPostMarket:!!r.postMarketPrice};
+          const price=r.regularMarketPrice;
+          // Always use regularMarketChangePercent for the daily % badge
+          const changePct=r.regularMarketChangePercent||0;
+          // After-hours data stored separately
+          const ahPrice=r.postMarketPrice||null;
+          const ahPct=r.postMarketChangePercent||null;
+          if(price) out[r.symbol]={price,changePct,ahPrice,ahPct};
         }
       }catch{}
       // Stooq fallback for any symbols not resolved
@@ -986,6 +987,7 @@
       const [yearGoal,setYearGoal]=useState(null); // % e.g. 15 means 15%
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
+      const firestoreSaveTimer=useRef(null);
       const [lotsModal,setLotsModal]=useState(null); // {holding, newBuy:{date,price,qty}, newSell:{date,price,qty}}
 
       // Dark mode body background
@@ -1038,10 +1040,14 @@
         })();
       },[user]);
 
-      // Save holdings to Firestore on every change
+      // Save holdings to Firestore — debounced 1.5s so rapid re-renders don't cause multiple writes
       useEffect(()=>{
         if(!holdings||!user)return;
-        fbDb.collection("users").doc(user.uid).set({holdings},{merge:true}).catch(()=>{});
+        clearTimeout(firestoreSaveTimer.current);
+        firestoreSaveTimer.current=setTimeout(()=>{
+          const clean=holdings.map(({changePct,...h})=>h);
+          fbDb.collection("users").doc(user.uid).set({holdings:clean},{merge:true}).catch(()=>{});
+        },1500);
       },[holdings]);
 
 
@@ -1060,15 +1066,16 @@
       },[priceFetchTrigger]);
 
       useEffect(()=>{
-        if(tab==="portfolio"&&holdings){
-          fetchHoldingSparklines();
-          fetchPortfolioSeries(portfolioChartPeriod);
-          fetchRiskMetrics(riskPeriod);
+        if(!holdings)return; // wait for Firestore load
+        holdingSparklinesRef.current=false;
+        if(tab==="news"){
+          fetchMarketData();fetchNews();fetchHoldingSparklines();
+          if(!calendarFetched&&!calendarLoading)fetchCalendar();
+          holdings.filter(h=>h.ticker!=="Cash").forEach(h=>{if(!companyData[h.ticker]?.loading&&!companyData[h.ticker]?.earnings)fetchCompanyData(h.ticker);});
         }
-        if(tab==="news"){fetchMarketData();if(holdings){fetchNews();fetchHoldingSparklines();holdings.filter(h=>h.ticker!=="Cash").forEach(h=>{if(!companyData[h.ticker]?.loading&&!companyData[h.ticker]?.earnings)fetchCompanyData(h.ticker);});}}
+        if(tab==="portfolio"){fetchHoldingSparklines();fetchPortfolioSeries(portfolioChartPeriod);fetchRiskMetrics(riskPeriod);}
         if(tab==="prediction"){fetchKalshi();}
-        if(tab==="news"&&holdings&&!calendarFetched&&!calendarLoading){fetchCalendar();}
-      },[tab,holdings]);
+      },[tab,!!holdings]);
 
       useEffect(()=>{
         if(tab==="portfolio"&&holdings){setRiskMetrics(null);fetchPortfolioSeries(portfolioChartPeriod);}
@@ -1078,7 +1085,14 @@
         if(tab==="portfolio"&&holdings){setRiskMetrics(null);setHoldingRiskMetrics({});fetchRiskMetrics(riskPeriod);}
       },[riskPeriod]);
 
-
+      // ── Auto-refresh prices every 2 minutes (pauses when tab hidden) ──
+      useEffect(()=>{
+        if(!holdings)return;
+        const id=setInterval(()=>{
+          if(document.visibilityState==="visible")fetchPrices();
+        },120000);
+        return()=>clearInterval(id);
+      },[!!holdings]);
 
       const upd=(id,f,val)=>setHoldings(p=>p.map(h=>h.id===id?{...h,[f]:val}:h));
       const updAvgCost=(id,val)=>setHoldings(p=>p.map(h=>{
@@ -1097,11 +1111,14 @@
       const onDragOver=(ev,i)=>{ ev.preventDefault(); if(dragIdx.current===null||dragIdx.current===i)return; setHoldings(p=>{ const a=[...p]; const [mv]=a.splice(dragIdx.current,1); a.splice(i,0,mv); dragIdx.current=i; return a; }); };
       const onDragEnd=()=>{ dragIdx.current=null; };
 
-      // Resolve avgCost/qty from lots for all holdings
+      // Resolve avgCost/qty from lots for all holdings; use live sparkline price if available
       const resolvedHoldings=(holdings||[]).map(h=>{
-        if(!h.lots||h.ticker==="Cash")return{...h,realizedGL:0,unrealizedGL:(h.currentPrice-(h.avgCost||0))*(h.qty||0)};
-        const c=computeFromLots(h.lots,h.currentPrice);
-        return{...h,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
+        const livePrice=holdingSparklines[h.ticker]?.price;
+        const cp=livePrice>0?livePrice:(h.currentPrice||0);
+        const hh={...h,currentPrice:cp};
+        if(!h.lots||h.ticker==="Cash")return{...hh,realizedGL:0,unrealizedGL:(cp-(h.avgCost||0))*(h.qty||0)};
+        const c=computeFromLots(h.lots,cp);
+        return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
       });
 
       const totalVal      =resolvedHoldings.reduce((s,h)=>s+h.qty*h.currentPrice,0);
@@ -1188,15 +1205,24 @@
         }
       };
 
-      // ── PRICES: Yahoo Finance (no API key needed) ──
+      // ── PRICES: Finnhub (primary) + Yahoo Finance (fallback) ──
       const fetchPrices=async()=>{
         if(priceLoading||!holdings)return;
         setPriceLoading(true);
         const tickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
         try{
-          const quotes=await yfQuote(tickers);
-          setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price,changePct:q.changePct??0}:h; }));
-          setPriceUpdatedAt(new Date());
+          let quotes={};
+          try{
+            const qRes=await fetch(`/api/quotes?tickers=${tickers.join(",")}`);
+            if(qRes.ok) quotes=await qRes.json();
+          }catch{}
+          // Fallback to Yahoo for any not resolved
+          const missing=tickers.filter(t=>!quotes[t]);
+          if(missing.length){try{const yq=await yfQuote(missing);Object.assign(quotes,yq);}catch{}}
+          if(Object.keys(quotes).length){
+            setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price,changePct:q.changePct??0}:h; }));
+            setPriceUpdatedAt(new Date());
+          }
         }catch{}
         setPriceLoading(false);
       };
@@ -1248,14 +1274,17 @@
 
 
 
-      // ── PORTFOLIO CHART: Stooq first (reliable), Yahoo fallback ──
+      // ── PORTFOLIO CHART: Finnhub intraday for 1D, Stooq/Yahoo for longer periods ──
       const fetchPortfolioChart=async(ticker,period)=>{
         try {
           const stooqSym=ticker.toLowerCase()+".us";
           let candles=null;
           if(period==="1D"){
-            // For 1D, Yahoo Finance returns intraday (5-min) candles — use it directly for live price
-            try{candles=await yfCandles(ticker,"1D");}catch{}
+            try{
+              const r=await fetch(`/api/intraday?ticker=${encodeURIComponent(ticker)}`);
+              if(r.ok){const d=await r.json();if(d.pts?.length>=2)candles=d.pts.map((c,i)=>({c,ts:d.timestamps[i],o:c,h:c,l:c,v:0}));}
+            }catch{}
+            if(!candles?.length) try{candles=await yfCandles(ticker,"1D");}catch{}
             if(!candles?.length) try{candles=await stooqCandles(stooqSym,"1D");}catch{}
           } else {
             try{candles=await stooqCandles(stooqSym,period);}catch{}
@@ -1275,7 +1304,11 @@
         try {
           let candles=null;
           if(period==="1D"){
-            try{candles=await yfCandles(ticker,"1D");}catch{}
+            try{
+              const r=await fetch(`/api/intraday?ticker=${encodeURIComponent(ticker)}`);
+              if(r.ok){const d=await r.json();if(d.pts?.length>=2)candles=d.pts.map((c,i)=>({c,ts:d.timestamps[i],o:c,h:c,l:c,v:0}));}
+            }catch{}
+            if(!candles?.length) try{candles=await yfCandles(ticker,"1D");}catch{}
             if(!candles?.length) try{candles=await stooqCandles(stooqSym,"1D");}catch{}
           } else {
             try{candles=await stooqCandles(stooqSym,period);}catch{}
@@ -1364,28 +1397,45 @@
         setKalshiLoading(false);
       };
 
-      // ── HOLDING SPARKLINES: always refresh all tickers for up-to-date price/pct ──
+      // ── HOLDING SPARKLINES ──
       const fetchHoldingSparklines=async()=>{
         if(holdingSparklinesRef.current||!holdings)return;
         holdingSparklinesRef.current=true;
         const allTickers=holdings.filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
-        const missing=allTickers; // always re-fetch all, not just missing
+        if(!allTickers.length){holdingSparklinesRef.current=false;return;}
+        const tp=allTickers.join(",");
 
-        await Promise.allSettled(missing.map(async t=>{
-          try {
-            const stooqSym = t.startsWith("^") ? t.slice(1).toLowerCase() : t.toLowerCase()+".us";
-            let candles=null;
-            try{candles=await stooqCandles(stooqSym,"1M");}catch{}
-            if(!candles?.length) try{candles=await yfCandles(t,"1M");}catch{}
-            if(!candles?.length||candles.length<2)return;
-            const pts=candles.map(x=>x.c);
-            const timestamps=candles.map(x=>x.ts);
-            const price=pts[pts.length-1];
-            const pct=pts[0]?((price-pts[0])/pts[0])*100:0;
-            const dailyPct=((pts[pts.length-1]-pts[pts.length-2])/pts[pts.length-2])*100;
-            setHoldingSparklines(prev=>({...prev,[t]:{pts,timestamps,price,pct,dailyPct}}));
-          } catch {}
-        }));
+        // Fire candles + Yahoo quotes in parallel
+        // yfQuote goes through /api/proxy which is proven reliable
+        const [yfRes,candlesRes]=await Promise.allSettled([
+          yfQuote(allTickers),
+          fetch(`/api/sparklines?tickers=${tp}`).then(r=>r.ok?r.json():{}),
+        ]);
+        const liveQuotes=yfRes.status==="fulfilled"?yfRes.value:{};
+        const candleData=candlesRes.status==="fulfilled"&&candlesRes.value&&!candlesRes.value.error?candlesRes.value:{};
+
+        if(Object.keys(liveQuotes).length) setPriceUpdatedAt(new Date());
+
+        setHoldingSparklines(prev=>{
+          const next={...prev};
+          allTickers.forEach(t=>{
+            const q=liveQuotes[t];
+            const cd=candleData[t];
+            const ex=prev[t];
+            const pts=cd?.pts?.length>=2?cd.pts:(ex?.pts||null);
+            const timestamps=cd?.pts?.length>=2?(cd.timestamps||[]):(ex?.timestamps||[]);
+            if(!pts&&!q)return;
+            const safePts=pts||[];
+            const price=q?.price>0?q.price:(safePts.length?safePts[safePts.length-1]:(ex?.price||0));
+            const pct=safePts.length&&safePts[0]?((price-safePts[0])/safePts[0])*100:(ex?.pct||0);
+            // changePct from Yahoo Finance regularMarketChangePercent — always correct
+            const dailyPct=q?.changePct!=null?q.changePct:(ex?.dailyPct??0);
+            const ahPrice=q?.ahPrice!=null?q.ahPrice:(ex?.ahPrice??null);
+            const ahPct=q?.ahPct!=null?q.ahPct:(ex?.ahPct??null);
+            next[t]={pts:safePts,timestamps,price,pct,dailyPct,ahPrice,ahPct};
+          });
+          return next;
+        });
         holdingSparklinesRef.current=false;
       };
 
@@ -1624,7 +1674,7 @@
                 :e("div",{style:{width:"50px",height:"24px",display:"flex",alignItems:"center",justifyContent:"center",color:C.faint,fontSize:"9px",border:`1px dashed ${C.faint}`,borderRadius:"3px",letterSpacing:"0.03em"}},"chart")
             ),
             e("div",{style:{textAlign:"right"}},
-              h.ticker==="Cash"?e("span",{style:{color:C.muted,fontSize:"12px"}},"$1.00"):e(EditCell,{value:h.currentPrice,onSave:v=>upd(h.id,"currentPrice",v),hidden}),
+              h.ticker==="Cash"?e("span",{style:{color:C.muted,fontSize:"12px"}},"$1.00"):hidden?e("span",{style:{color:C.muted,fontSize:"12px",letterSpacing:"0.1em"}},"••••"):e("span",{style:{fontSize:"12px",fontWeight:"700",color:C.text,fontVariantNumeric:"tabular-nums"}},"$"+$n(h.currentPrice,2)),
               h.ticker!=="Cash"&&holdingSparklines[h.ticker]?.dailyPct!=null&&!hidden&&e("div",{style:{fontSize:"10px",color:holdingSparklines[h.ticker].dailyPct>=0?C.up:C.dn,fontWeight:"500",marginTop:"1px"}},
                 (holdingSparklines[h.ticker].dailyPct>=0?"+":"")+holdingSparklines[h.ticker].dailyPct.toFixed(2)+"%  today")
             )
@@ -1741,7 +1791,7 @@
         e("div",{style:{display:"flex",gap:"8px",overflowX:"auto",paddingBottom:"4px"}},
           ...nonCashHoldings.map((h,i)=>{
             const sp=holdingSparklines[h.ticker];
-            const todayPct=h.changePct??sp?.dailyPct??0;
+            const todayPct=sp?.dailyPct??0;
             const isUp=todayPct>=0;
             const col=isUp?C.up:C.dn;
             const bg=isUp?C.upBg:C.dnBg;
@@ -1754,7 +1804,11 @@
               ),
               sp
                 ?e(F,null,
-                    e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,fontVariantNumeric:"tabular-nums",marginBottom:"2px"}},"$"+$n(sp.price)),
+                    e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,fontVariantNumeric:"tabular-nums",marginBottom:"2px"}},"$"+$n(h.currentPrice||sp.price)),
+                    sp.ahPrice&&e("div",{style:{fontSize:"9px",color:C.muted,marginBottom:"2px",fontVariantNumeric:"tabular-nums",lineHeight:"1.3"}},
+                      e("span",{style:{marginRight:"3px"}},"AH: $"+$n(sp.ahPrice,2)),
+                      sp.ahPct!=null&&e("span",{style:{color:sp.ahPct>=0?C.up:C.dn,fontWeight:"600"}},(sp.ahPct>=0?"+":"")+sp.ahPct.toFixed(2)+"%")
+                    ),
                     e(MiniSpark,{pts:sp.pts,color:col,gid:"hsp"+i})
                   )
                 :e("div",{style:{height:"50px",background:C.border,borderRadius:"2px",animation:"pulse 1.2s ease-in-out infinite"}})
@@ -2604,8 +2658,12 @@
                 portfolioModal.loading
                   ?e("div",{style:{height:320,display:"flex",alignItems:"center",justifyContent:"center"}},e("div",{style:{width:"14px",height:"14px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}))
                   :(()=>{
-                    const h=resolvedHoldings.find(x=>x.ticker===portfolioModal.ticker);
-                    const modalColor=h?(h.currentPrice>=h.avgCost?C.up:C.dn):C.accent;
+                    const _s=portfolioModal.series;
+                    const _sp=holdingSparklines[portfolioModal.ticker];
+                    // 1D: color from today's % change vs prevClose (dailyPct); other periods: first vs last candle
+                    const modalColor=portfolioModal.period==="1D"
+                      ?(_sp?.dailyPct!=null?(_sp.dailyPct>=0?C.up:C.dn):C.accent)
+                      :((_s&&_s.length>1)?(_s[_s.length-1]>=_s[0]?C.up:C.dn):C.accent);
                     if(chartType==="candle"&&portfolioModal.ohlc&&portfolioModal.ohlc.length>=2)
                       return e(CandlestickChart,{candles:portfolioModal.ohlc,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320});
                     return e(LargeChart,{pts:portfolioModal.series||[],color:modalColor,timestamps:portfolioModal.timestamps,period:portfolioModal.period,chartH:320,ohlc:portfolioModal.ohlc});
@@ -2874,7 +2932,10 @@
               ?e("div",{style:{height:320,display:"flex",alignItems:"center",justifyContent:"center"}},
                  e("div",{style:{width:"14px",height:"14px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}))
               :(()=>{
-                  const isUp=(marketChartModal.series?.length>1)?(marketChartModal.series[marketChartModal.series.length-1]>=marketChartModal.series[0]):true;
+                  const _ms=marketChartModal.series;
+                  // 1D: compare last candle vs first candle of today's session (both from same day, no prevClose skew)
+                  // For 1D the series starts at market open so first vs last is correct
+                  const isUp=(_ms?.length>1)?(_ms[_ms.length-1]>=_ms[0]):true;
                   const modalColor=isUp?C.up:C.dn;
                   if(chartType==="candle"&&marketChartModal.ohlc?.length>=2)
                     return e(CandlestickChart,{candles:marketChartModal.ohlc,timestamps:marketChartModal.timestamps,period:marketChartModal.period,chartH:320});
