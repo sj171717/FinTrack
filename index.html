@@ -20,7 +20,7 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
-    body { background: #f1f4f8; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
+    body { background: #e8edf5; font-family: 'Inter','Helvetica Neue',Arial,sans-serif; min-height: 100vh; }
     #root { max-width: 1500px; margin: 0 auto; padding: 1rem; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.15} }
     @keyframes spin  { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
@@ -257,7 +257,7 @@
     const C = {};
 
     const C_LIGHT = {
-      bg:"#f1f4f8", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#eef1f7",
+      bg:"#e8edf5", panel:"#ffffff", surface:"#ffffff", surfaceAlt:"#f2f5fa",
       border:"#dce3ef", borderMid:"#c4cfe3", text:"#0f172a", muted:"#64748b", faint:"#cbd5e1",
       accent:"#2563eb", accentBg:"#eff6ff", accentMuted:"#93c5fd",
       up:"#16a34a", upBg:"#f0fdf4", upBorder:"#86efac",
@@ -406,7 +406,7 @@
     };
 
     function MetCard({label,value,color,sub,style:extraStyle}) {
-      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"0",padding:"12px 16px",flex:"1 1 140px",outline:"none",...extraStyle}},
+      return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",outline:"none",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",...extraStyle}},
         e("div",{style:{fontSize:"8px",color:C.muted,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"6px",fontWeight:"600"}},label),
         e("div",{style:{fontSize:"18px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"0"}},value),
         sub&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"4px",letterSpacing:"0.03em"}},sub)
@@ -1781,9 +1781,8 @@
 
       // ── Holdings sparkline strip for news tab ──
       const nonCashHoldings=resolvedHoldings.filter(h=>h.ticker!=="Cash");
-      const holdingSparkStrip=e("div",{style:{marginBottom:"1rem"}},
-        e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px",display:"flex",alignItems:"center",gap:"8px"}},
-          e("span",null,"Your Holdings"),e("div",{style:{flex:1,height:"1px",background:C.border}})),
+      const holdingSparkStrip=e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",padding:"14px 16px",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)"}},
+        e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"}},"Your Holdings"),
         e("div",{style:{display:"flex",gap:"8px",overflowX:"auto",paddingBottom:"4px"}},
           ...nonCashHoldings.map((h,i)=>{
             const sp=holdingSparklines[h.ticker];
@@ -1811,10 +1810,10 @@
         )
       );
 
-      return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'Inter','Helvetica Neue',Arial,sans-serif",borderRadius:"0",overflow:"hidden",border:`1px solid ${C.border}`}},
+      return e("div",{style:{background:C.bg,color:C.text,fontFamily:"'Inter','Helvetica Neue',Arial,sans-serif",borderRadius:"0"}},
 
         // ── Header ──
-        e("div",{style:{borderBottom:`1px solid ${C.border}`,background:C.panel,position:"sticky",top:0,zIndex:100}},
+        e("div",{style:{borderBottom:`1px solid ${C.border}`,background:C.panel,position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.07)"}},
           // Main row: logo + (desktop: tabs) + right actions
           e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0",height:"44px"}},
             e("div",{style:{display:"flex",alignItems:"center",gap:"0",minWidth:0,height:"44px"}},
@@ -1889,7 +1888,7 @@
               const prog=yearGoal?Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100)):0;
               const retColor=yearGoal!=null&&ytdPctNow>=yearGoal?C.up:ytdPctNow>=0?C.text:C.dn;
               return e("div",{
-                style:{background:C.surface,border:`1px solid ${yearGoal!=null?"#f59e0b":C.border}`,borderRadius:"0",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",cursor:"pointer",position:"relative",overflow:"hidden"},
+                style:{background:C.surface,border:`1px solid ${yearGoal!=null?"#f59e0b":C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 2px 8px rgba(0,0,0,0.06)",cursor:"pointer",position:"relative",overflow:"hidden"},
                 onClick:()=>{
                   const g=window.prompt("Set YTD return goal (%)",yearGoal??15);
                   if(g===null)return;
@@ -1965,7 +1964,7 @@
           ),
 
           // ── PORTFOLIO TAB ──
-          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
+          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)"}},
             e("div",{style:{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",padding:"0.75rem 1rem",gap:isMobile?"8px":"0",borderBottom:`1px solid ${C.border}`}},
               !isMobile&&e("div",{style:{display:"flex",alignItems:"center",gap:"12px"}},
                 e("span",{style:{fontSize:"11px",color:C.muted}},"Click any value to edit · Force Exit default = avg cost × 85%"),
@@ -2122,7 +2121,7 @@
 
           // ── NEWS TAB ──
           tab==="news"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.25rem"}},
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 1px 0 rgba(255,255,255,0.04)":"0 1px 4px rgba(0,0,0,0.06)"}},
+            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)"}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`}},
                 e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
                   e("span",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Market Summary"),
