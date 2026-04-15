@@ -2216,10 +2216,31 @@
             !newsLoading&&(!news)&&e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"2px",padding:"3rem",textAlign:"center"}},
               e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"2"}},"Press ",e("strong",null,"Refresh All")," to load headlines")),
 
-            !newsLoading&&news&&!news.error&&newsSubTab==="market"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
-              news.market?.length>0
-                ?news.market.map((item,i)=>e(NewsRow,{key:i,item}))
-                :e("div",{style:{padding:"2rem",textAlign:"center",fontSize:"12px",color:C.muted}},"No headlines — try Refresh All")),
+            !newsLoading&&news&&!news.error&&newsSubTab==="market"&&(()=>{
+              // Merge Google News market feed + Finnhub news from all loaded tickers
+              const gnItems=news.market||[];
+              const fhItems=[];
+              Object.entries(companyData).forEach(([ticker,cd])=>{
+                if(!cd||cd.loading||!cd.news)return;
+                cd.news.forEach(n=>fhItems.push({
+                  headline:n.headline,source:n.source,
+                  time:fmtNewsTime((n.datetime||0)*1000),
+                  link:n.url,sentiment:sentimentOf(n.headline+" "+(n.summary||"")),
+                  _ts:(n.datetime||0)*1000
+                }));
+              });
+              // Deduplicate + sort newest-first
+              const seen=new Set(), merged=[];
+              [...gnItems,...fhItems].forEach(item=>{
+                const key=item.headline.toLowerCase().trim().slice(0,80);
+                if(!seen.has(key)){seen.add(key);merged.push(item);}
+              });
+              merged.sort((a,b)=>(b._ts||0)-(a._ts||0));
+              return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
+                merged.length>0
+                  ?merged.map((item,i)=>e(NewsRow,{key:i,item}))
+                  :e("div",{style:{padding:"2rem",textAlign:"center",fontSize:"12px",color:C.muted}},"No headlines — try Refresh All"));
+            })(),
 
             !newsLoading&&news&&!news.error&&newsSubTab==="watchlist"&&(()=>{
               const allItems=[];

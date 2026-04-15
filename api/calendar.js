@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
 
   const KEEP = new Set(["US","JP","EU","GB","CN","HK","TW"]);
   const economic = (econR.value?.economicCalendar || [])
-    .filter(ev => KEEP.has(ev.country) && (ev.impact === "high" || ev.impact === "medium"))
+    .filter(ev => KEEP.has(ev.country) && ev.impact === "high")
     .map(ev => ({ ...ev, date: ev.time ? ev.time.split(" ")[0] : null }))
     .filter(ev => ev.date);
 
