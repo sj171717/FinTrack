@@ -1034,7 +1034,7 @@
           fetchPortfolioSeries(portfolioChartPeriod);
           fetchRiskMetrics(riskPeriod);
         }
-        if(tab==="news"){fetchMarketData();if(holdings){fetchNews();fetchHoldingSparklines();}}
+        if(tab==="news"){fetchMarketData();if(holdings){fetchNews();fetchHoldingSparklines();holdings.filter(h=>h.ticker!=="Cash").forEach(h=>{if(!companyData[h.ticker]?.loading&&!companyData[h.ticker]?.earnings)fetchCompanyData(h.ticker);});}}
         if(tab==="prediction"){fetchKalshi();}
       },[tab,holdings]);
 
@@ -2053,7 +2053,7 @@
             // ── News sub-tab bar ──
             e("div",{style:{display:"flex",gap:"2px",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"2px",padding:"3px",alignSelf:"flex-start",marginBottom:"4px"}},
               [["market","Breaking News"],["watchlist","Watchlist"]].map(([k,l])=>
-                e("button",{key:k,onClick:()=>setNewsSubTab(k),
+                e("button",{key:k,onClick:()=>{setNewsSubTab(k);if(k==="watchlist"&&holdings){holdings.filter(h=>h.ticker!=="Cash").forEach(h=>{if(!companyData[h.ticker]?.loading&&!companyData[h.ticker]?.earnings)fetchCompanyData(h.ticker);});}},
                   style:{padding:"5px 18px",border:"none",borderRadius:"2px",cursor:"pointer",fontFamily:"inherit",
                     fontSize:"12px",fontWeight:newsSubTab===k?"600":"500",
                     background:newsSubTab===k?C.accent:"transparent",
@@ -2091,15 +2091,23 @@
                   });
                 });
               });
+              const anyLoading=holdings&&holdings.filter(h=>h.ticker!=="Cash").some(h=>companyData[h.ticker]?.loading);
               if(!allItems.length) return e("div",{style:{background:C.surface,border:`1.5px dashed ${C.border}`,borderRadius:"2px",padding:"2rem",textAlign:"center"}},
-                e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"2"}},"No watchlist news — try Refresh All"));
-              return e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
-                allItems.map((item,i)=>e("div",{key:i,style:{borderBottom:i<allItems.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"flex-start"}},
-                  e("div",{style:{flexShrink:0,padding:"10px 8px 10px 12px",paddingTop:"12px"}},
-                    e("span",{style:{background:C.accentBg,color:C.accent,padding:"2px 7px",borderRadius:"2px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`,whiteSpace:"nowrap"}},item._ticker)
-                  ),
-                  e("div",{style:{flex:1,minWidth:0}},e(NewsRow,{item}))
-                ))
+                anyLoading
+                  ?e(F,null,e("div",{style:{width:"20px",height:"20px",border:`2px solid ${C.border}`,borderTop:`2px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 8px"}}),e("div",{style:{fontSize:"12px",color:C.muted}},"Loading news from all sources…"))
+                  :e("div",{style:{fontSize:"12px",color:C.muted,lineHeight:"2"}},"No watchlist news — try Refresh All"));
+              return e("div",null,
+                anyLoading&&e("div",{style:{display:"flex",alignItems:"center",gap:"8px",padding:"6px 12px",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"2px",marginBottom:"4px",fontSize:"11px",color:C.muted}},
+                  e("div",{style:{width:"10px",height:"10px",border:`1.5px solid ${C.border}`,borderTop:`1.5px solid ${C.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite",flexShrink:0}}),
+                  "Loading additional news from Finnhub…"),
+                e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"2px",overflow:"hidden"}},
+                  allItems.map((item,i)=>e("div",{key:i,style:{borderBottom:i<allItems.length-1?`1px solid ${C.border}`:"none",display:"flex",alignItems:"flex-start"}},
+                    e("div",{style:{flexShrink:0,padding:"10px 8px 10px 12px",paddingTop:"12px"}},
+                      e("span",{style:{background:C.accentBg,color:C.accent,padding:"2px 7px",borderRadius:"2px",fontWeight:"700",fontSize:"10px",border:`1px solid ${C.accentMuted}`,whiteSpace:"nowrap"}},item._ticker)
+                    ),
+                    e("div",{style:{flex:1,minWidth:0}},e(NewsRow,{item}))
+                  ))
+                )
               );
             })()
           ),
