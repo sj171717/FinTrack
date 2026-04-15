@@ -611,7 +611,7 @@
     function PortfolioChart({pts,timestamps,period,change,totalVal,hidden,loading,chartPeriod,setChartPeriod,yearGoal,onGoalChange,ytdStartVal}){
       const [hoverIdx,setHoverIdx]=useState(null);
       const color=change>=0?C.up:C.dn;
-      const PERIODS_PC=["1W","1M","YTD","1Y","ALL"];
+      const PERIODS_PC=["1W","1M","YTD","1Y","3Y","5Y","ALL"];
       const W=800,H=320,PL=4,PR=60,PT=12,PB=24,cw=W-PL-PR,ch=H-PT-PB;
 
       const hVal=hoverIdx!=null&&pts?pts[hoverIdx]:null;
@@ -977,7 +977,8 @@
       const [portfolioChartData,setPortfolioChartData]=useState(null); // {pts,ts}
       const [portfolioChartLoading,setPortfolioChartLoading]=useState(false);
       const [riskMetrics,setRiskMetrics]=useState(null); // {sharpe,beta,volatility}
-      const [riskPeriod,setRiskPeriod]=useState("1M");
+      // riskPeriod derived from chart period — no separate state
+      const riskPeriod=portfolioChartPeriod==="1W"?"1M":portfolioChartPeriod==="YTD"?"1Y":portfolioChartPeriod==="ALL"?"5Y":["1M","1Y","3Y","5Y"].includes(portfolioChartPeriod)?portfolioChartPeriod:"1M";
       const [holdingRiskMetrics,setHoldingRiskMetrics]=useState({}); // {[ticker]:{sharpe,beta}}
       const [strategyNotes,setStrategyNotes]=useState("");
       const [yearGoal,setYearGoal]=useState(null); // % e.g. 15 means 15%
@@ -1074,12 +1075,12 @@
       },[tab,!!holdings]);
 
       useEffect(()=>{
-        if(tab==="portfolio"&&holdings){setRiskMetrics(null);fetchPortfolioSeries(portfolioChartPeriod);}
+        if(tab==="portfolio"&&holdings){
+          setRiskMetrics(null);setHoldingRiskMetrics({});
+          fetchPortfolioSeries(portfolioChartPeriod);
+          fetchRiskMetrics(riskPeriod);
+        }
       },[portfolioChartPeriod]);
-
-      useEffect(()=>{
-        if(tab==="portfolio"&&holdings){setRiskMetrics(null);setHoldingRiskMetrics({});fetchRiskMetrics(riskPeriod);}
-      },[riskPeriod]);
 
       // ── Auto-refresh prices every 2 minutes (pauses when tab hidden) ──
       useEffect(()=>{
@@ -2001,12 +2002,7 @@
                 "Updated "+priceUpdatedAt.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})
               ),
               e("div",{style:{display:"flex",gap:"6px",width:isMobile?"100%":"auto",alignItems:"center",flexWrap:"wrap"}},
-                e("div",{style:{display:"flex",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"2px",gap:"2px"}},
-                  ["1M","1Y","3Y","5Y"].map(p=>e("button",{key:p,onClick:()=>setRiskPeriod(p),
-                    style:{padding:"3px 9px",border:"none",borderRadius:"8px",cursor:"pointer",fontSize:"11px",fontFamily:"inherit",fontWeight:riskPeriod===p?"600":"400",
-                      background:riskPeriod===p?C.surface:"transparent",color:riskPeriod===p?C.text:C.muted,
-                      boxShadow:riskPeriod===p?"0 1px 3px rgba(0,0,0,0.12)":"none",transition:"all 0.15s"}},p))
-                ),
+                e("span",{style:{fontSize:"10px",color:C.muted,padding:"0 4px"}},"Risk period: "+riskPeriod),
                 e("button",{style:{...BS("p"),display:"flex",alignItems:"center",gap:"6px",flex:isMobile?"1":"none",justifyContent:"center",opacity:priceLoading?0.7:1},onClick:fetchPrices,disabled:priceLoading},
                   e("svg",{width:"12",height:"12",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:priceLoading?"spin 1s linear infinite":"none"}},e("path",{d:"M10 6A4 4 0 1 1 6 2a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"8,1 11,1 11,4"})),
                   priceLoading?"Fetching…":"Refresh"
