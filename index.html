@@ -1457,10 +1457,11 @@
           return Object.values(map);
         };
         // ── Trending: broad fetch, exclude sports/entertainment, keep market-relevant ──
-        const EXCLUDE_KW=["nfl","nba","mlb","nhl","ncaa","super bowl","world series","stanley cup","championship","playoff","standings","draft pick","golf","tennis","soccer","football","basketball","baseball","hockey","olympics","oscar","grammy","emmy","tony","box office","movie","film","actor","actress","celebrity","music","album","billboard","singer","kardashian","taylor swift","award show","reality tv","game show","esport","gaming","fortnite","minecraft"];
-        const TREND_KW=["fed","interest rate","inflation","gdp","recession","unemployment","tariff","trade","china","russia","ukraine","war","sanction","opec","oil","energy","gas","ai","artificial intelligence","tech","regulation","antitrust","fda","drug","vaccine","pharma","election","congress","senate","president","policy","legislation","debt","budget","housing","mortgage","market","stock","dollar","bond","yield","crypto","bitcoin","gold","ipo","merger","acquisition"];
+        const EXCLUDE_KW=["nfl","nba","mlb","nhl","ncaa","mls","pga","ufc","mma","nascar","formula 1","f1 ","super bowl","world series","stanley cup","nba championship","nba finals","mlb","championship game","playoff","wild card","standings","draft pick","mvp","all-star","trade deadline","free agent","roster","coach","quarterback","touchdown","home run","slam dunk","hat trick","grand slam","hole in one","golf","tennis","soccer","football","basketball","baseball","hockey","olympics","olympic","world cup","premier league","champions league","bundesliga","la liga","serie a","rugby","cricket","swimming","gymnastics","oscar","grammy","emmy","tony award","golden globe","box office","movie","film","actor","actress","celebrity","music album","billboard","singer","kardashian","taylor swift","award show","reality tv","game show","esport","gaming","fortnite","minecraft","roblox","twitch","youtube","spotify","netflix","disney","hbo","marvel","star wars","lakers","celtics","warriors","bulls","heat","knicks","yankees","dodgers","cubs","chiefs","patriots","cowboys","packers","eagles","lakers","mavs","suns","nets"];
+        const TREND_KW=["fed","federal reserve","interest rate","inflation","gdp","recession","unemployment","tariff","trade war","trade deal","china","russia","ukraine","taiwan","middle east","iran","north korea","war","conflict","sanction","nato","g7","g20","opec","oil price","crude","energy","natural gas","renewable","solar","nuclear","ai ","artificial intelligence","semiconductor","chip","regulation","antitrust","fda","drug approval","vaccine","pharma","clinical trial","election","congress","senate","house vote","president","white house","policy","legislation","executive order","debt ceiling","budget","deficit","housing","mortgage","real estate","stock market","s&p","nasdaq","dow","dollar","treasury","bond yield","fed rate","crypto","bitcoin","ethereum","gold price","ipo","merger","acquisition","bankruptcy","layoff","earnings","gdp growth","trade deficit","cpi","ppi","jobs report"];
+        const EXCLUDE_SERIES_KW=["sport","nfl","nba","mlb","nhl","soccer","golf","tennis","entertain","music","award","celeb","esport","gaming","movie","film","tv","show"];
         const fetchTrending=async()=>{
-          const url=`https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=200`;
+          const url=`https://api.elections.kalshi.com/trade-api/v2/markets?status=open&limit=1000`;
           try{
             let data=null;
             try{const r=await fetch(url,{headers:{accept:"application/json"}});if(r.ok)data=await r.json();}catch{}
@@ -1468,13 +1469,17 @@
             const markets=data?.markets||[];
             const scored=markets.map(m=>{
               const txt=(m.title||m.subtitle||"").toLowerCase();
-              const isExcluded=EXCLUDE_KW.some(k=>txt.includes(k));
-              if(isExcluded)return null;
+              const seriesTxt=(m.series_ticker||"").toLowerCase();
+              // Hard exclude by series ticker containing sport/entertainment keywords
+              if(EXCLUDE_SERIES_KW.some(k=>seriesTxt.includes(k)))return null;
+              // Hard exclude by title keywords
+              if(EXCLUDE_KW.some(k=>txt.includes(k)))return null;
+              // Must have at least 1 market-relevant keyword — no volume fallback
               const score=TREND_KW.filter(k=>txt.includes(k)).length;
+              if(score===0)return null;
               return{...m,_score:score,_series:m.series_ticker||"TREND",totalVol:parseFloat(m.volume_fp||0)};
-            }).filter(m=>m&&(m._score>0||m.totalVol>5000));
-            // Group by event, pick top by volume, return top 10
-            const grouped=groupByEvent(scored.filter(Boolean));
+            }).filter(Boolean);
+            const grouped=groupByEvent(scored);
             return grouped.sort((a,b)=>b.totalVol-a.totalVol).slice(0,10);
           }catch{return[];}
         };
