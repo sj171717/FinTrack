@@ -1165,6 +1165,7 @@
       // riskPeriod derived from chart period — no separate state
       const riskPeriod=portfolioChartPeriod==="1W"?"1M":portfolioChartPeriod==="YTD"?"1Y":portfolioChartPeriod==="ALL"?"5Y":["1M","1Y","3Y","5Y"].includes(portfolioChartPeriod)?portfolioChartPeriod:"1M";
       const [holdingRiskMetrics,setHoldingRiskMetrics]=useState({}); // {[ticker]:{sharpe,beta}}
+      const [jan1PortfolioVal,setJan1PortfolioVal]=useState(null); // Jan 1 total value for goal card
       const [strategyNotes,setStrategyNotes]=useState("");
       const [costBasisMethod,setCostBasisMethod]=useState("HIFO"); // "FIFO" | "HIFO" | "AvgCost"
       const [brokerFilter,setBrokerFilter]=useState(null); // null = all, string = specific broker
@@ -1261,7 +1262,7 @@
           if(!calendarFetched&&!calendarLoading)fetchCalendar();
           holdings.filter(h=>h.ticker!=="Cash").forEach(h=>{if(!companyData[h.ticker]?.loading&&!companyData[h.ticker]?.earnings)fetchCompanyData(h.ticker);});
         }
-        if(tab==="portfolio"){fetchHoldingSparklines();fetchPortfolioSeries(portfolioChartPeriod);fetchRiskMetrics(riskPeriod);}
+        if(tab==="portfolio"){fetchHoldingSparklines();fetchPortfolioSeries(portfolioChartPeriod);fetchRiskMetrics(riskPeriod);if(!jan1PortfolioVal)fetchPortfolioSeries("YTD");}
         if(tab==="prediction"){fetchKalshi();}
       },[tab,!!holdings]);
 
@@ -1790,6 +1791,13 @@
         const trimmedTs=trimmed.map(x=>x.ts);
 
         setPortfolioChartData({pts,ts:trimmedTs});
+        // Save Jan 1 portfolio value when we have YTD or longer data covering Jan 1
+        if(["YTD","1Y","3Y","5Y","ALL"].includes(period)&&trimmedTs.length){
+          const jan1Ms=new Date(new Date().getFullYear(),0,1).getTime();
+          const jan1Idx=trimmedTs.findIndex(ts=>ts>=jan1Ms);
+          const jan1Val=jan1Idx>=0?pts[jan1Idx]:pts[0];
+          if(jan1Val>0) setJan1PortfolioVal(jan1Val);
+        }
         setPortfolioChartLoading(false);
       };
 
@@ -2175,8 +2183,7 @@
             e(MetCard,{label:"YTD Gain / Loss",value:hidden?MASK:sign(ytdGL)+"$"+$n(Math.abs(ytdGL),0),color:hidden?C.muted:pc(ytdGL),sub:hidden?MASK:sign(ytdPct)+$n(Math.abs(ytdPct),1)+"% this year",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             (()=>{
-              const base=ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0);
-              const jan1Base=base-totalRealized; // strip out realized G/L so base = true Jan 1 portfolio value
+              const jan1Base=jan1PortfolioVal||(ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized);
               const goalTargetVal=yearGoal!=null&&jan1Base?jan1Base*(1+yearGoal/100):null;
               const ytdPctNow=jan1Base?((totalVal-jan1Base)/jan1Base*100):0;
               const prog=yearGoal?Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100)):0;
@@ -2219,7 +2226,7 @@
             chartPeriod:portfolioChartPeriod,
             setChartPeriod:(p)=>{setPortfolioChartPeriod(p);},
             yearGoal,
-            ytdStartVal:ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized,
+            ytdStartVal:jan1PortfolioVal||(ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized),
             onGoalChange:(v)=>{setYearGoal(v);if(user)fbDb.collection("users").doc(user.uid).set({yearGoal:v},{merge:true}).catch(()=>{});}
           }),
 
