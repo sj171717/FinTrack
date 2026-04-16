@@ -758,9 +758,9 @@
       );
     }
 
-    function LotsModal({lotsModal,setLotsModal,setHoldings}) {
+    function LotsModal({lotsModal,setLotsModal,setHoldings,costBasisMethod="FIFO"}) {
       const rawH=lotsModal.holding;
-      const {avgCost,qty,realizedGL,unrealizedGL}=computeFromLots(rawH.lots||[],rawH.currentPrice);
+      const {avgCost,qty,realizedGL,unrealizedGL}=computeFromLots(rawH.lots||[],rawH.currentPrice,costBasisMethod);
       const totalReturn=unrealizedGL+realizedGL;
       const buys=(rawH.lots||[]).filter(l=>l.type==="buy").sort((a,b)=>new Date(a.date)-new Date(b.date));
       const sells=(rawH.lots||[]).filter(l=>l.type==="sell").sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -1019,6 +1019,7 @@
       const [hoveredSector,setHoveredSector]=useState(null);
       const holdingSparklinesRef=useRef(false);
       const firestoreSaveTimer=useRef(null);
+      const fetchPricesRef=useRef(null);
       const [lotsModal,setLotsModal]=useState(null); // {holding, newBuy:{date,price,qty}, newSell:{date,price,qty}}
 
       // Dark mode body background
@@ -1121,7 +1122,7 @@
       useEffect(()=>{
         if(!holdings)return;
         const id=setInterval(()=>{
-          if(document.visibilityState==="visible")fetchPrices();
+          if(document.visibilityState==="visible")fetchPricesRef.current?.();
         },120000);
         return()=>clearInterval(id);
       },[!!holdings]);
@@ -1177,7 +1178,8 @@
           const sp=rawH.ytdStartPrice??price;
           return {ytdGL:acc.ytdGL+h.qty*(price-sp), ytdBase:acc.ytdBase+h.qty*sp};
         }
-        const {active}=computeFromLots(rawH.lots,price,costBasisMethod);
+        const ytdLots=brokerFilter?rawH.lots.filter(l=>l.broker===brokerFilter):rawH.lots;
+        const {active}=computeFromLots(ytdLots,price,costBasisMethod);
         let gl=0,base=0;
         for(const lot of active){
           const sp=new Date(lot.date).getTime()<jan1Ms?(rawH.ytdStartPrice??lot.price):lot.price;
@@ -1253,11 +1255,19 @@
           if(missing.length){try{const yq=await yfQuote(missing);Object.assign(quotes,yq);}catch{}}
           if(Object.keys(quotes).length){
             setHoldings(prev=>prev.map(h=>{ const q=quotes[h.ticker]; return q?.price>0?{...h,currentPrice:q.price,changePct:q.changePct??0}:h; }));
+            setHoldingSparklines(prev=>{
+              const next={...prev};
+              for(const[t,q]of Object.entries(quotes)){
+                if(q?.price>0&&next[t])next[t]={...next[t],price:q.price,dailyPct:q.changePct??next[t].dailyPct};
+              }
+              return next;
+            });
             setPriceUpdatedAt(new Date());
           }
         }catch{}
         setPriceLoading(false);
       };
+      useEffect(()=>{ fetchPricesRef.current=fetchPrices; });
 
       // ── MARKET DATA ──
       const fetchMarketData=async(force=false)=>{
@@ -1716,9 +1726,11 @@
               if(h.ticker==="Cash")return null;
               const ne=companyData[h.ticker]?.nextEarnings;
               if(!ne?.date)return null;
-              const daysUntil=Math.round((new Date(ne.date)-Date.now())/86400000);
+              const[ey,em,ed]=ne.date.split("-").map(Number);
+              const earningsDay=new Date(ey,em-1,ed);
+              const daysUntil=Math.round((earningsDay-Date.now())/86400000);
               if(daysUntil<0||daysUntil>60)return null;
-              const d=new Date(ne.date);
+              const d=earningsDay;
               const label=d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
               const urgent=daysUntil<=7;
               return e("span",{title:`Earnings ${ne.date}${ne.epsEstimate!=null?" · EPS est. $"+$n(ne.epsEstimate,2):""}`,
@@ -2669,7 +2681,7 @@
 
 
         // ── Lots Modal ──
-        lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings}),
+        lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings,costBasisMethod}),
 
         // ── Portfolio Chart Modal ──
         portfolioModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setPortfolioModal(null)},
