@@ -2080,7 +2080,7 @@
             e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},"Risk Metrics"),
             e("div",{style:{display:"flex",gap:"8px",flexWrap:"wrap"}},
               e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
-                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Portfolio Sharpe"),
+                e("div",{className:"grad-text",style:{fontSize:"9px",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"800"}},"Portfolio Sharpe"),
                 e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=1?C.up:riskMetrics.sharpe>=0?C.text:C.dn):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
                   riskMetrics?.sharpe!=null?riskMetrics.sharpe.toFixed(2):"—"
                 ),
@@ -2089,7 +2089,7 @@
                 )
               ),
               e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
-                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Portfolio Beta"),
+                e("div",{className:"grad-text",style:{fontSize:"9px",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"800"}},"Portfolio Beta"),
                 e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.beta!=null?(Math.abs(riskMetrics.beta)>1.5?C.dn:Math.abs(riskMetrics.beta)>1?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
                   riskMetrics?.beta!=null?riskMetrics.beta.toFixed(2):"—"
                 ),
@@ -2098,7 +2098,7 @@
                 )
               ),
               e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
-                e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Volatility"),
+                e("div",{className:"grad-text",style:{fontSize:"9px",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"800"}},"Volatility"),
                 e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.volatility!=null?(riskMetrics.volatility>30?C.dn:riskMetrics.volatility>20?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
                   riskMetrics?.volatility!=null?riskMetrics.volatility.toFixed(1)+"%":"—"
                 ),
@@ -2136,7 +2136,7 @@
             showAdd&&e("div",{style:{padding:"1rem",borderBottom:`1px solid ${C.border}`,background:C.surfaceAlt}},
               showAddCash
               ? e("div",null,
-                  e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text,marginBottom:"8px"}},"Add Cash"),
+                  e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},"Add Cash"),
                   e("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}},
                     e("input",{style:{...inp,width:"160px"},placeholder:"Amount ($)",type:"number",min:"0",value:cashAmount,onChange:ev=>setCashAmount(ev.target.value),autoFocus:true}),
                     e("button",{style:BS("p"),onClick:()=>{
@@ -2225,7 +2225,7 @@
           // ── Industry Allocation ──
           tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.25rem",marginTop:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}},
-              e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Industry Allocation"),
+              e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"6px"}},"Industry Allocation"),
               e("div",{style:{fontSize:"10px",color:C.muted,letterSpacing:"0.06em",textTransform:"uppercase"}},"Hover a row to see holdings · by portfolio value")
             ),
             e("div",{style:{display:"flex",flexDirection:"column",gap:"2px"}},
