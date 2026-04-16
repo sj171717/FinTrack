@@ -400,7 +400,7 @@
       const preview=text?.length>48?text.slice(0,48)+"…":text;
       return e(F,null,
         e("div",{onClick:()=>setOpen(true),style:{cursor:"pointer",color:C.muted,fontSize:"11px",lineHeight:"1.45",maxWidth:"200px",borderBottom:`1px dashed ${C.faint}`}},preview||"—"),
-        open&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.45)"},onClick:()=>{setOpen(false);setEditing(false);}},
+        open&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>{setOpen(false);setEditing(false);}},
           e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.5rem",width:"520px",maxWidth:"92vw",boxShadow:"0 0 0 1px rgba(255,140,0,0.15),0 20px 40px rgba(0,0,0,0.8)"}},
             e("div",{style:{fontSize:"10px",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"12px"}},"Notes"),
             editing
@@ -775,6 +775,17 @@
       const [newSell,setNewSell]=useState(nsf);
       const [showAddBuy,setShowAddBuy]=useState(false);
       const [showAddSell,setShowAddSell]=useState(false);
+      const [editingLot,setEditingLot]=useState(null); // {id, date, price, qty, broker}
+      const saveLotEdit=()=>{
+        if(!editingLot)return;
+        const price=+editingLot.price,qty2=+editingLot.qty;
+        if(!price||!qty2)return;
+        const updated={...editingLot,price,qty:qty2};
+        const newLots=(rawH.lots||[]).map(l=>l.id===updated.id?updated:l);
+        setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:newLots}:h));
+        setLotsModal(prev=>({...prev,holding:{...rawH,lots:newLots}}));
+        setEditingLot(null);
+      };
       const addBuyLot=()=>{
         const price=+newBuy.price,qty2=+newBuy.qty;
         if(!price||!qty2)return;
@@ -806,7 +817,7 @@
         setLotsModal(prev=>({...prev,holding:{...rawH,lots:newLots}}));
       };
       const inpS={background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,padding:"5px 8px",borderRadius:"8px",fontSize:"11px",fontFamily:"inherit",outline:"none"};
-      return e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setLotsModal(null)},
+      return e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setLotsModal(null)},
         e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.5rem",width:"780px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 0 0 1px rgba(255,140,0,0.15),0 32px 64px rgba(0,0,0,0.8)"}},
           e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px"}},
             e("div",null,
@@ -854,6 +865,26 @@
                 const mktVal=rem*rawH.currentPrice;
                 const gl=(rawH.currentPrice-lot.price)*rem;
                 const glPct=lot.price?(rawH.currentPrice-lot.price)/lot.price*100:0;
+                const isEditing=editingLot?.id===lot.id;
+                if(isEditing)return e("tr",{key:lot.id,style:{borderBottom:`1px solid ${C.border}`,background:C.surfaceAlt}},
+                  e("td",{colSpan:8,style:{padding:"8px"}},
+                    e("div",{style:{display:"flex",gap:"8px",alignItems:"flex-end",flexWrap:"wrap"}},
+                      e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Date"),e("input",{type:"date",value:editingLot.date,onChange:ev=>setEditingLot(p=>({...p,date:ev.target.value})),style:inpS})),
+                      e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Price ($)"),e("input",{type:"number",value:editingLot.price,onChange:ev=>setEditingLot(p=>({...p,price:ev.target.value})),style:{...inpS,width:"90px"}})),
+                      e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",value:editingLot.qty,onChange:ev=>setEditingLot(p=>({...p,qty:ev.target.value})),style:{...inpS,width:"90px"}})),
+                      e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker"),
+                        e("select",{value:editingLot.broker||"",onChange:ev=>setEditingLot(p=>({...p,broker:ev.target.value})),style:{...inpS,width:"150px"}},
+                          e("option",{value:""},"— Select —"),
+                          BROKERS.map(b=>e("option",{key:b,value:b},b))
+                        )
+                      ),
+                      e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
+                        e("button",{onClick:saveLotEdit,style:BS("p")},"Save"),
+                        e("button",{onClick:()=>setEditingLot(null),style:BS()},"Cancel")
+                      )
+                    )
+                  )
+                );
                 return e("tr",{key:lot.id,style:{borderBottom:`1px solid ${C.border}`}},
                   e("td",{style:{padding:"7px 8px",color:C.text}},lot.date),
                   e("td",{style:{padding:"7px 8px"}},lot.broker?e("span",{style:{fontSize:"9px",fontWeight:"600",color:C.accent,background:C.accentBg,border:`1px solid ${C.accentMuted}`,padding:"1px 5px",borderRadius:"6px",whiteSpace:"nowrap"}},lot.broker):e("span",{style:{color:C.faint,fontSize:"10px"}},"—")),
@@ -862,7 +893,12 @@
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:rem>0?C.text:C.faint}},$n(rem,4)+(rem===0?" (sold)":"")),
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:C.text}},"$"+$n(mktVal,0)),
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:pc(gl),fontWeight:"500"}},rem>0?((gl>=0?"+":"")+$n(gl,0)+" ("+$n(glPct,1)+"%)"):e("span",{style:{color:C.faint}},"—")),
-                  e("td",{style:{padding:"7px 8px",textAlign:"right"}},e("button",{onClick:()=>deleteLot(lot.id),title:"Remove lot",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕"))
+                  e("td",{style:{padding:"7px 8px",textAlign:"right"}},
+                    e("div",{style:{display:"flex",gap:"4px",justifyContent:"flex-end"}},
+                      e("button",{onClick:()=>setEditingLot({id:lot.id,date:lot.date,price:lot.price,qty:lot.qty,broker:lot.broker||""}),title:"Edit lot",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✎"),
+                      e("button",{onClick:()=>deleteLot(lot.id),title:"Remove lot",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕")
+                    )
+                  )
                 );
               }))
             )
@@ -2664,7 +2700,7 @@
         ),
 
         // ── API Key Modal ──
-        showKeyModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.45)"},onClick:()=>setShowKeyModal(false)},
+        showKeyModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setShowKeyModal(false)},
           e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.5rem",width:"440px",maxWidth:"92vw",boxShadow:`0 0 0 1px ${C.accentMuted},0 20px 40px rgba(0,0,0,0.5)`}},
             e("div",{style:{fontSize:"13px",fontWeight:"600",color:C.text,marginBottom:"4px"}},"Anthropic API Key"),
             e("div",{style:{fontSize:"11.5px",color:C.muted,marginBottom:"10px",lineHeight:"1.55"}},"Required only for the AI Analysis tab. Prices and news work without a key. Saved to ",e("code",{style:{background:C.tag,padding:"1px 5px",borderRadius:"6px"}},"localStorage"),"."),
@@ -2684,7 +2720,7 @@
         lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings,costBasisMethod}),
 
         // ── Portfolio Chart Modal ──
-        portfolioModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setPortfolioModal(null)},
+        portfolioModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setPortfolioModal(null)},
           e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.25rem",width:"900px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 0 0 1px rgba(255,140,0,0.15),0 32px 64px rgba(0,0,0,0.8)"}},
             // Modal header
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
@@ -2994,7 +3030,7 @@
         ),
 
         // ── Market Chart Modal ──
-        marketChartModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.55)"},onClick:()=>setMarketChartModal(null)},
+        marketChartModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setMarketChartModal(null)},
           e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.25rem",width:"900px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 0 0 1px rgba(255,140,0,0.15),0 32px 64px rgba(0,0,0,0.8)"}},
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
               e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
