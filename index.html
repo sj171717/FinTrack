@@ -1413,15 +1413,34 @@
       const fetchYtdStartPrices=async(loaded)=>{
         const tickers=(loaded||holdings||[]).filter(h=>h.ticker!=="Cash").map(h=>h.ticker);
         if(!tickers.length)return;
+        let ytdPrices={};
         try{
           const res=await fetch(`/api/ytd?tickers=${tickers.join(",")}`);
-          if(!res.ok)return;
-          const ytdPrices=await res.json();
+          if(res.ok) ytdPrices=await res.json();
+        }catch{}
+        // Fallback: use yfCandles for any tickers the API didn't return
+        const missing=tickers.filter(t=>!(ytdPrices[t]>0));
+        if(missing.length){
+          const jan1Ms=new Date(new Date().getFullYear(),0,1).getTime();
+          const results=await Promise.allSettled(missing.map(async t=>{
+            try{
+              const candles=await yfCandles(t,"YTD");
+              if(!candles?.length)return{t,price:null};
+              // First close on or after Jan 1 = first trading day of the year
+              const first=candles.find(c=>c.ts>=jan1Ms)||candles[0];
+              return{t,price:first?.c||null};
+            }catch{return{t,price:null};}
+          }));
+          for(const r of results){
+            if(r.status==="fulfilled"&&r.value?.price>0) ytdPrices[r.value.t]=r.value.price;
+          }
+        }
+        if(Object.keys(ytdPrices).length){
           setHoldings(prev=>prev.map(h=>{
             const p=ytdPrices[h.ticker];
             return p>0?{...h,ytdStartPrice:p}:h;
           }));
-        }catch{}
+        }
       };
 
       const fetchPrices=async()=>{
