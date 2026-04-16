@@ -1189,16 +1189,18 @@
         const livePrice=holdingSparklines[h.ticker]?.price;
         const cp=livePrice>0?livePrice:(h.currentPrice||0);
         const hh={...h,currentPrice:cp};
-        if(!h.lots||h.ticker==="Cash")return{...hh,realizedGL:0,unrealizedGL:(cp-(h.avgCost||0))*(h.qty||0)};
+        if(!h.lots||h.ticker==="Cash")return{...hh,realizedGL:0,unrealizedGL:(cp-(h.avgCost||0))*(h.qty||0),_brokerMatch:!brokerFilter};
         const filteredLots=brokerFilter?h.lots.filter(l=>l.broker===brokerFilter):h.lots;
         const c=computeFromLots(filteredLots,cp,costBasisMethod);
-        return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
-      }).filter(h=>h.ticker==="Cash"||!brokerFilter||(h.qty>0));
+        const _brokerMatch=!brokerFilter||filteredLots.length>0;
+        return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL,_brokerMatch};
+      });
 
-      const totalVal      =resolvedHoldings.reduce((s,h)=>s+h.qty*h.currentPrice,0);
-      const totalCost     =resolvedHoldings.reduce((s,h)=>s+h.qty*h.avgCost,0);
-      const totalRealized =resolvedHoldings.reduce((s,h)=>s+(h.realizedGL||0),0);
-      const totalUnrealized=resolvedHoldings.reduce((s,h)=>s+(h.unrealizedGL||0),0);
+      const activeHoldings=resolvedHoldings.filter(h=>h._brokerMatch!==false);
+      const totalVal      =activeHoldings.reduce((s,h)=>s+h.qty*h.currentPrice,0);
+      const totalCost     =activeHoldings.reduce((s,h)=>s+h.qty*h.avgCost,0);
+      const totalRealized =activeHoldings.reduce((s,h)=>s+(h.realizedGL||0),0);
+      const totalUnrealized=activeHoldings.reduce((s,h)=>s+(h.unrealizedGL||0),0);
       const totalGL       =totalUnrealized+totalRealized;
       // Cost basis = cost of all lots ever bought (open + closed)
       const totalCostBasis=resolvedHoldings.reduce((s,h)=>{
@@ -1771,7 +1773,7 @@
         const upside=(h.targetPrice&&h.currentPrice>0)?(h.targetPrice-h.currentPrice)/h.currentPrice*100:null;
         const rawH=holdings.find(x=>x.id===h.id)||h;
         const hasMultiLots=(rawH.lots?.filter(l=>l.type==="buy").length||0)>1;
-        return e("tr",{key:h.id,draggable:true,onDragStart:()=>onDragStart(holdings.indexOf(rawH)),onDragOver:ev=>onDragOver(ev,holdings.indexOf(rawH)),onDragEnd:onDragEnd,style:{background:breach?C.dnBg:nearExit?C.warnBg:"transparent",cursor:"grab"}},
+        return e("tr",{key:h.id,draggable:true,onDragStart:()=>onDragStart(holdings.indexOf(rawH)),onDragOver:ev=>onDragOver(ev,holdings.indexOf(rawH)),onDragEnd:onDragEnd,style:{background:breach?C.dnBg:nearExit?C.warnBg:"transparent",cursor:"grab",opacity:h._brokerMatch===false?0.3:1,transition:"opacity 0.2s"}},
           e(TD,{hide:true,adv:false},e("span",{style:{color:C.faint,fontSize:"14px",cursor:"grab",userSelect:"none",display:"inline-block",lineHeight:1}},"⠿")),
           e(TD,null,e("div",{style:{display:"flex",alignItems:"center",gap:"5px",flexWrap:"wrap"}},
             breach&&e("span",{style:{background:C.dn,color:"#fff",padding:"2px 6px",borderRadius:"10px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0,boxShadow:`0 0 0 2px ${C.dnBorder}`}},"⚠ EXIT"),
