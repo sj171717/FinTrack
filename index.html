@@ -865,10 +865,7 @@
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Price ($)"),e("input",{type:"number",placeholder:"0.00",value:newBuy.price,onChange:ev=>setNewBuy(p=>({...p,price:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addBuyLot(),style:{...inpS,width:"90px"}})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",placeholder:"0",value:newBuy.qty,onChange:ev=>setNewBuy(p=>({...p,qty:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addBuyLot(),style:{...inpS,width:"90px"}})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker (optional)"),
-                e("select",{value:newBuy.broker,onChange:ev=>setNewBuy(p=>({...p,broker:ev.target.value})),style:{...inpS,width:"150px"}},
-                  e("option",{value:""},"— Select —"),
-                  BROKERS.map(b=>e("option",{key:b,value:b},b))
-                )
+                e(BrokerSelect,{value:newBuy.broker,onChange:v=>setNewBuy(p=>({...p,broker:v}))})
               ),
               e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
                 e("button",{onClick:addBuyLot,style:BS("p")},"Add"),
@@ -893,10 +890,7 @@
                       e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Price ($)"),e("input",{type:"number",value:editingLot.price,onChange:ev=>setEditingLot(p=>({...p,price:ev.target.value})),style:{...inpS,width:"90px"}})),
                       e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",value:editingLot.qty,onChange:ev=>setEditingLot(p=>({...p,qty:ev.target.value})),style:{...inpS,width:"90px"}})),
                       e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker"),
-                        e("select",{value:editingLot.broker||"",onChange:ev=>setEditingLot(p=>({...p,broker:ev.target.value})),style:{...inpS,width:"150px"}},
-                          e("option",{value:""},"— Select —"),
-                          BROKERS.map(b=>e("option",{key:b,value:b},b))
-                        )
+                        e(BrokerSelect,{value:editingLot.broker||"",onChange:v=>setEditingLot(p=>({...p,broker:v}))})
                       ),
                       e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
                         e("button",{onClick:saveLotEdit,style:BS("p")},"Save"),
@@ -933,10 +927,7 @@
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Sell Price ($)"),e("input",{type:"number",placeholder:"0.00",value:newSell.price,onChange:ev=>setNewSell(p=>({...p,price:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addSellLot(),style:{...inpS,width:"90px"}})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",placeholder:"0",value:newSell.qty,onChange:ev=>setNewSell(p=>({...p,qty:ev.target.value})),onKeyDown:ev=>ev.key==="Enter"&&addSellLot(),style:{...inpS,width:"90px"}})),
               e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker (optional)"),
-                e("select",{value:newSell.broker,onChange:ev=>setNewSell(p=>({...p,broker:ev.target.value})),style:{...inpS,width:"150px"}},
-                  e("option",{value:""},"— Select —"),
-                  BROKERS.map(b=>e("option",{key:b,value:b},b))
-                )
+                e(BrokerSelect,{value:newSell.broker,onChange:v=>setNewSell(p=>({...p,broker:v}))})
               ),
               e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
                 e("button",{onClick:addSellLot,style:BS("p")},"Add"),
