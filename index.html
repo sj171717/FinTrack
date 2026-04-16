@@ -427,7 +427,7 @@
 
     function MetCard({label,value,color,sub,style:extraStyle}) {
       return e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:"14px 18px",flex:"1 1 140px",outline:"none",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`,...extraStyle}},
-        e("div",{className:"grad-text",style:{fontSize:"9px",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px",fontWeight:"800"}},label),
+        e("div",{className:"grad-text",style:{fontSize:"11px",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"8px",fontWeight:"800"}},label),
         e("div",{style:{fontSize:"22px",fontWeight:"700",color:color||C.text,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},value),
         sub&&e("div",{style:{fontSize:"10px",color:C.muted,marginTop:"4px",letterSpacing:"0.03em"}},sub)
       );
@@ -728,7 +728,7 @@
       return e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderRadius:"12px",marginBottom:"1rem",overflow:"hidden",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
         // Value + badge centered
         e("div",{style:{textAlign:"center",padding:"1.5rem 1rem 0.5rem"}},
-          e("div",{className:"grad-text",style:{fontSize:"9px",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"6px",fontWeight:"800"}},"Portfolio Value"),
+          e("div",{className:"grad-text",style:{fontSize:"11px",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"6px",fontWeight:"800"}},"Portfolio Value"),
           e("div",{style:{fontSize:"36px",fontWeight:"800",color:C.text,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.03em",lineHeight:1}},
             hidden?MASK:"$"+$n(displayVal,0)),
           pts&&e("div",{style:{marginTop:"8px"}},
@@ -760,7 +760,7 @@
       );
     }
 
-    function LotsModal({lotsModal,setLotsModal,setHoldings,costBasisMethod="HIFO"}) {
+    function LotsModal({lotsModal,setLotsModal,setHoldings,costBasisMethod="HIFO",allBrokers=[]}) {
       const rawH=lotsModal.holding;
       const {avgCost,qty,realizedGL,unrealizedGL}=computeFromLots(rawH.lots||[],rawH.currentPrice,costBasisMethod);
       const totalReturn=unrealizedGL+realizedGL;
@@ -770,7 +770,22 @@
       const remLots=buys.map(b=>({...b,rem:b.qty}));
       for(const sell of sells){let sq=sell.qty;for(const lot of remLots){if(sq<=0||lot.rem<=0)continue;const used=Math.min(sq,lot.rem);lot.rem-=used;sq-=used;}}
       remLots.forEach(l=>remMap[l.id]=l.rem);
-      const BROKERS=["Robinhood","Fidelity","Schwab","TD Ameritrade","E*TRADE","Webull","Interactive Brokers","Merrill Edge","Vanguard","Tastytrade","Other"];
+      const DEFAULT_BROKERS=["Robinhood","Fidelity","Schwab","TD Ameritrade","E*TRADE","Webull","Interactive Brokers","Merrill Edge","Vanguard","Tastytrade"];
+      const BROKERS=[...new Set([...DEFAULT_BROKERS,...allBrokers]),"Other"];
+      const [customBrokerInput,setCustomBrokerInput]=useState("");
+      const resolveBroker=(val)=>val==="Other"?customBrokerInput.trim():val;
+      const BrokerSelect=({value,onChange})=>{
+        const isOther=value==="Other";
+        return e("div",{style:{display:"flex",flexDirection:"column",gap:"4px"}},
+          e("select",{value:BROKERS.includes(value)&&value!==customBrokerInput?value:(value&&!DEFAULT_BROKERS.includes(value)?"Other":value),
+            onChange:ev=>{onChange(ev.target.value);if(ev.target.value!=="Other")setCustomBrokerInput("");},
+            style:{...inpS,width:"150px"}},
+            e("option",{value:""},"— Select —"),
+            BROKERS.map(b=>e("option",{key:b,value:b},b))
+          ),
+          isOther&&e("input",{type:"text",placeholder:"Enter broker name…",value:customBrokerInput,onChange:ev=>setCustomBrokerInput(ev.target.value),style:{...inpS,width:"150px",marginTop:"2px"}})
+        );
+      };
       const nbf={date:new Date().toISOString().split('T')[0],price:"",qty:"",broker:""};
       const nsf={date:new Date().toISOString().split('T')[0],price:"",qty:"",broker:""};
       const [newBuy,setNewBuy]=useState(nbf);
@@ -782,24 +797,27 @@
         if(!editingLot)return;
         const price=+editingLot.price,qty2=+editingLot.qty;
         if(!price||!qty2)return;
-        const updated={...editingLot,price,qty:qty2};
+        const broker=resolveBroker(editingLot.broker||"");
+        const updated={...editingLot,price,qty:qty2,broker:broker||undefined};
         const newLots=(rawH.lots||[]).map(l=>l.id===updated.id?updated:l);
         setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:newLots}:h));
         setLotsModal(prev=>({...prev,holding:{...rawH,lots:newLots}}));
-        setEditingLot(null);
+        setEditingLot(null); setCustomBrokerInput("");
       };
       const addBuyLot=()=>{
         const price=+newBuy.price,qty2=+newBuy.qty;
         if(!price||!qty2)return;
-        const lot={id:rawH.id+"_l"+Date.now(),type:"buy",date:newBuy.date,price,qty:qty2,...(newBuy.broker?{broker:newBuy.broker}:{})};
+        const broker=resolveBroker(newBuy.broker);
+        const lot={id:rawH.id+"_l"+Date.now(),type:"buy",date:newBuy.date,price,qty:qty2,...(broker?{broker}:{})};
         setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h));
         setLotsModal(prev=>({...prev,holding:{...rawH,lots:[...(rawH.lots||[]),lot]}}));
-        setNewBuy(nbf); setShowAddBuy(false);
+        setNewBuy(nbf); setShowAddBuy(false); setCustomBrokerInput("");
       };
       const addSellLot=()=>{
         const price=+newSell.price,qty2=+newSell.qty;
         if(!price||!qty2)return;
-        const lot={id:rawH.id+"_s"+Date.now(),type:"sell",date:newSell.date,price,qty:qty2,...(newSell.broker?{broker:newSell.broker}:{})};
+        const broker=resolveBroker(newSell.broker);
+        const lot={id:rawH.id+"_s"+Date.now(),type:"sell",date:newSell.date,price,qty:qty2,...(broker?{broker}:{})};
         const proceeds=price*qty2;
         setHoldings(p=>{
           const updated=p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h);
@@ -1886,7 +1904,7 @@
           )
         );
       };
-      const MktSectionHead=(label)=>e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},label);
+      const MktSectionHead=(label)=>e("div",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"8px"}},label);
 
       const MktCol=(label,rows)=>e("div",{style:{display:"flex",flexDirection:"column",minWidth:0,background:C.panel,borderRadius:"12px",padding:"12px 14px",border:`1px solid ${C.border}`,boxShadow:`0 4px 20px rgba(3,105,161,0.07), 0 1px 3px rgba(0,0,0,0.04)`,position:"relative",overflow:"hidden"}},
         e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"2px",background:"linear-gradient(90deg,#0369a1,#0284c7,transparent)"}}),
@@ -1926,7 +1944,7 @@
       // ── Holdings sparkline strip for news tab ──
       const nonCashHoldings=resolvedHoldings.filter(h=>h.ticker!=="Cash");
       const holdingSparkStrip=e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderRadius:"14px",padding:"14px 16px",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
-        e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"10px"}},"Your Holdings"),
+        e("div",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"}},"Your Holdings"),
         e("div",{style:{display:"flex",gap:"8px",overflowX:"auto",paddingBottom:"4px"}},
           ...nonCashHoldings.map((h,i)=>{
             const sp=holdingSparklines[h.ticker];
@@ -2075,7 +2093,7 @@
 
           // ── Risk Metrics ──
           tab==="portfolio"&&e("div",{style:{marginBottom:"1rem"}},
-            e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},"Risk Metrics"),
+            e("div",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"8px"}},"Risk Metrics"),
             e("div",{style:{display:"flex",gap:"8px",flexWrap:"wrap"}},
               e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
                 e("div",{className:"grad-text",style:{fontSize:"9px",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"800"}},"Portfolio Sharpe"),
@@ -2134,7 +2152,7 @@
             showAdd&&e("div",{style:{padding:"1rem",borderBottom:`1px solid ${C.border}`,background:C.surfaceAlt}},
               showAddCash
               ? e("div",null,
-                  e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},"Add Cash"),
+                  e("div",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"8px"}},"Add Cash"),
                   e("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}},
                     e("input",{style:{...inp,width:"160px"},placeholder:"Amount ($)",type:"number",min:"0",value:cashAmount,onChange:ev=>setCashAmount(ev.target.value),autoFocus:true}),
                     e("button",{style:BS("p"),onClick:()=>{
@@ -2207,7 +2225,7 @@
           tab==="portfolio"&&e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderTop:"2px solid transparent",backgroundImage:"linear-gradient(white,white), linear-gradient(90deg,#075985,#0284c7)",backgroundOrigin:"border-box",backgroundClip:"padding-box,border-box",borderRadius:"12px",padding:"1.25rem",marginTop:"1.25rem",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
               e("div",null,
-                e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"2px"}},"Market Notes & Strategy"),
+                e("div",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"2px"}},"Market Notes & Strategy"),
                 e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"2px"}},"Personal notes, thesis, and investment strategy — auto-saved")
               )
             ),
@@ -2223,7 +2241,7 @@
           // ── Industry Allocation ──
           tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.25rem",marginTop:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}},
-              e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"6px"}},"Industry Allocation"),
+              e("div",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"6px"}},"Industry Allocation"),
               e("div",{style:{fontSize:"10px",color:C.muted,letterSpacing:"0.06em",textTransform:"uppercase"}},"Hover a row to see holdings · by portfolio value")
             ),
             e("div",{style:{display:"flex",flexDirection:"column",gap:"2px"}},
@@ -2663,7 +2681,7 @@
               };
               const SectionHeader=(title,icon)=>e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}},
                 e("span",{style:{fontSize:"13px"}},icon),
-                e("span",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",textTransform:"uppercase",letterSpacing:"0.12em"}},title),
+                e("span",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",textTransform:"uppercase",letterSpacing:"0.1em"}},title),
                 e("div",{style:{flex:1,height:"1px",background:`linear-gradient(90deg,rgba(3,105,161,0.25),transparent)`}})
               );
               const CardGrid=(items)=>e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px"}},
@@ -2697,7 +2715,7 @@
           // ── AI ANALYSIS TAB ──
           tab==="ai"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1rem"}},
             e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderTop:"2px solid transparent",backgroundImage:"linear-gradient(white,white), linear-gradient(90deg,#0369a1,#0284c7)",backgroundOrigin:"border-box",backgroundClip:"padding-box,border-box",borderRadius:"12px",padding:"1.25rem",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
-              e("div",{className:"grad-text",style:{fontSize:"9px",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"12px",fontWeight:"800"}},"Portfolio Intelligence — Claude + Live Web Search"),
+              e("div",{className:"grad-text",style:{fontSize:"11px",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"12px",fontWeight:"800"}},"Portfolio Intelligence — Claude + Live Web Search"),
               e("div",{style:{display:"flex",gap:"8px"}},
                 e("input",{style:{...inp,flex:1,fontSize:"13px",padding:"10px 12px"},placeholder:"Ask anything — news, targets, risks, catalysts…",value:aiQ,onChange:ev=>setAiQ(ev.target.value),onKeyDown:ev=>ev.key==="Enter"&&callAI(aiQ)}),
                 e("button",{style:{...BS("p"),padding:"10px 18px",whiteSpace:"nowrap"},onClick:()=>callAI(aiQ),disabled:aiLoading||!aiQ.trim()},aiLoading?"Analyzing…":"Analyze →")
@@ -2734,7 +2752,7 @@
 
 
         // ── Lots Modal ──
-        lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings,costBasisMethod}),
+        lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings,costBasisMethod,allBrokers:[...new Set((holdings||[]).flatMap(h=>(h.lots||[]).map(l=>l.broker).filter(Boolean)))]}),
 
         // ── Portfolio Chart Modal ──
         portfolioModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setPortfolioModal(null)},
