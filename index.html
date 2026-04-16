@@ -157,7 +157,7 @@
     }
 
     // ── Lot tracking helpers ──
-    function computeFromLots(lots, currentPrice, method="FIFO") {
+    function computeFromLots(lots, currentPrice, method="HIFO") {
       if(!lots||!lots.length) return {avgCost:0,qty:0,realizedGL:0,unrealizedGL:0,active:[]};
       const allBuys=[...lots.filter(l=>l.type==="buy")];
       const sells=[...lots.filter(l=>l.type==="sell")].sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -760,7 +760,7 @@
       );
     }
 
-    function LotsModal({lotsModal,setLotsModal,setHoldings,costBasisMethod="FIFO"}) {
+    function LotsModal({lotsModal,setLotsModal,setHoldings,costBasisMethod="HIFO"}) {
       const rawH=lotsModal.holding;
       const {avgCost,qty,realizedGL,unrealizedGL}=computeFromLots(rawH.lots||[],rawH.currentPrice,costBasisMethod);
       const totalReturn=unrealizedGL+realizedGL;
@@ -1051,7 +1051,7 @@
       const riskPeriod=portfolioChartPeriod==="1W"?"1M":portfolioChartPeriod==="YTD"?"1Y":portfolioChartPeriod==="ALL"?"5Y":["1M","1Y","3Y","5Y"].includes(portfolioChartPeriod)?portfolioChartPeriod:"1M";
       const [holdingRiskMetrics,setHoldingRiskMetrics]=useState({}); // {[ticker]:{sharpe,beta}}
       const [strategyNotes,setStrategyNotes]=useState("");
-      const [costBasisMethod,setCostBasisMethod]=useState("FIFO"); // "FIFO" | "HIFO" | "AvgCost"
+      const [costBasisMethod,setCostBasisMethod]=useState("HIFO"); // "FIFO" | "HIFO" | "AvgCost"
       const [brokerFilter,setBrokerFilter]=useState(null); // null = all, string = specific broker
       const [yearGoal,setYearGoal]=useState(null); // % e.g. 15 means 15%
       const [hoveredSector,setHoveredSector]=useState(null);
@@ -2077,7 +2077,7 @@
 
           // ── Risk Metrics ──
           tab==="portfolio"&&e("div",{style:{marginBottom:"1rem"}},
-            e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},"Risk Metrics"),
+            e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"8px"}},"Risk Metrics"),
             e("div",{style:{display:"flex",gap:"8px",flexWrap:"wrap"}},
               e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
                 e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Portfolio Sharpe"),
@@ -2206,10 +2206,10 @@
           ),
 
           // ── Market Notes & Strategy ──
-          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.25rem",marginTop:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
+          tab==="portfolio"&&e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderTop:"2px solid transparent",backgroundImage:"linear-gradient(white,white), linear-gradient(90deg,#075985,#0284c7)",backgroundOrigin:"border-box",backgroundClip:"padding-box,border-box",borderRadius:"12px",padding:"1.25rem",marginTop:"1.25rem",boxShadow:`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
             e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}},
               e("div",null,
-                e("div",{style:{fontSize:"12px",fontWeight:"600",color:C.text}},"Market Notes & Strategy"),
+                e("div",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"2px"}},"Market Notes & Strategy"),
                 e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"2px"}},"Personal notes, thesis, and investment strategy — auto-saved")
               )
             ),
@@ -2275,7 +2275,7 @@
             e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":`0 4px 20px rgba(3,105,161,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`}},
                 e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
-                  e("span",{style:{fontSize:"15px",fontWeight:"700",color:C.text}},"Market Summary"),
+                  e("span",{className:"grad-text",style:{fontSize:"13px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase"}},"Market Summary"),
                   marketLoading&&e("svg",{width:"11",height:"11",viewBox:"0 0 11 11",fill:"none",stroke:C.muted,strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",style:{animation:"spin 1s linear infinite"}},e("path",{d:"M9.5 5.5A4 4 0 1 1 5.5 1.5a4 4 0 0 1 2.83 1.17"}),e("polyline",{points:"7,0.5 10,0.5 10,3.5"})),
                   e("span",{style:{fontSize:"10.5px",color:C.muted}},"via Stooq · news via Google News")
                 ),
@@ -2505,7 +2505,7 @@
                 e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
                   e("span",{style:{fontSize:"22px"}},"🎰"),
                   e("div",null,
-                    e("div",{style:{fontSize:"14px",fontWeight:"700",color:C.text,letterSpacing:"0.04em"}},"PREDICTION MARKETS"),
+                    e("div",{className:"grad-text",style:{fontSize:"13px",fontWeight:"800",letterSpacing:"0.12em",textTransform:"uppercase"}},"Prediction Markets"),
                     e("div",{style:{fontSize:"10.5px",color:C.muted,marginTop:"2px"}},"Live odds · powered by Kalshi")
                   )
                 ),
@@ -2663,10 +2663,10 @@
                   )
                 );
               };
-              const SectionHeader=(title,icon)=>e("div",{style:{display:"flex",alignItems:"center",gap:"6px",marginBottom:"8px"}},
+              const SectionHeader=(title,icon)=>e("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}},
                 e("span",{style:{fontSize:"13px"}},icon),
-                e("span",{style:{fontSize:"10.5px",fontWeight:"700",color:C.text,textTransform:"uppercase",letterSpacing:"0.1em"}},"— "+title+" —"),
-                e("div",{style:{flex:1,height:"1px",background:`linear-gradient(90deg,${C.border},transparent)`}})
+                e("span",{className:"grad-text",style:{fontSize:"9px",fontWeight:"800",textTransform:"uppercase",letterSpacing:"0.12em"}},title),
+                e("div",{style:{flex:1,height:"1px",background:`linear-gradient(90deg,rgba(3,105,161,0.25),transparent)`}})
               );
               const CardGrid=(items)=>e("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px"}},
                 ...items.map((ev,i)=>EventCard(ev,i))
