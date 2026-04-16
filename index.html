@@ -1055,12 +1055,31 @@
                   }
                   if(s2.id===sell.id)break;
                 }
+                const isEditing=editingLot?.id===sell.id;
+                if(isEditing)return e("tr",{key:sell.id,style:{borderBottom:`1px solid ${C.border}`,background:C.surfaceAlt}},
+                  e("td",{colSpan:5,style:{padding:"8px"}},
+                    e("div",{style:{display:"flex",gap:"8px",alignItems:"flex-end",flexWrap:"wrap"}},
+                      e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Date"),e("input",{type:"date",value:editingLot.date,onChange:ev=>setEditingLot(p=>({...p,date:ev.target.value})),style:inpS})),
+                      e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Sell Price ($)"),e("input",{type:"number",value:editingLot.price,onChange:ev=>setEditingLot(p=>({...p,price:ev.target.value})),style:{...inpS,width:"90px"}})),
+                      e("div",null,e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Shares"),e("input",{type:"number",value:editingLot.qty,onChange:ev=>setEditingLot(p=>({...p,qty:ev.target.value})),style:{...inpS,width:"90px"}})),
+                      e("div",{style:{display:"flex",gap:"6px",paddingBottom:"1px"}},
+                        e("button",{onClick:saveLotEdit,style:BS("p")},"Save"),
+                        e("button",{onClick:()=>setEditingLot(null),style:BS()},"Cancel")
+                      )
+                    )
+                  )
+                );
                 return e("tr",{key:sell.id,style:{borderBottom:`1px solid ${C.border}`}},
                   e("td",{style:{padding:"7px 8px",color:C.text}},sell.date),
                   e("td",{style:{padding:"7px 8px",color:C.text}},"$"+$n(sell.price)),
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:C.muted}},$n(sell.qty,4)),
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:pc(sGl),fontWeight:"600"}},(sGl>=0?"+":"")+$n(sGl,0)),
-                  e("td",{style:{padding:"7px 8px",textAlign:"right"}},e("button",{onClick:()=>deleteLot(sell.id),title:"Remove sell",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕"))
+                  e("td",{style:{padding:"7px 8px",textAlign:"right"}},
+                    e("div",{style:{display:"flex",gap:"4px",justifyContent:"flex-end"}},
+                      e("button",{onClick:()=>setEditingLot({id:sell.id,date:sell.date,price:sell.price,qty:sell.qty,broker:sell.broker||""}),title:"Edit sell",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✎"),
+                      e("button",{onClick:()=>deleteLot(sell.id),title:"Remove sell",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕")
+                    )
+                  )
                 );
               }))
             )
