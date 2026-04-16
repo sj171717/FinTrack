@@ -403,7 +403,7 @@
       return e(F,null,
         e("div",{onClick:()=>setOpen(true),style:{cursor:"pointer",color:C.muted,fontSize:"11px",lineHeight:"1.45",maxWidth:"200px",borderBottom:`1px dashed ${C.faint}`}},preview||"—"),
         open&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>{setOpen(false);setEditing(false);}},
-          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.5rem",width:"520px",maxWidth:"92vw",boxShadow:"0 0 0 1px rgba(255,140,0,0.15),0 20px 40px rgba(0,0,0,0.8)"}},
+          e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.panel,border:`1px solid ${C.border}`,borderTop:"2px solid #6366f1",borderRadius:"12px",padding:"1.5rem",width:"520px",maxWidth:"92vw",boxShadow:"0 20px 60px rgba(99,102,241,0.2), 0 4px 16px rgba(0,0,0,0.15)"}},
             e("div",{style:{fontSize:"10px",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"12px"}},"Notes"),
             editing
               ?e("textarea",{value:v,onChange:ev=>setV(ev.target.value),rows:7,style:{background:C.surfaceAlt,border:`1.5px solid ${C.accent}`,color:C.text,borderRadius:"8px",padding:"10px 12px",fontSize:"13px",width:"100%",outline:"none",resize:"vertical",fontFamily:"inherit",lineHeight:"1.7",boxSizing:"border-box",boxShadow:`0 0 0 3px ${C.accentBg}`}})
@@ -820,7 +820,7 @@
       };
       const inpS={background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,padding:"5px 8px",borderRadius:"8px",fontSize:"11px",fontFamily:"inherit",outline:"none"};
       return e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setLotsModal(null)},
-        e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.5rem",width:"780px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 0 0 1px rgba(255,140,0,0.15),0 32px 64px rgba(0,0,0,0.8)"}},
+        e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.panel,border:`1px solid ${C.border}`,borderTop:"2px solid #6366f1",borderRadius:"12px",padding:"1.5rem",width:"780px",maxWidth:"96vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(99,102,241,0.2), 0 4px 16px rgba(0,0,0,0.15)"}},
           e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px"}},
             e("div",null,
               e("div",{style:{display:"flex",alignItems:"center",gap:"10px",marginBottom:"6px"}},
@@ -1736,7 +1736,7 @@
       const inp={background:C.surface,border:`1px solid ${C.border}`,color:C.text,padding:"7px 10px",borderRadius:"8px",fontSize:"12px",fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
       const tabB=k=>({padding:"7px 16px 9px",border:"none",borderBottom:`2px solid ${tab===k?C.accent:"transparent"}`,cursor:"pointer",fontSize:"13px",fontFamily:"inherit",background:tab===k?C.accentBg:"transparent",color:tab===k?C.text:C.muted,fontWeight:tab===k?"700":"400",transition:"color 0.15s, background 0.15s"});
 
-      if(user===undefined)return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#e8eef8 0%,#f1f4f8 40%,#f8fafc 100%)",color:"#64748b",fontSize:"13px",fontFamily:"inherit"}},"Loading…");
+      if(user===undefined)return e("div",{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#eef2ff 0%,#f4f6ff 40%,#fafbff 100%)",color:"#6366f1",fontSize:"13px",fontFamily:"inherit",fontWeight:"600",letterSpacing:"0.1em",textTransform:"uppercase"}},"Loading FinTrack…");
       if(!user)return e(LoginScreen,null);
       if(!holdings)return e("div",{style:{background:C.bg,color:C.muted,padding:"2rem",borderRadius:"8px",fontSize:"13px"}},"Loading…");
 
@@ -2032,7 +2032,7 @@
               const prog=yearGoal?Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100)):0;
               const retColor=yearGoal!=null&&ytdPctNow>=yearGoal?C.up:ytdPctNow>=0?C.text:C.dn;
               return e("div",{
-                style:{background:C.surface,border:`1px solid ${yearGoal!=null?"#f59e0b":C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:"0 4px 16px rgba(0,0,0,0.08)",cursor:"pointer",position:"relative",overflow:"hidden"},
+                style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${yearGoal!=null?"#f59e0b":C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 140px",boxShadow:`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`,cursor:"pointer",position:"relative",overflow:"hidden"},
                 onClick:()=>{
                   const g=window.prompt("Set YTD return goal (%)",yearGoal??15);
                   if(g===null)return;
@@ -2077,7 +2077,7 @@
           tab==="portfolio"&&e("div",{style:{marginBottom:"1rem"}},
             e("div",{style:{fontSize:"10px",fontWeight:"600",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},"Risk Metrics"),
             e("div",{style:{display:"flex",gap:"8px",flexWrap:"wrap"}},
-              e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:"0 4px 16px rgba(0,0,0,0.08)"}},
+              e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
                 e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Portfolio Sharpe"),
                 e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=1?C.up:riskMetrics.sharpe>=0?C.text:C.dn):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
                   riskMetrics?.sharpe!=null?riskMetrics.sharpe.toFixed(2):"—"
@@ -2086,7 +2086,7 @@
                   riskMetrics?.sharpe!=null?(riskMetrics.sharpe>=2?"Excellent":riskMetrics.sharpe>=1?"Good":riskMetrics.sharpe>=0?"Acceptable":"Below average"):"annualized · "+riskPeriod
                 )
               ),
-              e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:"0 4px 16px rgba(0,0,0,0.08)"}},
+              e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
                 e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Portfolio Beta"),
                 e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.beta!=null?(Math.abs(riskMetrics.beta)>1.5?C.dn:Math.abs(riskMetrics.beta)>1?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
                   riskMetrics?.beta!=null?riskMetrics.beta.toFixed(2):"—"
@@ -2095,7 +2095,7 @@
                   riskMetrics?.beta!=null?(riskMetrics.beta>1.5?"High risk":riskMetrics.beta>1?"Aggressive":riskMetrics.beta>0.5?"Moderate":"Defensive"):"vs S&P 500 · "+riskPeriod
                 )
               ),
-              e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:"0 4px 16px rgba(0,0,0,0.08)"}},
+              e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${C.accent}`,borderRadius:"12px",padding:isMobile?"10px 12px":"14px 18px",flex:"1 1 130px",boxShadow:`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
                 e("div",{style:{fontSize:"9px",color:C.muted,letterSpacing:"0.09em",textTransform:"uppercase",marginBottom:"5px",fontWeight:"600"}},"Volatility"),
                 e("div",{style:{fontSize:"19px",fontWeight:"700",color:riskMetrics?.volatility!=null?(riskMetrics.volatility>30?C.dn:riskMetrics.volatility>20?C.warn:C.up):C.muted,fontVariantNumeric:"tabular-nums",lineHeight:"1",letterSpacing:"-0.02em"}},
                   riskMetrics?.volatility!=null?riskMetrics.volatility.toFixed(1)+"%":"—"
@@ -2108,7 +2108,7 @@
           ),
 
           // ── PORTFOLIO TAB ──
-          tab==="portfolio"&&e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 8px 32px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)"}},
+          tab==="portfolio"&&e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
             e("div",{style:{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",padding:"0.75rem 1rem",gap:isMobile?"8px":"0",borderBottom:`1px solid ${C.border}`}},
               !isMobile&&e("div",{style:{display:"flex",alignItems:"center",gap:"12px"}},
                 e("span",{style:{fontSize:"11px",color:C.muted}},"Click any value to edit · Force Exit default = avg cost × 85%"),
@@ -2277,7 +2277,7 @@
 
           // ── NEWS TAB ──
           tab==="news"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1.5rem"}},
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 8px 32px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)"}},
+            e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderRadius:"14px",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0.75rem 1rem",borderBottom:`1px solid ${C.border}`}},
                 e("div",{style:{display:"flex",alignItems:"center",gap:"8px"}},
                   e("span",{style:{fontSize:"15px",fontWeight:"700",color:C.text}},"Market Summary"),
@@ -2504,8 +2504,8 @@
           // ── PREDICTION TAB ──
           tab==="prediction"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"0.6rem"}},
             // Header
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"14px",padding:"0.75rem 1rem",position:"relative",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":"0 8px 32px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)"}},
-              e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"3px",background:`linear-gradient(90deg,${C.accent},${C.up},${C.accent})`,opacity:0.7}}),
+            e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderRadius:"14px",padding:"0.75rem 1rem",position:"relative",overflow:"hidden",boxShadow:darkMode?"0 2px 12px rgba(0,0,0,0.3)":`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
+              e("div",{style:{position:"absolute",top:0,left:0,right:0,height:"2px",background:"linear-gradient(90deg,#6366f1,#a78bfa,transparent)"}}),
               e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},
                 e("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
                   e("span",{style:{fontSize:"22px"}},"🎰"),
@@ -2703,8 +2703,8 @@
 
           // ── AI ANALYSIS TAB ──
           tab==="ai"&&e("div",{style:{display:"flex",flexDirection:"column",gap:"1rem"}},
-            e("div",{style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.25rem",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}},
-              e("div",{style:{fontSize:"11px",color:C.muted,letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:"12px"}},"Portfolio Intelligence — Claude + Live Web Search"),
+            e("div",{style:{background:C.panel,border:`1px solid ${C.border}`,borderTop:"2px solid transparent",backgroundImage:"linear-gradient(white,white), linear-gradient(90deg,#6366f1,#a78bfa)",backgroundOrigin:"border-box",backgroundClip:"padding-box,border-box",borderRadius:"12px",padding:"1.25rem",boxShadow:`0 4px 20px rgba(99,102,241,0.08), 0 1px 3px rgba(0,0,0,0.04)`}},
+              e("div",{style:{fontSize:"9px",color:C.accent,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:"12px",fontWeight:"700"}},"Portfolio Intelligence — Claude + Live Web Search"),
               e("div",{style:{display:"flex",gap:"8px"}},
                 e("input",{style:{...inp,flex:1,fontSize:"13px",padding:"10px 12px"},placeholder:"Ask anything — news, targets, risks, catalysts…",value:aiQ,onChange:ev=>setAiQ(ev.target.value),onKeyDown:ev=>ev.key==="Enter"&&callAI(aiQ)}),
                 e("button",{style:{...BS("p"),padding:"10px 18px",whiteSpace:"nowrap"},onClick:()=>callAI(aiQ),disabled:aiLoading||!aiQ.trim()},aiLoading?"Analyzing…":"Analyze →")
