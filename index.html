@@ -913,7 +913,7 @@
         const broker=resolveBroker(newBuy.broker);
         const lot={id:rawH.id+"_l"+Date.now(),type:"buy",date:newBuy.date,price,qty:qty2,...(broker?{broker}:{})};
         setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h));
-        setLotsModal(prev=>({...prev,holding:{...rawH,lots:[...(rawH.lots||[]),lot]}}));
+        setLotsModal(prev=>({...prev,holding:{...prev.holding,lots:[...(prev.holding.lots||[]),lot]}}));
         setNewBuy(nbf); setShowAddBuy(false); setCustomBrokerInput("");
       };
       const addSellLot=()=>{
@@ -931,7 +931,7 @@
           }
           return updated;
         });
-        setLotsModal(prev=>({...prev,holding:{...rawH,lots:[...(rawH.lots||[]),lot]}}));
+        setLotsModal(prev=>({...prev,holding:{...prev.holding,lots:[...(prev.holding.lots||[]),lot]}}));
         setNewSell(nsf); setShowAddSell(false);
       };
       const deleteLot=(lotId)=>{
@@ -1310,15 +1310,18 @@
           const qty=cbs.length>0?filteredCbs.reduce((s,c)=>s+(c.amount||0),0):(h.qty||0);
           return{...hh,qty,realizedGL:0,unrealizedGL:0};
         }
-        const filteredLots=brokerFilter?h.lots.filter(l=>l.broker===brokerFilter):h.lots;
+        const hasAnyTagged=(h.lots||[]).some(l=>l.broker);
+        const filteredLots=brokerFilter?(hasAnyTagged?h.lots.filter(l=>l.broker===brokerFilter):h.lots):h.lots;
         const c=computeFromLots(filteredLots,cp,costBasisMethod);
-        return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
+        return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL,_hasAnyTagged:hasAnyTagged};
       }).filter(h=>{
         if(!brokerFilter)return true;
         if(h.ticker==="Cash"){
           const cbs=h.cashBrokers||[];
           return cbs.length===0||cbs.some(c=>c.broker===brokerFilter);
         }
+        // Untagged holdings (no lot has any broker) → show under all brokers
+        if(!h._hasAnyTagged)return true;
         return(h.lots||[]).some(l=>l.broker===brokerFilter);
       });
 
@@ -2154,8 +2157,9 @@
             e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             (()=>{
               const base=ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0);
-              const goalTargetVal=yearGoal!=null&&base?base*(1+yearGoal/100):null;
-              const ytdPctNow=base?((totalVal-base)/base*100):0;
+              const jan1Base=base-totalRealized; // strip out realized G/L so base = true Jan 1 portfolio value
+              const goalTargetVal=yearGoal!=null&&jan1Base?jan1Base*(1+yearGoal/100):null;
+              const ytdPctNow=jan1Base?((totalVal-jan1Base)/jan1Base*100):0;
               const prog=yearGoal?Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100)):0;
               const retColor=yearGoal!=null&&ytdPctNow>=yearGoal?C.up:ytdPctNow>=0?C.text:C.dn;
               return e("div",{
@@ -2196,7 +2200,7 @@
             chartPeriod:portfolioChartPeriod,
             setChartPeriod:(p)=>{setPortfolioChartPeriod(p);},
             yearGoal,
-            ytdStartVal:ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0),
+            ytdStartVal:ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized,
             onGoalChange:(v)=>{setYearGoal(v);if(user)fbDb.collection("users").doc(user.uid).set({yearGoal:v},{merge:true}).catch(()=>{});}
           }),
 
