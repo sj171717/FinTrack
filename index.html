@@ -749,12 +749,115 @@
         e("div",{style:{display:"flex",justifyContent:"center",padding:"0.75rem 1rem"}},
           e("div",{style:{display:"flex",gap:"2px",background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"3px"}},
             PERIODS_PC.map(p=>e("button",{key:p,onClick:()=>setChartPeriod(p),
-              style:{padding:"6px 16px",border:"none",borderRadius:"8px",cursor:"pointer",fontFamily:"inherit",
+              style:{padding:"6px 16px",border:`1px solid ${chartPeriod===p?"#3b82f6":"transparent"}`,borderRadius:"8px",cursor:"pointer",fontFamily:"inherit",
                 fontSize:"12px",fontWeight:chartPeriod===p?"600":"500",
-                background:chartPeriod===p?C.text:"transparent",
-                color:chartPeriod===p?C.bg:C.muted,
-                boxShadow:chartPeriod===p?"0 1px 4px rgba(0,0,0,0.15)":"none",
+                background:chartPeriod===p?"#3b82f6":"transparent",
+                color:chartPeriod===p?"#fff":C.muted,
                 transition:"all 0.15s"}},p))
+          )
+        )
+      );
+    }
+
+    function CashModal({holdings,setHoldings,setCashModal,user,fbDb,C,BS,inp}) {
+      const cashH=holdings.find(h=>h.ticker==="Cash");
+      const cashBrokers=cashH?.cashBrokers||[];
+      const DEFAULT_BROKERS=["Robinhood","Fidelity","Schwab","TD Ameritrade","E*TRADE","Webull","Interactive Brokers","Merrill Edge","Vanguard","Tastytrade"];
+      const allBrokers=[...new Set([...DEFAULT_BROKERS,...cashBrokers.map(c=>c.broker).filter(Boolean),"Other"])];
+      const [editId,setEditId]=useState(null);
+      const [editAmt,setEditAmt]=useState("");
+      const [editBroker,setEditBroker]=useState("");
+      const [addAmt,setAddAmt]=useState("");
+      const [addBroker,setAddBroker]=useState("");
+      const [addCustom,setAddCustom]=useState("");
+      const inpS={background:C.surfaceAlt,border:`1px solid ${C.border}`,color:C.text,borderRadius:"5px",padding:"4px 8px",fontSize:"12px",outline:"none",fontFamily:"inherit"};
+      const saveCash=(newCbs)=>{
+        const qty=newCbs.reduce((s,c)=>s+(c.amount||0),0);
+        setHoldings(prev=>{
+          const updated=prev.map(h=>h.ticker==="Cash"?{...h,cashBrokers:newCbs,qty}:h);
+          if(user) fbDb.collection("users").doc(user.uid).set({holdings:updated},{merge:true}).catch(()=>{});
+          return updated;
+        });
+      };
+      const addEntry=()=>{
+        const amt=parseFloat(addAmt);
+        if(!amt||amt<=0)return;
+        const broker=addBroker==="Other"?addCustom.trim():addBroker;
+        const existIdx=broker?cashBrokers.findIndex(c=>c.broker===broker):-1;
+        let newCbs;
+        if(existIdx>=0){
+          newCbs=cashBrokers.map((c,i)=>i===existIdx?{...c,amount:+(c.amount+amt).toFixed(2)}:c);
+        } else {
+          newCbs=[...cashBrokers,{id:"cb"+Date.now(),broker:broker||"",amount:+amt.toFixed(2)}];
+        }
+        saveCash(newCbs);
+        setAddAmt(""); setAddBroker(""); setAddCustom("");
+      };
+      const deleteEntry=(id)=>saveCash(cashBrokers.filter(c=>c.id!==id));
+      const saveEdit=()=>{
+        const amt=parseFloat(editAmt);
+        if(!amt||amt<=0)return;
+        saveCash(cashBrokers.map(c=>c.id===editId?{...c,broker:editBroker,amount:+amt.toFixed(2)}:c));
+        setEditId(null);
+      };
+      return e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setCashModal(false)},
+        e("div",{onClick:ev=>ev.stopPropagation(),style:{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"8px",padding:"1.5rem",width:"500px",maxWidth:"96vw",maxHeight:"80vh",overflowY:"auto",boxShadow:"0 32px 64px rgba(0,0,0,0.8)"}},
+          e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"}},
+            e("div",null,
+              e("div",{style:{fontSize:"14px",fontWeight:"700",color:C.text}},"Cash by Broker"),
+              e("div",{style:{fontSize:"11px",color:C.muted,marginTop:"2px"}},"Total: $"+cashBrokers.reduce((s,c)=>s+(c.amount||0),0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}))
+            ),
+            e("button",{onClick:()=>setCashModal(false),style:{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:"16px"}},"✕")
+          ),
+          cashBrokers.length===0&&e("div",{style:{fontSize:"12px",color:C.muted,padding:"8px 0 12px"}},"No cash entries yet. Add one below."),
+          cashBrokers.length>0&&e("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:"12px",marginBottom:"16px"}},
+            e("thead",null,e("tr",null,
+              ["Broker","Amount",""].map((h,i)=>e("th",{key:i,style:{padding:"6px 8px",textAlign:i===1?"right":"left",color:C.muted,borderBottom:`1px solid ${C.border}`,fontWeight:"500",fontSize:"10px",letterSpacing:"0.06em",textTransform:"uppercase",background:C.surfaceAlt}},h))
+            )),
+            e("tbody",null,...cashBrokers.map(cb=>{
+              if(editId===cb.id)return e("tr",{key:cb.id,style:{borderBottom:`1px solid ${C.border}`,background:C.surfaceAlt}},
+                e("td",{colSpan:3,style:{padding:"8px"}},
+                  e("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}},
+                    e("select",{value:editBroker,onChange:ev=>setEditBroker(ev.target.value),style:{...inpS,width:"160px"}},
+                      allBrokers.map(b=>e("option",{key:b,value:b},b))
+                    ),
+                    e("input",{type:"number",value:editAmt,onChange:ev=>setEditAmt(ev.target.value),style:{...inpS,width:"110px"},placeholder:"Amount"}),
+                    e("button",{onClick:saveEdit,style:BS("p")},"Save"),
+                    e("button",{onClick:()=>setEditId(null),style:BS()},"Cancel")
+                  )
+                )
+              );
+              return e("tr",{key:cb.id,style:{borderBottom:`1px solid ${C.border}`}},
+                e("td",{style:{padding:"8px"}},cb.broker?e("span",{style:{fontSize:"10px",fontWeight:"600",color:C.accent,background:C.accentBg,border:`1px solid ${C.accentMuted}`,padding:"1px 6px",borderRadius:"6px"}},cb.broker):e("span",{style:{color:C.muted}},"No broker")),
+                e("td",{style:{padding:"8px",textAlign:"right",fontWeight:"600",fontVariantNumeric:"tabular-nums"}},"$"+(cb.amount||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})),
+                e("td",{style:{padding:"8px",textAlign:"right"}},
+                  e("div",{style:{display:"flex",gap:"4px",justifyContent:"flex-end"}},
+                    e("button",{onClick:()=>{setEditId(cb.id);setEditAmt(cb.amount);setEditBroker(cb.broker||"");},style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✎"),
+                    e("button",{onClick:()=>deleteEntry(cb.id),style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕")
+                  )
+                )
+              );
+            }))
+          ),
+          e("div",{style:{borderTop:`1px solid ${C.border}`,paddingTop:"12px"}},
+            e("div",{style:{fontSize:"10px",fontWeight:"700",color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:"8px"}},"Add / Top Up"),
+            e("div",{style:{display:"flex",gap:"8px",alignItems:"flex-end",flexWrap:"wrap"}},
+              e("div",null,
+                e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker"),
+                e("div",{style:{display:"flex",flexDirection:"column",gap:"4px"}},
+                  e("select",{value:addBroker,onChange:ev=>{setAddBroker(ev.target.value);if(ev.target.value!=="Other")setAddCustom("");},style:{...inpS,width:"160px"}},
+                    e("option",{value:""},"— Select —"),
+                    allBrokers.map(b=>e("option",{key:b,value:b},b))
+                  ),
+                  addBroker==="Other"&&e("input",{type:"text",placeholder:"Broker name…",value:addCustom,onChange:ev=>setAddCustom(ev.target.value),style:{...inpS,width:"160px"}})
+                )
+              ),
+              e("div",null,
+                e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Amount ($)"),
+                e("input",{type:"number",placeholder:"0.00",value:addAmt,onChange:ev=>setAddAmt(ev.target.value),onKeyDown:ev=>ev.key==="Enter"&&addEntry(),style:{...inpS,width:"110px"}})
+              ),
+              e("button",{onClick:addEntry,style:{...BS("p"),paddingBottom:"5px"}},"Add")
+            )
           )
         )
       );
@@ -1015,6 +1118,9 @@
       const [showAdd,setShowAdd]=useState(false);
       const [showAddCash,setShowAddCash]=useState(false);
       const [cashAmount,setCashAmount]=useState("");
+      const [cashBrokerSel,setCashBrokerSel]=useState("");
+      const [cashCustomBroker,setCashCustomBroker]=useState("");
+      const [cashModal,setCashModal]=useState(false);
       const [newRow,setNewRow]=useState({ticker:"",avgCost:"",qty:"",currentPrice:"",ytdStartPrice:"",targetPrice:"",notes:""});
       const [addPriceLoading,setAddPriceLoading]=useState(false);
       const [priceFetchTrigger,setPriceFetchTrigger]=useState(null);
@@ -1198,11 +1304,23 @@
         const livePrice=holdingSparklines[h.ticker]?.price;
         const cp=livePrice>0?livePrice:(h.currentPrice||0);
         const hh={...h,currentPrice:cp};
-        if(!h.lots||h.ticker==="Cash")return{...hh,realizedGL:0,unrealizedGL:(cp-(h.avgCost||0))*(h.qty||0)};
+        if(h.ticker==="Cash"){
+          const cbs=h.cashBrokers||[];
+          const filteredCbs=brokerFilter?cbs.filter(c=>c.broker===brokerFilter):cbs;
+          const qty=cbs.length>0?filteredCbs.reduce((s,c)=>s+(c.amount||0),0):(h.qty||0);
+          return{...hh,qty,realizedGL:0,unrealizedGL:0};
+        }
         const filteredLots=brokerFilter?h.lots.filter(l=>l.broker===brokerFilter):h.lots;
         const c=computeFromLots(filteredLots,cp,costBasisMethod);
         return{...hh,avgCost:c.avgCost,qty:c.qty,realizedGL:c.realizedGL,unrealizedGL:c.unrealizedGL};
-      }).filter(h=>!brokerFilter||h.ticker==="Cash"||(h.lots||[]).some(l=>l.broker===brokerFilter));
+      }).filter(h=>{
+        if(!brokerFilter)return true;
+        if(h.ticker==="Cash"){
+          const cbs=h.cashBrokers||[];
+          return cbs.length===0||cbs.some(c=>c.broker===brokerFilter);
+        }
+        return(h.lots||[]).some(l=>l.broker===brokerFilter);
+      });
 
       const totalVal      =resolvedHoldings.reduce((s,h)=>s+h.qty*h.currentPrice,0);
       const totalCost     =resolvedHoldings.reduce((s,h)=>s+h.qty*h.avgCost,0);
@@ -1786,9 +1904,9 @@
             breach&&e("span",{style:{background:C.dn,color:"#fff",padding:"2px 6px",borderRadius:"10px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0,boxShadow:`0 0 0 2px ${C.dnBorder}`}},"⚠ EXIT"),
             nearExit&&e("span",{style:{background:C.warn,color:"#fff",padding:"2px 6px",borderRadius:"10px",fontSize:"9px",fontWeight:"800",letterSpacing:"0.06em",flexShrink:0}},"⚠ NEAR EXIT"),
             e("span",{
-              onClick:()=>{ if(h.ticker!=="Cash") setLotsModal({holding:rawH}); },
-              title:h.ticker!=="Cash"?"Manage lots":undefined,
-              style:{background:breach?C.dnBg:C.accentBg,color:breach?C.dn:C.accent,padding:"2px 8px",borderRadius:"8px",fontWeight:"600",fontSize:"11.5px",letterSpacing:"0.03em",border:`1px solid ${breach?C.dnBorder:C.accentMuted}`,cursor:h.ticker!=="Cash"?"pointer":"default"}
+              onClick:()=>{ if(h.ticker==="Cash") setCashModal(true); else setLotsModal({holding:rawH}); },
+              title:h.ticker==="Cash"?"Manage cash by broker":"Manage lots",
+              style:{background:breach?C.dnBg:C.accentBg,color:breach?C.dn:C.accent,padding:"2px 8px",borderRadius:"8px",fontWeight:"600",fontSize:"11.5px",letterSpacing:"0.03em",border:`1px solid ${breach?C.dnBorder:C.accentMuted}`,cursor:"pointer"}
             },h.ticker),
             (()=>{
               if(h.ticker==="Cash")return null;
@@ -2144,27 +2262,50 @@
               showAddCash
               ? e("div",null,
                   e("div",{className:"grad-text",style:{fontSize:"11px",fontWeight:"800",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"8px"}},"Add Cash"),
-                  e("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap"}},
-                    e("input",{style:{...inp,width:"160px"},placeholder:"Amount ($)",type:"number",min:"0",value:cashAmount,onChange:ev=>setCashAmount(ev.target.value),autoFocus:true}),
+                  e("div",{style:{display:"flex",gap:"8px",alignItems:"flex-end",flexWrap:"wrap"}},
+                    e("div",null,
+                      e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Amount ($)"),
+                      e("input",{style:{...inp,width:"140px"},placeholder:"0.00",type:"number",min:"0",value:cashAmount,onChange:ev=>setCashAmount(ev.target.value),autoFocus:true})
+                    ),
+                    e("div",null,
+                      e("div",{style:{fontSize:"10px",color:C.muted,marginBottom:"3px"}},"Broker (optional)"),
+                      e("div",{style:{display:"flex",flexDirection:"column",gap:"4px"}},
+                        e("select",{value:cashBrokerSel,onChange:ev=>{setCashBrokerSel(ev.target.value);if(ev.target.value!=="Other")setCashCustomBroker("");},style:{...inp,width:"150px"}},
+                          e("option",{value:""},"— Select —"),
+                          [...new Set(["Robinhood","Fidelity","Schwab","TD Ameritrade","E*TRADE","Webull","Interactive Brokers","Merrill Edge","Vanguard","Tastytrade",...((holdings||[]).find(h=>h.ticker==="Cash")?.cashBrokers||[]).map(c=>c.broker).filter(Boolean),"Other"])].map(b=>e("option",{key:b,value:b},b))
+                        ),
+                        cashBrokerSel==="Other"&&e("input",{type:"text",placeholder:"Enter broker name…",value:cashCustomBroker,onChange:ev=>setCashCustomBroker(ev.target.value),style:{...inp,width:"150px"}})
+                      )
+                    ),
                     e("button",{style:BS("p"),onClick:()=>{
                       const amt=parseFloat(cashAmount);
                       if(!amt||isNaN(amt)||amt<=0)return;
+                      const broker=cashBrokerSel==="Other"?cashCustomBroker.trim():cashBrokerSel;
+                      const entry={id:"cb"+Date.now(),broker:broker||"",amount:+amt.toFixed(2)};
                       setHoldings(prev=>{
                         const hasCash=prev.some(h=>h.ticker==="Cash");
                         let updated;
                         if(hasCash){
-                          updated=prev.map(h=>h.ticker==="Cash"?{...h,qty:+(h.qty+amt).toFixed(2)}:h);
+                          updated=prev.map(h=>{
+                            if(h.ticker!=="Cash")return h;
+                            const cbs=h.cashBrokers||[];
+                            // If same broker exists, add to it; else add new entry
+                            const existIdx=broker?cbs.findIndex(c=>c.broker===broker):-1;
+                            const newCbs=existIdx>=0
+                              ?cbs.map((c,i)=>i===existIdx?{...c,amount:+(c.amount+amt).toFixed(2)}:c)
+                              :[...cbs,entry];
+                            return{...h,cashBrokers:newCbs,qty:newCbs.reduce((s,c)=>s+c.amount,0)};
+                          });
                         } else {
-                          updated=[...prev,{id:"Cash"+Date.now(),ticker:"Cash",currentPrice:1,ytdStartPrice:1,targetPrice:null,customExit:null,notes:"",lots:[],qty:amt}];
+                          updated=[...prev,{id:"Cash"+Date.now(),ticker:"Cash",currentPrice:1,ytdStartPrice:1,targetPrice:null,customExit:null,notes:"",lots:[],qty:amt,cashBrokers:[entry]}];
                         }
                         if(user) fbDb.collection("users").doc(user.uid).set({holdings:updated},{merge:true}).catch(()=>{});
                         return updated;
                       });
-                      setCashAmount("");
-                      setShowAddCash(false);
-                      setShowAdd(false);
+                      setCashAmount(""); setCashBrokerSel(""); setCashCustomBroker("");
+                      setShowAddCash(false); setShowAdd(false);
                     }},"Add Cash"),
-                    e("button",{style:BS(),onClick:()=>{setShowAddCash(false);setCashAmount("");}},"Back")
+                    e("button",{style:BS(),onClick:()=>{setShowAddCash(false);setCashAmount("");setCashBrokerSel("");}},"Back")
                   )
                 )
               : e("div",null,
@@ -2741,6 +2882,9 @@
           )
         ),
 
+
+        // ── Cash Modal ──
+        cashModal&&e(CashModal,{holdings,setHoldings,setCashModal,user,fbDb,C,BS,inp}),
 
         // ── Lots Modal ──
         lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings,costBasisMethod,allBrokers:[...new Set((holdings||[]).flatMap(h=>(h.lots||[]).map(l=>l.broker).filter(Boolean)))]}),
