@@ -2206,7 +2206,7 @@
             e(MetCard,{label:"YTD Gain / Loss",value:hidden?MASK:sign(ytdGL)+"$"+$n(Math.abs(ytdGL),0),color:hidden?C.muted:pc(ytdGL),sub:hidden?MASK:sign(ytdPct)+$n(Math.abs(ytdPct),1)+"% this year",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             e(MetCard,{label:"Positions",value:holdings.filter(h=>h.ticker!=="Cash").length,sub:"+ cash",style:isMobile?{flex:"1 1 calc(50% - 4px)",padding:"10px 12px"}:{}}),
             (()=>{
-              const jan1Base=jan1PortfolioVal||(ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized);
+              const jan1Base=ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized;
               const goalTargetVal=yearGoal!=null&&jan1Base?jan1Base*(1+yearGoal/100):null;
               const ytdPctNow=jan1Base?((totalVal-jan1Base)/jan1Base*100):0;
               const prog=yearGoal?Math.max(0,Math.min(100,(ytdPctNow/yearGoal)*100)):0;
@@ -2249,7 +2249,7 @@
             chartPeriod:portfolioChartPeriod,
             setChartPeriod:(p)=>{setPortfolioChartPeriod(p);},
             yearGoal,
-            ytdStartVal:jan1PortfolioVal||(ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized),
+            ytdStartVal:ytdBase+(resolvedHoldings.find(h=>h.ticker==="Cash")?.qty||0)-totalRealized,
             onGoalChange:(v)=>{setYearGoal(v);if(user)fbDb.collection("users").doc(user.uid).set({yearGoal:v},{merge:true}).catch(()=>{});}
           }),
 
