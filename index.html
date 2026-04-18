@@ -863,7 +863,7 @@
       );
     }
 
-    function LotsModal({lotsModal,setLotsModal,setHoldings,costBasisMethod="HIFO",allBrokers=[]}) {
+    function LotsModal({lotsModal,setLotsModal,setHoldings,costBasisMethod="HIFO",allBrokers=[],brokerFilter,setBrokerFilter}) {
       const rawH=lotsModal.holding;
       const {avgCost,qty,realizedGL,unrealizedGL}=computeFromLots(rawH.lots||[],rawH.currentPrice,costBasisMethod);
       const totalReturn=unrealizedGL+realizedGL;
@@ -905,6 +905,7 @@
         const newLots=(rawH.lots||[]).map(l=>l.id===updated.id?updated:l);
         setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:newLots}:h));
         setLotsModal(prev=>({...prev,holding:{...rawH,lots:newLots}}));
+        if(brokerFilter&&broker&&broker!==brokerFilter)setBrokerFilter(null);
         setEditingLot(null); setCustomBrokerInput("");
       };
       const addBuyLot=()=>{
@@ -914,6 +915,7 @@
         const lot={id:rawH.id+"_l"+Date.now(),type:"buy",date:newBuy.date,price,qty:qty2,...(broker?{broker}:{})};
         setHoldings(p=>p.map(h=>h.id===rawH.id?{...h,lots:[...(h.lots||[]),lot]}:h));
         setLotsModal(prev=>({...prev,holding:{...prev.holding,lots:[...(prev.holding.lots||[]),lot]}}));
+        if(brokerFilter&&broker&&broker!==brokerFilter)setBrokerFilter(null);
         setNewBuy(nbf); setShowAddBuy(false); setCustomBrokerInput("");
       };
       const addSellLot=()=>{
@@ -932,6 +934,7 @@
           return updated;
         });
         setLotsModal(prev=>({...prev,holding:{...prev.holding,lots:[...(prev.holding.lots||[]),lot]}}));
+        if(brokerFilter&&broker&&broker!==brokerFilter)setBrokerFilter(null);
         setNewSell(nsf); setShowAddSell(false);
       };
       const deleteLot=(lotId)=>{
@@ -1012,7 +1015,7 @@
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:pc(gl),fontWeight:"500"}},rem>0?((gl>=0?"+":"")+$n(gl,0)+" ("+$n(glPct,1)+"%)"):e("span",{style:{color:C.faint}},"—")),
                   e("td",{style:{padding:"7px 8px",textAlign:"right"}},
                     e("div",{style:{display:"flex",gap:"4px",justifyContent:"flex-end"}},
-                      e("button",{onClick:()=>setEditingLot({id:lot.id,date:lot.date,price:lot.price,qty:lot.qty,broker:lot.broker||""}),title:"Edit lot",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✎"),
+                      e("button",{onClick:()=>setEditingLot({id:lot.id,type:lot.type,date:lot.date,price:lot.price,qty:lot.qty,broker:lot.broker||""}),title:"Edit lot",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✎"),
                       e("button",{onClick:()=>deleteLot(lot.id),title:"Remove lot",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕")
                     )
                   )
@@ -1077,7 +1080,7 @@
                   e("td",{style:{padding:"7px 8px",textAlign:"right",color:pc(sGl),fontWeight:"600"}},(sGl>=0?"+":"")+$n(sGl,0)),
                   e("td",{style:{padding:"7px 8px",textAlign:"right"}},
                     e("div",{style:{display:"flex",gap:"4px",justifyContent:"flex-end"}},
-                      e("button",{onClick:()=>setEditingLot({id:sell.id,date:sell.date,price:sell.price,qty:sell.qty,broker:sell.broker||""}),title:"Edit sell",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✎"),
+                      e("button",{onClick:()=>setEditingLot({id:sell.id,type:sell.type,date:sell.date,price:sell.price,qty:sell.qty,broker:sell.broker||""}),title:"Edit sell",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✎"),
                       e("button",{onClick:()=>deleteLot(sell.id),title:"Remove sell",style:{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",borderRadius:"10px",padding:"1px 6px",fontSize:"10px",fontFamily:"inherit"}},"✕")
                     )
                   )
@@ -2937,7 +2940,7 @@
         cashModal&&e(CashModal,{holdings,setHoldings,setCashModal,user,fbDb,C,BS,inp}),
 
         // ── Lots Modal ──
-        lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings,costBasisMethod,allBrokers:[...new Set((holdings||[]).flatMap(h=>(h.lots||[]).map(l=>l.broker).filter(Boolean)))]}),
+        lotsModal&&e(LotsModal,{key:lotsModal.holding.id,lotsModal,setLotsModal,setHoldings,costBasisMethod,allBrokers:[...new Set((holdings||[]).flatMap(h=>(h.lots||[]).map(l=>l.broker).filter(Boolean)))],brokerFilter,setBrokerFilter}),
 
         // ── Portfolio Chart Modal ──
         portfolioModal&&e("div",{style:{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(15,23,42,0.82)"},onClick:()=>setPortfolioModal(null)},
